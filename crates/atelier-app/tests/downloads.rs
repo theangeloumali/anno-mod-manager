@@ -719,3 +719,60 @@ async fn undoing_an_uninstall_keeps_the_mods_modio_link() {
         .update_mod(GameId::Anno117, "roman-roads")
         .unwrap();
 }
+
+#[tokio::test]
+async fn a_download_that_installs_nothing_is_not_reported_done() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    download(&harness, 4801).await;
+
+    // Same page, same file, same version: nothing to install.
+    let again = download(&harness, 4801).await;
+    assert_eq!(again.status, DownloadStatus::Failed);
+    assert!(
+        again
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("already installed")),
+        "{:?}",
+        again.error
+    );
+}
+
+#[tokio::test]
+async fn an_install_that_fails_after_its_preview_leaves_no_staging_behind() {
+    let server = MockServer::start().await;
+    let info = modinfo("roman-roads", "1.0.0", GameId::Anno117);
+    let archive = zip_bytes(&[("Packed/modinfo.json", info.as_bytes())]);
+    let mut detail = fixture("mod.json");
+    detail["modfile"]["download"]["binary_url"] =
+        Value::String(format!("{}/v1/files/slow/download", server.uri()));
+    detail["modfile"]["filehash"]["md5"] = Value::String(format!("{:x}", Md5::digest(&archive)));
+    detail["modfile"]["filesize"] = Value::from(archive.len());
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(detail))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/files/slow/download"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_bytes(archive)
+                .set_delay(Duration::from_millis(300)),
+        )
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
+    // The game starts mid-download, so the confirm step refuses.
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    harness.set_running(true);
+
+    let job = wait_for_job(&harness).await;
+    assert_eq!(job.status, DownloadStatus::Failed);
+    let staging = harness.root.path().join("data/staging");
+    let leftovers = std::fs::read_dir(&staging).map_or(0, |entries| entries.count());
+    assert_eq!(leftovers, 0, "abandoned preview staging remains");
+}

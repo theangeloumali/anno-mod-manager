@@ -296,7 +296,17 @@ impl App {
                     .collect()
             })
             .unwrap_or_default();
-        self.apply_held_off(game, modio_id, &linked)
+        self.apply_held_off(game, modio_id, &linked)?;
+        // Same or older than what's installed: say so rather than report a download as done.
+        if top_level.is_empty() {
+            return Err(AppError::new(
+                ErrorCode::Install,
+                format!(
+                    "{name} is already installed at this version or newer, so nothing changed."
+                ),
+            ));
+        }
+        Ok(())
     }
 
     /// Returns the top-level mod ids that landed, so sub-mods never claim the mod.io link.
@@ -329,15 +339,25 @@ impl App {
             return Err(AppError::new(ErrorCode::Install, message));
         }
         // A new file from this page installs even if its author kept the manifest version.
-        for item in &preview.items {
-            let newer_file = links
-                .get(&item.mod_id)
-                .is_some_and(|link| link.modio_id == modio_id && link.modfile_id != modfile_id);
-            if newer_file {
-                self.0.engine.allow_reinstall(&preview.id, &item.mod_id)?;
+        let confirmed = preview
+            .items
+            .iter()
+            .filter(|item| {
+                links
+                    .get(&item.mod_id)
+                    .is_some_and(|link| link.modio_id == modio_id && link.modfile_id != modfile_id)
+            })
+            .try_for_each(|item| self.0.engine.allow_reinstall(&preview.id, &item.mod_id))
+            .map_err(AppError::from)
+            .and_then(|()| self.confirm_install(&preview.id, false));
+        // Nobody will come back to this preview, so its staging goes now.
+        let result = match confirmed {
+            Ok(result) => result,
+            Err(error) => {
+                let _ = self.cancel_install(&preview.id);
+                return Err(error);
             }
-        }
-        let result = self.confirm_install(&preview.id, false)?;
+        };
         Ok(preview
             .items
             .into_iter()
