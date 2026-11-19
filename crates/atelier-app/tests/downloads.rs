@@ -79,6 +79,53 @@ async fn subscribing_twice_while_downloading_queues_one_job() {
     assert_eq!(harness.app.list_downloads().len(), 1);
 }
 
+#[tokio::test]
+async fn a_retry_refused_while_the_game_runs_leaves_the_job_failed() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("mod_no_modfile.json")))
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
+    let failed = wait_for_job(&harness).await;
+
+    harness.set_running(true);
+    let refused = harness.app.retry_download(&failed.id).unwrap_err();
+    assert_eq!(refused.code, ErrorCode::GameRunning);
+    assert_eq!(harness.app.list_downloads()[0].status, DownloadStatus::Failed);
+
+    // Once the game closes the same page can be queued again.
+    harness.set_running(false);
+    harness.app.retry_download(&failed.id).unwrap();
+    assert_ne!(harness.app.list_downloads()[0].status, DownloadStatus::Failed);
+}
+
+#[tokio::test]
+async fn cancelling_a_download_removes_its_partial_files() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(fixture("mod_no_modfile.json"))
+                .set_delay(Duration::from_millis(300)),
+        )
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
+    let job = harness.app.list_downloads().remove(0);
+    let partial = harness.root.path().join("data/downloads").join(&job.id);
+    std::fs::create_dir_all(&partial).unwrap();
+    std::fs::write(partial.join("mod.zip.part"), b"half").unwrap();
+
+    harness.app.cancel_download(&job.id).unwrap();
+
+    assert!(!partial.exists());
+}
+
 async fn wait_for_job(harness: &Harness) -> DownloadJob {
     for _ in 0..200 {
         let jobs = harness.app.list_downloads();

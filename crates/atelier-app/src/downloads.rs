@@ -59,12 +59,13 @@ impl App {
             if entry.job.status != DownloadStatus::Failed {
                 return Ok(());
             }
+            // Checked before the job changes, so a refusal never leaves it stuck as Queued.
+            self.guard_writes(entry.game)?;
             entry.job.status = DownloadStatus::Queued;
             entry.job.progress = 0.0;
             entry.job.error = None;
             (entry.game, entry.job.modio_id)
         };
-        self.guard_writes(game)?;
         self.spawn(job_id.to_owned(), game, modio_id);
         Ok(())
     }
@@ -79,6 +80,8 @@ impl App {
         if let Some(abort) = jobs.remove(index).abort {
             abort.abort();
         }
+        // Scratch space like run_job's staging: a leftover after a failed delete is harmless.
+        let _ = std::fs::remove_dir_all(self.0.data_dir.join("downloads").join(job_id));
         Ok(())
     }
 
