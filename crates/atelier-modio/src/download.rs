@@ -75,6 +75,10 @@ impl ModioClient {
         on_progress: &mut impl FnMut(DownloadProgress),
     ) -> Result<(String, u64)> {
         let url = Url::parse(&modfile.binary_url)?;
+        // Only the test server override may serve plain http.
+        if self.base_override.is_none() && url.scheme() != "https" {
+            return Err(Error::InsecureUrl);
+        }
         let mut request = self
             .http
             .request(Method::GET, url.clone())
@@ -102,6 +106,13 @@ impl ModioClient {
         let mut body = response.bytes_stream();
         while let Some(chunk) = body.next().await {
             let chunk = chunk.map_err(Error::from_transport)?;
+            // The md5 only runs at the end, so an endless body must be cut off here.
+            if modfile.filesize > 0 && downloaded + chunk.len() as u64 > modfile.filesize {
+                drop(file);
+                return Err(Error::TooLarge {
+                    listed: modfile.filesize,
+                });
+            }
             hasher.update(&chunk);
             file.write_all(&chunk).await?;
             downloaded += chunk.len() as u64;
@@ -160,5 +171,27 @@ mod tests {
         assert!(client.is_modio_host(&https));
         assert!(!client.is_modio_host(&http));
         assert!(!client.is_modio_host(&lookalike));
+    }
+
+    #[tokio::test]
+    async fn a_plain_http_download_link_is_refused_before_any_request() {
+        let modfile = crate::types::Modfile {
+            id: 1,
+            mod_id: 1,
+            filename: "mod.zip".into(),
+            version: None,
+            filesize: 11,
+            md5: "5eb63bbbe01eeed093cb22bb8f5acdc3".into(),
+            binary_url: "http://g-11358.modapi.io/v1/files/1/download".into(),
+            virus_status: 1,
+            virus_positive: 0,
+        };
+        let dest = tempfile::tempdir().unwrap();
+        let error = production_client()
+            .download(&modfile, dest.path(), |_| {})
+            .await
+            .unwrap_err();
+        assert!(matches!(error, crate::Error::InsecureUrl), "{error}");
+        assert_eq!(std::fs::read_dir(dest.path()).unwrap().count(), 0);
     }
 }

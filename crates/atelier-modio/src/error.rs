@@ -34,6 +34,10 @@ pub enum Error {
     NotScanned { modfile_id: u64, virus_status: u8 },
     #[error("modfile has no usable file name")]
     InvalidFileName,
+    #[error("mod.io gave a download link that isn't https")]
+    InsecureUrl,
+    #[error("the download is larger than the {listed} bytes mod.io listed")]
+    TooLarge { listed: u64 },
     #[error("invalid mod.io url: {0}")]
     InvalidUrl(#[from] url::ParseError),
     #[error("http error: {0}")]

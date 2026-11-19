@@ -200,6 +200,24 @@ async fn an_unscanned_modfile_is_refused_before_downloading() {
 }
 
 #[tokio::test]
+async fn a_download_larger_than_its_listed_size_is_stopped_and_deleted() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/files/77001/download"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![b'x'; 4096]))
+        .mount(&server)
+        .await;
+
+    let dest = tempfile::tempdir().unwrap();
+    let error = anonymous_client(&server)
+        .download(&modfile(&server, HELLO_MD5, 0), dest.path(), |_| {})
+        .await
+        .unwrap_err();
+    assert!(matches!(error, Error::TooLarge { listed: 11 }), "{error}");
+    assert_eq!(std::fs::read_dir(dest.path()).unwrap().count(), 0);
+}
+
+#[tokio::test]
 async fn the_bearer_is_not_sent_to_another_port_on_the_same_host() {
     let api = MockServer::start().await;
     let elsewhere = MockServer::start().await;
