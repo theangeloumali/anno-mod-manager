@@ -9,8 +9,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use atelier_app::{App, AppConfig};
 use atelier_core::{GameId, Store};
 use atelier_modio::MemoryTokenStore;
+use serde_json::Value;
 use tempfile::TempDir;
 use url::Url;
+use wiremock::MockServer;
 use zip::write::SimpleFileOptions;
 
 pub const API_KEY: &str = "0123456789abcdef0123456789abcdef";
@@ -156,4 +158,24 @@ pub fn zip_bytes(files: &[(&str, &[u8])]) -> Vec<u8> {
         writer.finish().unwrap();
     }
     cursor.into_inner()
+}
+
+pub fn fixture(name: &str) -> Value {
+    let path = format!(
+        "{}/../../tests/fixtures/modio/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+}
+
+pub fn base(server: &MockServer) -> Url {
+    Url::parse(&format!("{}/v1/", server.uri())).unwrap()
+}
+
+pub fn harness_for(server: &MockServer, api_key: Option<&'static str>) -> Harness {
+    Harness::with(Options {
+        api_key,
+        modio_base: Some(base(server)),
+        ..Options::default()
+    })
 }

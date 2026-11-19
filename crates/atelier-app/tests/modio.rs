@@ -1,36 +1,13 @@
 mod common;
 
-use std::time::Duration;
-
 use atelier_app::ErrorCode;
 use atelier_core::GameId;
-use atelier_modio::{DownloadStatus, ModioQuery, ModioSort, TokenStore};
+use atelier_modio::{ModioQuery, ModioSort, TokenStore};
 use common::*;
-use md5::{Digest, Md5};
 use serde_json::Value;
 use url::Url;
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
-
-fn fixture(name: &str) -> Value {
-    let path = format!(
-        "{}/../../tests/fixtures/modio/{name}",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
-}
-
-fn base(server: &MockServer) -> Url {
-    Url::parse(&format!("{}/v1/", server.uri())).unwrap()
-}
-
-fn harness_for(server: &MockServer, api_key: Option<&'static str>) -> Harness {
-    Harness::with(Options {
-        api_key,
-        modio_base: Some(base(server)),
-        ..Options::default()
-    })
-}
 
 fn query() -> ModioQuery {
     ModioQuery {
@@ -188,54 +165,6 @@ async fn syncing_subscriptions_needs_a_signed_in_account() {
 }
 
 #[tokio::test]
-async fn subscribing_as_a_guest_downloads_and_installs_into_documents() {
-    let server = MockServer::start().await;
-    let info = modinfo("roman-roads", "1.2.0", GameId::Anno117);
-    let archive = zip_bytes(&[("Roman Roads/modinfo.json", info.as_bytes())]);
-    let digest = format!("{:x}", Md5::digest(&archive));
-    let mut detail = fixture("mod.json");
-    detail["modfile"]["download"]["binary_url"] =
-        Value::String(format!("{}/v1/files/77001/download", server.uri()));
-    detail["modfile"]["filehash"]["md5"] = Value::String(digest);
-    detail["modfile"]["filesize"] = Value::from(archive.len());
-    Mock::given(method("GET"))
-        .and(path("/v1/games/11358/mods/4801"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(detail))
-        .mount(&server)
-        .await;
-    Mock::given(method("GET"))
-        .and(path("/v1/files/77001/download"))
-        .respond_with(ResponseTemplate::new(200).set_body_bytes(archive))
-        .mount(&server)
-        .await;
-    let harness = harness_for(&server, Some(API_KEY));
-
-    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
-    let job = wait_for_job(&harness).await;
-    assert_eq!(job.status, DownloadStatus::Done, "{:?}", job.error);
-    assert_eq!(job.name, "Roman Roads Overhaul");
-
-    let mods = harness.app.list_mods(GameId::Anno117).unwrap();
-    assert_eq!(mods[0].id, "roman-roads");
-    assert_eq!(mods[0].modio_id, Some(4801));
-}
-
-#[tokio::test]
-async fn a_failed_download_is_a_failed_job_with_a_reason() {
-    let server = MockServer::start().await;
-    Mock::given(method("GET"))
-        .and(path("/v1/games/11358/mods/4801"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("mod_no_modfile.json")))
-        .mount(&server)
-        .await;
-    let harness = harness_for(&server, Some(API_KEY));
-    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
-    let job = wait_for_job(&harness).await;
-    assert_eq!(job.status, DownloadStatus::Failed);
-    assert!(job.error.is_some());
-}
-
-#[tokio::test]
 async fn tags_come_back_flattened() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
@@ -247,18 +176,4 @@ async fn tags_come_back_flattened() {
     let harness = harness_for(&server, Some(API_KEY));
     let tags = harness.app.modio_tags(GameId::Anno117).await.unwrap();
     assert!(tags.contains(&"Gameplay".to_owned()));
-}
-
-async fn wait_for_job(harness: &Harness) -> atelier_modio::DownloadJob {
-    for _ in 0..200 {
-        let jobs = harness.app.list_downloads();
-        if let Some(job) = jobs
-            .into_iter()
-            .find(|job| matches!(job.status, DownloadStatus::Done | DownloadStatus::Failed))
-        {
-            return job;
-        }
-        tokio::time::sleep(Duration::from_millis(25)).await;
-    }
-    panic!("download job never finished");
 }

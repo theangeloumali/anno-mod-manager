@@ -244,7 +244,7 @@ impl App {
             })
             .await?;
         self.edit_job(job_id, |job| job.status = DownloadStatus::Verifying);
-        let installed = self.install_download(game, &archive.to_string_lossy());
+        let installed = self.install_download(game, modio_id, &archive.to_string_lossy());
         // Staging is scratch space; a leftover copy is harmless, so cleanup errors are ignored.
         let _ = std::fs::remove_dir_all(&staging);
         let top_level = installed?;
@@ -255,7 +255,13 @@ impl App {
         self.update_persisted(|state| {
             let links = state.modio_links.entry(game).or_default();
             for mod_id in &top_level {
-                links.insert(mod_id.clone(), link);
+                // Another page's link is never taken over, even when its folder is gone.
+                if links
+                    .get(mod_id)
+                    .is_none_or(|existing| existing.modio_id == modio_id)
+                {
+                    links.insert(mod_id.clone(), link);
+                }
             }
         })?;
         if let Some(updates) = lock(&self.0.updates).get_mut(&game) {
@@ -267,9 +273,29 @@ impl App {
     }
 
     /// Returns the top-level mod ids that landed, so sub-mods never claim the mod.io link.
-    fn install_download(&self, game: GameId, archive: &str) -> Result<Vec<String>> {
+    /// Only an update of this page's own mod replaces a local one; downgrades are skipped.
+    fn install_download(&self, game: GameId, modio_id: u64, archive: &str) -> Result<Vec<String>> {
         let preview = self.preview_install(game, &[archive.to_owned()])?;
-        let result = self.confirm_install(&preview.id, true)?;
+        let links = self
+            .persisted()
+            .modio_links
+            .get(&game)
+            .cloned()
+            .unwrap_or_default();
+        let foreign = preview.items.iter().find(|item| {
+            item.previous_version.is_some()
+                && links.get(&item.mod_id).map(|link| link.modio_id) != Some(modio_id)
+        });
+        if let Some(item) = foreign {
+            let message = format!(
+                "A mod with the ModID {} is already installed and didn't come from this mod.io \
+                 page. Remove it first or install it by hand.",
+                item.mod_id
+            );
+            self.cancel_install(&preview.id)?;
+            return Err(AppError::new(ErrorCode::Install, message));
+        }
+        let result = self.confirm_install(&preview.id, false)?;
         Ok(preview
             .items
             .into_iter()
