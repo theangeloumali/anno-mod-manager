@@ -36,10 +36,13 @@ impl App {
             .copied()
             .ok_or_else(|| AppError::new(ErrorCode::Install, EXPIRED_PREVIEW))?;
         self.guard_writes(game)?;
-        let result =
-            self.0
-                .engine
-                .confirm(preview_id, &self.documents_mods(game), include_downgrades)?;
+        let installed = self.scan(game)?;
+        let result = self.0.engine.confirm(
+            preview_id,
+            &self.documents_mods(game),
+            &installed,
+            include_downgrades,
+        )?;
         lock(&self.0.previews).remove(preview_id);
         self.apply_new_mods_start(game, &result.installed)?;
         Ok(result)

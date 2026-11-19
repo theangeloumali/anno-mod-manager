@@ -51,6 +51,7 @@ impl Default for Limits {
 
 struct StagedPreview {
     dir: PathBuf,
+    game: GameId,
     items: Vec<StagedItem>,
 }
 
@@ -99,21 +100,33 @@ impl InstallEngine {
             items: items.iter().map(|staged| staged.item.clone()).collect(),
         };
         self.lock_previews()
-            .insert(id, StagedPreview { dir, items });
+            .insert(id, StagedPreview { dir, game, items });
         Ok(preview)
     }
 
     /// Installs the preview's eligible items into `target_mods_dir`; on failure nothing changes.
+    /// `installed` is a fresh scan: if any item's installed copy changed since the preview, the
+    /// player's decision no longer holds and nothing is installed.
     pub fn confirm(
         &self,
         preview_id: &str,
         target_mods_dir: &Path,
+        installed: &[Mod],
         include_downgrades: bool,
     ) -> Result<InstallResult> {
         let staged = self
             .lock_previews()
             .remove(preview_id)
             .ok_or_else(|| Error::PreviewNotFound(preview_id.to_string()))?;
+        if let Some(changed) = classify::changed_since_preview(
+            staged.game,
+            &staged.items,
+            installed,
+            include_downgrades,
+        ) {
+            self.lock_previews().insert(preview_id.to_string(), staged);
+            return Err(Error::PreviewStale(changed));
+        }
         match install::install_all(
             &staged.items,
             target_mods_dir,

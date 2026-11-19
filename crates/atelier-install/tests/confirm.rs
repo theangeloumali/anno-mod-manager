@@ -34,7 +34,7 @@ fn install(sandbox: &Sandbox, folder: &str, id: &str, version: &str) {
     );
     sandbox
         .engine
-        .confirm(&preview.id, &sandbox.mods(), true)
+        .confirm(&preview.id, &sandbox.mods(), &sandbox.installed(GAME), true)
         .unwrap();
 }
 
@@ -87,7 +87,12 @@ fn a_new_mod_lands_in_a_mod_id_folder_and_creates_the_mods_dir() {
 
     let result = sandbox
         .engine
-        .confirm(&preview.id, &sandbox.mods(), false)
+        .confirm(
+            &preview.id,
+            &sandbox.mods(),
+            &sandbox.installed(GAME),
+            false,
+        )
         .unwrap();
 
     assert_eq!(result.installed, ["fresh-mod"]);
@@ -97,13 +102,55 @@ fn a_new_mod_lands_in_a_mod_id_folder_and_creates_the_mods_dir() {
 }
 
 #[test]
+fn a_preview_made_stale_by_a_later_install_is_refused() {
+    let sandbox = Sandbox::new();
+    let preview = preview_zip(
+        &sandbox,
+        "keeper-2.0.zip",
+        &[Entry::File(
+            "Keeper/modinfo.json",
+            modinfo("keeper", "2.0", Some(8)).as_bytes(),
+        )],
+    );
+    // A mod.io download lands a newer copy between the preview and the click.
+    seed(&sandbox, "Keeper", "keeper", "3.0");
+
+    let error = sandbox
+        .engine
+        .confirm(
+            &preview.id,
+            &sandbox.mods(),
+            &sandbox.installed(GAME),
+            false,
+        )
+        .unwrap_err();
+
+    assert!(
+        matches!(error, Error::PreviewStale(ref id) if id == "keeper"),
+        "{error}"
+    );
+    assert_eq!(read_version(&sandbox.mods().join("Keeper")), "3.0");
+}
+
+#[test]
 fn a_mod_id_that_is_a_windows_device_name_gets_a_safe_folder() {
     let sandbox = Sandbox::new();
 
     install(&sandbox, "Console Tweaks", "con", "1.0");
 
-    assert!(sandbox.mods().join("con-mod").is_dir());
+    assert!(sandbox.mods().join("con~").is_dir());
     assert!(!sandbox.mods().join("con").exists());
+}
+
+#[test]
+fn a_device_name_mod_never_shares_a_backup_slot_with_a_lookalike_mod_id() {
+    let sandbox = Sandbox::new();
+    install(&sandbox, "Con Mod", "con-mod", "1.0");
+    install(&sandbox, "Console", "con", "1.0");
+    install(&sandbox, "Console", "con", "2.0");
+
+    assert_eq!(backup_versions(&sandbox, "con-mod").len(), 0);
+    assert_eq!(backup_versions(&sandbox, "con~").len(), 1);
 }
 
 #[test]
@@ -157,7 +204,12 @@ fn downgrades_and_same_versions_are_skipped_unless_opted_in() {
     let preview = preview_zip(&sandbox, "Mixed.zip", &entries);
     let result = sandbox
         .engine
-        .confirm(&preview.id, &sandbox.mods(), false)
+        .confirm(
+            &preview.id,
+            &sandbox.mods(),
+            &sandbox.installed(GAME),
+            false,
+        )
         .unwrap();
     assert!(result.installed.is_empty());
     assert_eq!(result.skipped, ["down", "same"]);
@@ -166,7 +218,7 @@ fn downgrades_and_same_versions_are_skipped_unless_opted_in() {
     let preview = preview_zip(&sandbox, "Mixed2.zip", &entries);
     let result = sandbox
         .engine
-        .confirm(&preview.id, &sandbox.mods(), true)
+        .confirm(&preview.id, &sandbox.mods(), &sandbox.installed(GAME), true)
         .unwrap();
     assert_eq!(result.installed, ["down"]);
     assert_eq!(read_version(&sandbox.mods().join("Down")), "1.0");
@@ -224,7 +276,7 @@ fn a_mod_id_that_normalises_to_empty_is_invalid_and_never_touches_the_mods_folde
 
     let result = sandbox
         .engine
-        .confirm(&preview.id, &sandbox.mods(), true)
+        .confirm(&preview.id, &sandbox.mods(), &sandbox.installed(GAME), true)
         .unwrap();
 
     assert!(result.installed.is_empty());
@@ -246,7 +298,7 @@ fn wrong_game_and_invalid_items_are_skipped() {
 
     let result = sandbox
         .engine
-        .confirm(&preview.id, &sandbox.mods(), true)
+        .confirm(&preview.id, &sandbox.mods(), &sandbox.installed(GAME), true)
         .unwrap();
 
     assert!(result.installed.is_empty());
@@ -267,7 +319,12 @@ fn confirm_after_cancel_is_an_error() {
 
     let error = sandbox
         .engine
-        .confirm(&preview.id, &sandbox.mods(), false)
+        .confirm(
+            &preview.id,
+            &sandbox.mods(),
+            &sandbox.installed(GAME),
+            false,
+        )
         .unwrap_err();
 
     assert!(
@@ -297,7 +354,12 @@ fn a_failure_mid_confirm_restores_everything_already_moved() {
     let staged_beta = find_dir(&sandbox.staging().join(&preview.id), "BetaMod").unwrap();
     fs::remove_dir_all(staged_beta).unwrap();
 
-    let error = sandbox.engine.confirm(&preview.id, &sandbox.mods(), false);
+    let error = sandbox.engine.confirm(
+        &preview.id,
+        &sandbox.mods(),
+        &sandbox.installed(GAME),
+        false,
+    );
 
     assert!(error.is_err());
     assert_eq!(read_version(&sandbox.mods().join("AlphaMod")), "1.0");
@@ -396,7 +458,12 @@ fn installed_files_skip_mac_metadata() {
 
     sandbox
         .engine
-        .confirm(&preview.id, &sandbox.mods(), false)
+        .confirm(
+            &preview.id,
+            &sandbox.mods(),
+            &sandbox.installed(GAME),
+            false,
+        )
         .unwrap();
 
     assert_eq!(files_under(&sandbox.mods()), ["clean/modinfo.json"]);

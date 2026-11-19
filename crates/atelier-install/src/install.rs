@@ -44,7 +44,7 @@ pub(crate) fn install_all(
     Ok(result)
 }
 
-fn is_eligible(status: InstallItemStatus, include_downgrades: bool) -> bool {
+pub(crate) fn is_eligible(status: InstallItemStatus, include_downgrades: bool) -> bool {
     match status {
         InstallItemStatus::New | InstallItemStatus::Update => true,
         InstallItemStatus::Downgrade => include_downgrades,
@@ -162,11 +162,12 @@ pub(crate) fn target_folder(target: &Path, mod_id: &str) -> Result<String> {
 }
 
 /// Normalised ModIDs may hold `*`, which Windows forbids, or be a device name like `con`.
+/// `~` never appears in a normalised ModID, so no two ModIDs share a folder or backup slot.
 pub(crate) fn new_folder_name(mod_id: &str) -> String {
     let name = mod_id.replace('*', "_");
     if crate::fsops::is_windows_safe_name(&name) {
         name
     } else {
-        format!("{name}-mod")
+        format!("{name}~")
     }
 }

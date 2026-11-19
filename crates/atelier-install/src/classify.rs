@@ -7,7 +7,7 @@ use std::path::Path;
 use atelier_core::{GameId, Mod, ModInfo, ModLocation, Severity, normalize_mod_id};
 
 use crate::fsops::file_name;
-use crate::install::new_folder_name;
+use crate::install::{StagedItem, is_eligible, new_folder_name};
 use crate::roots::{FoundRoot, Manifest, detect_game};
 use crate::version::compare_versions;
 use crate::{InstallCheck, InstallItemStatus, InstallPreviewItem};
@@ -137,11 +137,7 @@ impl<'a> Classifier<'a> {
     }
 
     fn compare_with_installed(&self, item: &mut InstallPreviewItem) {
-        let existing = self.installed.iter().find(|installed| {
-            installed.id == item.mod_id
-                && installed.game == self.game
-                && installed.parent_id.is_none()
-        });
+        let existing = installed_copy(self.game, self.installed, &item.mod_id);
         let Some(existing) = existing else {
             let folder = self.free_folder_name(&item.mod_id);
             item.checks
@@ -187,6 +183,31 @@ impl<'a> Classifier<'a> {
             })
             .collect()
     }
+}
+
+/// The copy an item is compared with, at preview and again at confirm.
+fn installed_copy<'m>(game: GameId, installed: &'m [Mod], mod_id: &str) -> Option<&'m Mod> {
+    installed.iter().find(|installed| {
+        installed.id == mod_id && installed.game == game && installed.parent_id.is_none()
+    })
+}
+
+/// The first item that would install whose installed copy is not what the preview saw.
+pub(crate) fn changed_since_preview(
+    game: GameId,
+    items: &[StagedItem],
+    installed: &[Mod],
+    include_downgrades: bool,
+) -> Option<String> {
+    items
+        .iter()
+        .map(|staged| &staged.item)
+        .filter(|item| is_eligible(item.status, include_downgrades))
+        .find(|item| {
+            installed_copy(game, installed, &item.mod_id).map(|copy| &copy.version)
+                != item.previous_version.as_ref()
+        })
+        .map(|item| item.mod_id.clone())
 }
 
 fn check(level: Severity, message: String) -> InstallCheck {
