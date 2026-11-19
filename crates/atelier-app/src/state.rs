@@ -73,6 +73,8 @@ pub(crate) struct Persisted {
     pub settings: Settings,
     pub game_paths: HashMap<GameId, PathBuf>,
     pub modio_links: HashMap<GameId, HashMap<String, ModioLink>>,
+    /// Links of uninstalled mods, so restoring one from its backup keeps its updates.
+    pub uninstalled_links: HashMap<GameId, HashMap<String, ModioLink>>,
     pub terms_accepted: bool,
 }
 

@@ -128,9 +128,15 @@ impl App {
             .get(&game)
             .is_some_and(|links| links.contains_key(mod_id));
         if has_link {
+            // Set aside, not dropped: restore_mod puts it back.
             self.update_persisted(|state| {
-                if let Some(links) = state.modio_links.get_mut(&game) {
-                    links.remove(mod_id);
+                if let Some(link) = state
+                    .modio_links
+                    .get_mut(&game)
+                    .and_then(|links| links.remove(mod_id))
+                {
+                    let aside = state.uninstalled_links.entry(game).or_default();
+                    aside.insert(mod_id.to_owned(), link);
                 }
             })?;
         }
@@ -140,10 +146,20 @@ impl App {
     /// Puts back the newest backup of `mod_id`: an uninstall or a replaced version.
     pub fn restore_mod(&self, game: GameId, mod_id: &str) -> Result<()> {
         let _writes = self.write_guard(game)?;
-        Ok(self
-            .0
+        self.0
             .engine
-            .rollback(game, mod_id, &self.documents_mods(game))?)
+            .rollback(game, mod_id, &self.documents_mods(game))?;
+        // A link made since (a fresh install from another page) wins over the old one.
+        self.update_persisted(|state| {
+            if let Some(link) = state
+                .uninstalled_links
+                .get_mut(&game)
+                .and_then(|aside| aside.remove(mod_id))
+            {
+                let links = state.modio_links.entry(game).or_default();
+                links.entry(mod_id.to_owned()).or_insert(link);
+            }
+        })
     }
 
     pub fn list_profiles(&self, game: GameId) -> Result<Vec<Profile>> {

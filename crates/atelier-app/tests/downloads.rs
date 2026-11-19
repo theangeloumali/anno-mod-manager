@@ -696,3 +696,26 @@ async fn wait_for_all_jobs(harness: &Harness) {
         harness.app.list_downloads()
     );
 }
+
+#[tokio::test]
+async fn undoing_an_uninstall_keeps_the_mods_modio_link() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    download(&harness, 4801).await;
+
+    harness
+        .app
+        .uninstall_mod(GameId::Anno117, "roman-roads")
+        .unwrap();
+    harness
+        .app
+        .restore_mod(GameId::Anno117, "roman-roads")
+        .unwrap();
+
+    assert_eq!(installed(&harness, "roman-roads").modio_id, Some(4801));
+    harness
+        .app
+        .update_mod(GameId::Anno117, "roman-roads")
+        .unwrap();
+}
