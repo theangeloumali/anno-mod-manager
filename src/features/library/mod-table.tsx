@@ -49,11 +49,16 @@ function ModRow({
 }) {
   const { gameId, isWriteLocked } = useCurrentGame();
   const selectedModId = useAppStore((store) => store.selectedModId);
+  const selectedCopy = useAppStore((store) => store.selectedModCopy);
   const selectMod = useAppStore((store) => store.selectMod);
   const toggle = useAction((source, active: boolean) =>
     source.setModActive(gameId, mod.id, active),
   );
-  const isSelected = selectedModId === mod.id;
+  const isSelected =
+    selectedModId === mod.id &&
+    (!selectedCopy ||
+      (selectedCopy.location === mod.location &&
+        selectedCopy.folder === mod.folder));
 
   return (
     <TableRow
@@ -78,7 +83,9 @@ function ModRow({
         <button
           type="button"
           aria-current={isSelected ? "true" : undefined}
-          onClick={() => selectMod(mod.id)}
+          onClick={() =>
+            selectMod(mod.id, { location: mod.location, folder: mod.folder })
+          }
           className={cn(
             "flex w-full min-w-0 items-center gap-2 text-left",
             isSubMod && "pl-5",
@@ -163,12 +170,27 @@ export function ModTable({
               </TableCell>
             </TableRow>
           )}
+          {/* One ModID can sit in two locations, so a row is keyed by where its folder is. */}
           {mods.flatMap((mod) => [
-            <ModRow key={mod.id} mod={mod} issues={issues} isSubMod={false} />,
+            <ModRow
+              key={`${mod.location}/${mod.folder}`}
+              mod={mod}
+              issues={issues}
+              isSubMod={false}
+            />,
             ...allMods
-              .filter((subMod) => subMod.parentId === mod.id)
+              .filter(
+                (subMod) =>
+                  subMod.parentId === mod.id &&
+                  subMod.location === mod.location,
+              )
               .map((subMod) => (
-                <ModRow key={subMod.id} mod={subMod} issues={issues} isSubMod />
+                <ModRow
+                  key={`${subMod.location}/${subMod.folder}`}
+                  mod={subMod}
+                  issues={issues}
+                  isSubMod
+                />
               )),
           ])}
         </TableBody>

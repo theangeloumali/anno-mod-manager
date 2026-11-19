@@ -235,6 +235,18 @@ function seedMods117(): Mod[] {
       sizeBytes: megabytes(0.3),
       setup: { safeToRemove: true, multiplayer: true },
     }),
+    // Edge state: the same ModID in the game folder and in Documents; the Documents copy loads.
+    createMod(game, {
+      id: "camera-unlock-tiberius",
+      name: "Camera Unlock",
+      category: "UI",
+      version: "4.0.0",
+      location: "game",
+      origin: "local",
+      folder: "Camera Unlock (old copy)",
+      description: "An older copy left in the game folder.",
+      sizeBytes: megabytes(0.2),
+    }),
     createMod(game, {
       id: "camera-unlock-tiberius",
       name: "Camera Unlock",

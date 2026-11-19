@@ -8,7 +8,7 @@ import {
 import { isTauri } from "@tauri-apps/api/core";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { useAppStore } from "@/components/app/app-store";
+import { findSelectedMod, useAppStore } from "@/components/app/app-store";
 import { FIELD_CLASS } from "@/components/app/field-class";
 import { errorMessage } from "@/components/app/format";
 import { useStartInstallPreview } from "@/components/app/install-preview-sheet";
@@ -34,6 +34,7 @@ export function LibraryScreen() {
   const { data: mods = [], isPending } = useMods(gameId);
   const { data: issues = [] } = useIssues(gameId);
   const selectedModId = useAppStore((store) => store.selectedModId);
+  const selectedCopy = useAppStore((store) => store.selectedModCopy);
   const setView = useAppStore((store) => store.setView);
   const startPreview = useStartInstallPreview();
   const updateAll = useAction((source) => source.updateAll(gameId));
@@ -64,7 +65,7 @@ export function LibraryScreen() {
           .includes(query)),
   );
 
-  const selectedMod = mods.find((mod) => mod.id === selectedModId) ?? null;
+  const selectedMod = findSelectedMod(mods, selectedModId, selectedCopy);
 
   const fileButton = (
     <>
