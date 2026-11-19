@@ -7,7 +7,6 @@ import {
   ThumbsUpIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 import { formatBytes, formatCount } from "@/components/app/format";
 import { ModBanner, PoweredByModio } from "@/components/app/mod-badges";
 import { withToast } from "@/components/app/notify";
@@ -22,8 +21,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { useAccount, useAction } from "@/data/source";
+import { useAccount, useAction, useModioDetail } from "@/data/source";
 import type { ModioMod } from "@/data/types";
+import { ReportForm } from "./report-form";
 
 type Rating = "up" | "down" | null;
 
@@ -39,13 +39,21 @@ export function ModioDetailSheet({
   const subscribe = useAction((source, modioId: number) =>
     source.subscribe(gameId, modioId),
   );
-  // The contract has no rate or report call yet (report DEVIATIONS); these stay local in the mock-up.
+  const sendRating = useAction((source, modioId: number, up: boolean) =>
+    source.rateMod(gameId, modioId, up),
+  );
+  const { data: detail } = useModioDetail(gameId, mod?.id ?? null);
+  // mod.io keeps no per-user rating we can read back, so this only marks the last vote sent.
   const [rating, setRating] = useState<Rating>(null);
+  const [isReporting, setReporting] = useState(false);
   const isSignedIn = account?.signedIn ?? false;
 
-  const rate = (nextRating: Exclude<Rating, null>) => {
-    setRating((current) => (current === nextRating ? null : nextRating));
-    toast.success("Rating sent to mod.io");
+  const rate = async (modioId: number, nextRating: Exclude<Rating, null>) => {
+    const sent = await withToast(
+      sendRating.mutateAsync([modioId, nextRating === "up"]),
+      "Rating sent to mod.io",
+    );
+    if (sent !== undefined) setRating(nextRating);
   };
 
   return (
@@ -54,6 +62,7 @@ export function ModioDetailSheet({
       onOpenChange={(isOpen) => {
         if (!isOpen) {
           setRating(null);
+          setReporting(false);
           onClose();
         }
       }}
@@ -87,7 +96,9 @@ export function ModioDetailSheet({
                   </StateBadge>
                 ))}
               </div>
-              <p className="text-ui text-copy">{mod.summary}</p>
+              <p className="whitespace-pre-line text-ui text-copy">
+                {detail?.description || mod.summary}
+              </p>
               <dl className="grid grid-cols-3 gap-3 rounded-field border border-line bg-bg p-3">
                 {[
                   ["Downloads", formatCount(mod.downloads)],
@@ -105,8 +116,8 @@ export function ModioDetailSheet({
                 <Button
                   size="sm"
                   aria-pressed={rating === "up"}
-                  disabled={!isSignedIn}
-                  onClick={() => rate("up")}
+                  disabled={!isSignedIn || sendRating.isPending}
+                  onClick={() => void rate(mod.id, "up")}
                 >
                   <ThumbsUpIcon aria-hidden="true" />
                   Good
@@ -114,8 +125,8 @@ export function ModioDetailSheet({
                 <Button
                   size="sm"
                   aria-pressed={rating === "down"}
-                  disabled={!isSignedIn}
-                  onClick={() => rate("down")}
+                  disabled={!isSignedIn || sendRating.isPending}
+                  onClick={() => void rate(mod.id, "down")}
                 >
                   <ThumbsDownIcon aria-hidden="true" />
                   Not for me
@@ -123,14 +134,19 @@ export function ModioDetailSheet({
                 <Button
                   size="sm"
                   variant="quiet"
-                  onClick={() =>
-                    toast.info("mod.io's report form opens in your browser.")
-                  }
+                  aria-expanded={isReporting}
+                  onClick={() => setReporting((open) => !open)}
                 >
                   <FlagIcon aria-hidden="true" />
                   Report
                 </Button>
               </div>
+              {isReporting && (
+                <ReportForm
+                  modioId={mod.id}
+                  onDone={() => setReporting(false)}
+                />
+              )}
               {!isSignedIn && (
                 <p className="text-label text-copy-muted">
                   Sign in under Settings to subscribe and rate. Installing works

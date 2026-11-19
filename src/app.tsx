@@ -1,4 +1,5 @@
 // Created by The Angelo Umali.
+import { isTauri } from "@tauri-apps/api/core";
 import { useEffect, type ComponentType, type CSSProperties } from "react";
 import { useAppStore, type ViewId } from "@/components/app/app-store";
 import { DropOverlay } from "@/components/app/drop-overlay";
@@ -52,7 +53,7 @@ export function App() {
       <DropOverlay />
       <InstallPreviewSheet />
       <FirstRunWizard />
-      <MockStatesMenu />
+      {!isTauri() && <MockStatesMenu />}
       <Toaster position="bottom-left" style={TOAST_STYLE} />
     </>
   );

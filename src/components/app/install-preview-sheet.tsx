@@ -38,8 +38,9 @@ const CHECK_TONE = { ok: "ok", warning: "warning", error: "error" } as const;
 /** Drop, file picker and the mock menu all open the preview through this. */
 export function useStartInstallPreview() {
   const showPreview = useAppStore((store) => store.showPreview);
+  const game = useAppStore((store) => store.game);
   const preview = useAction((source, paths: string[]) =>
-    source.previewInstall(paths),
+    source.previewInstall(game, paths),
   );
   return async (paths: string[]) => {
     try {
