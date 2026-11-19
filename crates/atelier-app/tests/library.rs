@@ -326,3 +326,26 @@ fn restore_never_brings_back_the_other_games_backup() {
             .is_some()
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn writes_wait_out_a_just_launched_game_before_it_shows_as_running() {
+    use std::os::unix::fs::PermissionsExt;
+    let harness = Harness::with(Options {
+        install: Some(GameId::Anno117),
+        ..Options::default()
+    });
+    let exe = harness.install_dir().join(GameId::Anno117.executable());
+    std::fs::write(&exe, "#!/bin/sh\nexit 0\n").unwrap();
+    std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+    harness.add_mod(GameId::Anno117, "Roman Roads", "roman-roads", "1.0.0");
+
+    harness.app.launch_game(GameId::Anno117).unwrap();
+    // The process check still says "not running", as it does for the first seconds on Windows.
+    let refused = harness
+        .app
+        .set_mod_active(GameId::Anno117, "roman-roads", false)
+        .unwrap_err();
+
+    assert_eq!(refused.code, ErrorCode::GameRunning);
+}

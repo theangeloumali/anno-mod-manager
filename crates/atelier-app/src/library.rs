@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::MutexGuard;
+use std::time::{Duration, Instant};
 
 use atelier_core::health::{self, Environment};
 use atelier_core::scan::{self, ModsFolder};
@@ -16,6 +17,8 @@ use crate::error::{AppError, ErrorCode, Result};
 use crate::{App, lock};
 
 const GAMES: [GameId; 2] = [GameId::Anno117, GameId::Anno1800];
+/// How long after a launch writes stay refused while the game's process starts up.
+const LAUNCH_GRACE: Duration = Duration::from_secs(30);
 
 impl App {
     pub fn list_games(&self) -> Result<Vec<GameInfo>> {
@@ -272,10 +275,13 @@ impl App {
         }
         let exe = install.join(game.executable());
         let work_dir = exe.parent().unwrap_or(&install);
+        // A write in progress finishes first, so the game never reads a half-written mods folder.
+        let _writes = lock(&self.0.writes);
         Command::new(&exe)
             .current_dir(work_dir)
             .spawn()
             .map_err(|error| AppError::io(&error, &exe))?;
+        lock(&self.0.launched).insert(game, Instant::now());
         Ok(())
     }
 
@@ -333,7 +339,10 @@ impl App {
     }
 
     pub(crate) fn guard_writes(&self, game: GameId) -> Result<()> {
-        if (self.0.is_running)(game) {
+        let just_launched = lock(&self.0.launched)
+            .get(&game)
+            .is_some_and(|at| at.elapsed() < LAUNCH_GRACE);
+        if just_launched || (self.0.is_running)(game) {
             return Err(AppError::new(
                 ErrorCode::GameRunning,
                 format!(

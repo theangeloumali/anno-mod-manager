@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex, MutexGuard, RwLock};
+use std::time::Instant;
 
 use atelier_core::activation::Snapshots;
 use atelier_core::{GameId, ModUpdate, Store};
@@ -70,6 +71,8 @@ struct Inner {
     held_off: Mutex<HashMap<(GameId, u64), collections::HeldCollection>>,
     /// Held for every write to mod and profile files; see `App::write_guard`.
     writes: Mutex<()>,
+    /// When each game was last launched, since its process takes a moment to show up.
+    launched: Mutex<HashMap<GameId, Instant>>,
 }
 
 impl App {
@@ -109,6 +112,7 @@ impl App {
             updates: Mutex::new(HashMap::new()),
             held_off: Mutex::new(HashMap::new()),
             writes: Mutex::new(()),
+            launched: Mutex::new(HashMap::new()),
         }));
         // Backups expire with time, not only when the setting changes; a failure loses nothing.
         let _ = app.prune_backups();
