@@ -11,6 +11,8 @@ use crate::error::{Error, Result};
 use crate::types::{DownloadProgress, DownloadStatus, Modfile};
 
 const VIRUS_POSITIVE_REFUSE: u8 = 1;
+/// mod.io's "scan complete"; pending, too large, missing and errored scans all fail closed.
+const VIRUS_SCAN_COMPLETE: u8 = 1;
 
 impl ModioClient {
     /// Streams `modfile` into `dest_dir`, verifying its md5. A failed or
@@ -21,6 +23,12 @@ impl ModioClient {
         dest_dir: &Path,
         mut on_progress: impl FnMut(DownloadProgress),
     ) -> Result<PathBuf> {
+        if modfile.virus_status != VIRUS_SCAN_COMPLETE {
+            return Err(Error::NotScanned {
+                modfile_id: modfile.id,
+                virus_status: modfile.virus_status,
+            });
+        }
         if modfile.virus_positive == VIRUS_POSITIVE_REFUSE {
             return Err(Error::VirusDetected {
                 modfile_id: modfile.id,
@@ -108,14 +116,16 @@ impl ModioClient {
         Ok((hex, downloaded))
     }
 
+    /// Whether the bearer may travel to `url`: the exact override origin in tests, else https mod.io only.
     fn is_modio_host(&self, url: &Url) -> bool {
+        if let Some(base) = &self.base_override {
+            return base.origin() == url.origin();
+        }
         let Some(host) = url.host_str() else {
             return false;
         };
-        if let Some(base) = &self.base_override {
-            return base.host_str() == Some(host);
-        }
-        host == "mod.io" || host.ends_with(".mod.io") || host.ends_with(".modapi.io")
+        url.scheme() == "https"
+            && (host == "mod.io" || host.ends_with(".mod.io") || host.ends_with(".modapi.io"))
     }
 }
 
@@ -125,5 +135,30 @@ async fn discard(path: &Path) {
         && error.kind() != std::io::ErrorKind::NotFound
     {
         eprintln!("atelier-modio: could not remove partial download: {error}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::client::{ClientConfig, ModioClient};
+    use url::Url;
+
+    fn production_client() -> ModioClient {
+        ModioClient::new(ClientConfig {
+            api_key: None,
+            base_override: None,
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn the_bearer_needs_https_on_a_modio_host() {
+        let client = production_client();
+        let https = Url::parse("https://g-11358.modapi.io/v1/files/1/download").unwrap();
+        let http = Url::parse("http://g-11358.modapi.io/v1/files/1/download").unwrap();
+        let lookalike = Url::parse("https://modapi.io.evil.example/x").unwrap();
+        assert!(client.is_modio_host(&https));
+        assert!(!client.is_modio_host(&http));
+        assert!(!client.is_modio_host(&lookalike));
     }
 }

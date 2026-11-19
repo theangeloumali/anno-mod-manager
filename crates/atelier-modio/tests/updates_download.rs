@@ -178,3 +178,42 @@ async fn a_virus_positive_modfile_is_refused_before_downloading() {
     assert!(matches!(error, Error::VirusDetected { modfile_id: 77001 }));
     assert!(server.received_requests().await.unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn an_unscanned_modfile_is_refused_before_downloading() {
+    let server = MockServer::start().await;
+    let dest = tempfile::tempdir().unwrap();
+    let mut unscanned = modfile(&server, HELLO_MD5, 0);
+    unscanned.virus_status = 0;
+    let error = anonymous_client(&server)
+        .download(&unscanned, dest.path(), |_| {})
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        error,
+        Error::NotScanned {
+            modfile_id: 77001,
+            virus_status: 0
+        }
+    ));
+    assert!(server.received_requests().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn the_bearer_is_not_sent_to_another_port_on_the_same_host() {
+    let api = MockServer::start().await;
+    let elsewhere = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/files/77001/download"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(b"hello world".to_vec()))
+        .mount(&elsewhere)
+        .await;
+
+    let dest = tempfile::tempdir().unwrap();
+    signed_in_client(&api)
+        .download(&modfile(&elsewhere, HELLO_MD5, 0), dest.path(), |_| {})
+        .await
+        .unwrap();
+    let received = elsewhere.received_requests().await.unwrap();
+    assert!(!received[0].headers.contains_key("authorization"));
+}

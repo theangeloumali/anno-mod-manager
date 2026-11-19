@@ -30,6 +30,8 @@ pub enum Error {
     ChecksumMismatch { expected: String, actual: String },
     #[error("mod.io flagged modfile {modfile_id} as malware")]
     VirusDetected { modfile_id: u64 },
+    #[error("mod.io has not finished a virus scan of modfile {modfile_id} (status {virus_status})")]
+    NotScanned { modfile_id: u64, virus_status: u8 },
     #[error("modfile has no usable file name")]
     InvalidFileName,
     #[error("invalid mod.io url: {0}")]
