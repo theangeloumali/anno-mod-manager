@@ -114,3 +114,34 @@ fn a_relative_or_device_path_is_refused_before_anything_is_read() {
         assert_eq!(error.code, ErrorCode::InvalidInput, "{path}");
     }
 }
+
+fn install_version(harness: &Harness, version: &str) {
+    let archive = harness.drop_path(&format!("Roman Roads {version}.zip"));
+    let info = modinfo("roman-roads", version, GameId::Anno117);
+    write_zip(&archive, &[("Roman Roads/modinfo.json", info.as_bytes())]);
+    let preview = harness
+        .app
+        .preview_install(GameId::Anno117, &[archive.to_string_lossy().into_owned()])
+        .unwrap();
+    harness.app.confirm_install(&preview.id, false).unwrap();
+}
+
+#[test]
+fn new_mods_start_off_applies_to_new_installs_not_updates() {
+    let harness = Harness::new();
+    let mut settings = harness.app.settings();
+    settings.new_mods_start = atelier_app::NewModsStart::Inactive;
+    harness.app.save_settings(settings).unwrap();
+
+    install_version(&harness, "1.0.0");
+    assert!(!harness.app.list_mods(GameId::Anno117).unwrap()[0].active);
+    harness
+        .app
+        .set_mod_active(GameId::Anno117, "roman-roads", true)
+        .unwrap();
+
+    install_version(&harness, "2.0.0");
+    let updated = &harness.app.list_mods(GameId::Anno117).unwrap()[0];
+    assert_eq!(updated.version, "2.0.0");
+    assert!(updated.active, "an update keeps the player's choice");
+}

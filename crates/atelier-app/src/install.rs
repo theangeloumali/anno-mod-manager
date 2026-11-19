@@ -54,7 +54,14 @@ impl App {
             include_downgrades,
         )?;
         lock(&self.0.previews).remove(preview_id);
-        self.apply_new_mods_start(game, &result.installed)?;
+        // Only mods that weren't here before are "new"; an update keeps the player's on/off.
+        let fresh: Vec<String> = result
+            .installed
+            .iter()
+            .filter(|id| !installed.iter().any(|item| &item.id == *id))
+            .cloned()
+            .collect();
+        self.apply_new_mods_start(game, &fresh)?;
         Ok(result)
     }
 
