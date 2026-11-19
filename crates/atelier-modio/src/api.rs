@@ -96,6 +96,8 @@ pub(crate) struct ApiMod {
     pub tags: Vec<ApiTag>,
     #[serde(default)]
     pub stats: ApiModStats,
+    #[serde(default)]
+    pub dependencies: bool,
 }
 
 fn accepted() -> u8 {
@@ -191,12 +193,14 @@ impl ApiMod {
     pub fn into_detail(mut self) -> ModDetail {
         let modfile = self.modfile.take().map(Modfile::from);
         let description = self.description_plaintext.take().unwrap_or_default();
+        let has_dependencies = self.dependencies;
         let mut info = self.into_mod(false);
         info.size_bytes = modfile.as_ref().map_or(0, |file| file.filesize);
         ModDetail {
             info,
             description,
             modfile,
+            has_dependencies,
         }
     }
 }

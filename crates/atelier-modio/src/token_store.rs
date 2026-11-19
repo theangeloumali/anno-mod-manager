@@ -3,7 +3,8 @@ use std::sync::Mutex;
 use crate::error::{Error, Result};
 
 const KEYRING_SERVICE: &str = "anno-mod-manager";
-const KEYRING_USER: &str = "modio-token";
+const TOKEN_USER: &str = "modio-token";
+const API_KEY_USER: &str = "modio-api-key";
 
 /// Where the mod.io access token lives between runs.
 pub trait TokenStore: Send + Sync {
@@ -13,12 +14,26 @@ pub trait TokenStore: Send + Sync {
 }
 
 /// OS credential store (Windows Credential Manager, macOS Keychain, Secret Service).
-#[derive(Debug, Default)]
-pub struct KeyringTokenStore;
+#[derive(Debug)]
+pub struct KeyringTokenStore {
+    user: &'static str,
+}
+
+impl Default for KeyringTokenStore {
+    /// The signed-in user's access token.
+    fn default() -> Self {
+        Self { user: TOKEN_USER }
+    }
+}
 
 impl KeyringTokenStore {
-    fn entry() -> Result<keyring::Entry> {
-        keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(store_error)
+    /// The user's own mod.io API key, kept apart from the access token.
+    pub fn api_key() -> Self {
+        Self { user: API_KEY_USER }
+    }
+
+    fn entry(&self) -> Result<keyring::Entry> {
+        keyring::Entry::new(KEYRING_SERVICE, self.user).map_err(store_error)
     }
 }
 
@@ -29,7 +44,7 @@ fn store_error(error: keyring::Error) -> Error {
 
 impl TokenStore for KeyringTokenStore {
     fn load(&self) -> Result<Option<String>> {
-        match Self::entry()?.get_password() {
+        match self.entry()?.get_password() {
             Ok(token) => Ok(Some(token)),
             Err(keyring::Error::NoEntry) => Ok(None),
             Err(error) => Err(store_error(error)),
@@ -37,11 +52,11 @@ impl TokenStore for KeyringTokenStore {
     }
 
     fn save(&self, token: &str) -> Result<()> {
-        Self::entry()?.set_password(token).map_err(store_error)
+        self.entry()?.set_password(token).map_err(store_error)
     }
 
     fn clear(&self) -> Result<()> {
-        match Self::entry()?.delete_credential() {
+        match self.entry()?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(error) => Err(store_error(error)),
         }

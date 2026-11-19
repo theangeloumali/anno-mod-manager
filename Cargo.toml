@@ -16,3 +16,4 @@ thiserror = "2"
 atelier-core = { path = "crates/atelier-core" }
 atelier-modio = { path = "crates/atelier-modio" }
 atelier-install = { path = "crates/atelier-install" }
+atelier-app = { path = "crates/atelier-app" }
