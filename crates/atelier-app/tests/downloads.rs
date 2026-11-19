@@ -905,3 +905,60 @@ async fn a_mod_shared_by_two_pending_collections_is_on_in_both_their_profiles() 
         .unwrap();
     assert!(!installed(&harness, "roman-roads").active);
 }
+
+/// Serves page 4801 at `version` from modfile `modfile_id`, for detail, download and update checks.
+async fn serve_modfile(server: &MockServer, version: &str, modfile_id: u64) {
+    server.reset().await;
+    let info = modinfo("roman-roads", version, GameId::Anno117);
+    let archive = zip_bytes(&[("Packed/modinfo.json", info.as_bytes())]);
+    let mut detail = fixture("mod.json");
+    detail["modfile"]["id"] = Value::from(modfile_id);
+    detail["modfile"]["version"] = Value::from(version);
+    detail["modfile"]["download"]["binary_url"] =
+        Value::String(format!("{}/v1/files/{modfile_id}/download", server.uri()));
+    detail["modfile"]["filehash"]["md5"] = Value::String(format!("{:x}", Md5::digest(&archive)));
+    detail["modfile"]["filesize"] = Value::from(archive.len());
+    let page = serde_json::json!({
+        "data": [detail.clone()], "result_count": 1, "result_offset": 0,
+        "result_limit": 100, "result_total": 1
+    });
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(detail))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(page))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("/v1/files/{modfile_id}/download")))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(archive))
+        .mount(server)
+        .await;
+}
+
+#[tokio::test]
+async fn restoring_an_older_version_offers_the_update_again() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    serve_modfile(&server, "1.0.0", 9001).await;
+    download(&harness, 4801).await;
+    serve_modfile(&server, "1.2.0", 9002).await;
+    harness
+        .app
+        .update_mod(GameId::Anno117, "roman-roads")
+        .unwrap();
+    assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Done);
+
+    harness
+        .app
+        .restore_mod(GameId::Anno117, "roman-roads")
+        .unwrap();
+    harness.app.check_updates(GameId::Anno117).await.unwrap();
+
+    let restored = installed(&harness, "roman-roads");
+    assert_eq!(restored.version, "1.0.0");
+    assert!(restored.update.is_some(), "1.2.0 must be offered again");
+}

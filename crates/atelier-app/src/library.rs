@@ -17,6 +17,8 @@ use crate::error::{AppError, ErrorCode, Result};
 use crate::{App, lock};
 
 const GAMES: [GameId; 2] = [GameId::Anno117, GameId::Anno1800];
+/// No mod.io file has id 0, so a link set to it always sees the latest file as an update.
+const UNKNOWN_MODFILE: u64 = 0;
 /// How long after a launch writes stay refused while the game's process starts up.
 const LAUNCH_GRACE: Duration = Duration::from_secs(30);
 
@@ -152,15 +154,21 @@ impl App {
         self.0
             .engine
             .rollback(game, mod_id, &self.documents_mods(game))?;
-        // A link made since (a fresh install from another page) wins over the old one.
         self.update_persisted(|state| {
-            if let Some(link) = state
+            let aside = state
                 .uninstalled_links
                 .get_mut(&game)
-                .and_then(|aside| aside.remove(mod_id))
-            {
-                let links = state.modio_links.entry(game).or_default();
-                links.entry(mod_id.to_owned()).or_insert(link);
+                .and_then(|aside| aside.remove(mod_id));
+            let links = state.modio_links.entry(game).or_default();
+            match (aside, links.get_mut(mod_id)) {
+                // Undoing an uninstall: the set-aside link describes exactly this copy.
+                (Some(link), None) => {
+                    links.insert(mod_id.to_owned(), link);
+                }
+                // An older version replaced the linked file, so its file is no longer known and
+                // the next update check offers the current one again.
+                (_, Some(link)) => link.modfile_id = UNKNOWN_MODFILE,
+                (None, None) => {}
             }
         })
     }
