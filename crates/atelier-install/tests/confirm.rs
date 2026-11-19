@@ -48,7 +48,7 @@ fn seed(sandbox: &Sandbox, folder: &str, id: &str, version: &str) {
 }
 
 fn backup_versions(sandbox: &Sandbox, id: &str) -> Vec<String> {
-    let mut names: Vec<String> = fs::read_dir(sandbox.backups().join(id))
+    let mut names: Vec<String> = fs::read_dir(sandbox.backups().join("anno117").join(id))
         .map(|entries| {
             entries
                 .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
@@ -183,7 +183,7 @@ fn an_update_backs_up_the_old_copy_and_keeps_its_folder_name() {
     let backups = backup_versions(&sandbox, "keeper");
     assert_eq!(backups.len(), 1);
     assert!(backups[0].starts_with("1.0-"), "{backups:?}");
-    let backup = sandbox.backups().join("keeper").join(&backups[0]);
+    let backup = sandbox.backups().join("anno117/keeper").join(&backups[0]);
     assert!(backup.join("v1.0.txt").is_file());
 }
 
@@ -377,7 +377,10 @@ fn rollback_restores_the_newest_backup() {
     install(&sandbox, "Roll", "Roll", "2.0");
     install(&sandbox, "Roll", "Roll", "3.0");
 
-    sandbox.engine.rollback("roll", &sandbox.mods()).unwrap();
+    sandbox
+        .engine
+        .rollback(GAME, "roll", &sandbox.mods())
+        .unwrap();
 
     let mod_dir = sandbox.mods().join("roll");
     assert_eq!(read_version(&mod_dir), "2.0");
@@ -395,7 +398,7 @@ fn rollback_without_a_backup_is_an_error() {
     let sandbox = Sandbox::new();
     let error = sandbox
         .engine
-        .rollback("nothing", &sandbox.mods())
+        .rollback(GAME, "nothing", &sandbox.mods())
         .unwrap_err();
     assert!(
         matches!(error, Error::NoBackup(ref id) if id == "nothing"),
@@ -414,7 +417,7 @@ fn now_millis() -> u128 {
 fn pruning_drops_expired_backups_but_keeps_each_mods_newest() {
     let sandbox = Sandbox::with(Some(30), Limits::default());
     let recent = now_millis();
-    let backups = sandbox.backups();
+    let backups = sandbox.backups().join("anno117");
     for dir in [
         "solo/1.0-1000".to_string(),
         "busy/1.0-1000".to_string(),
@@ -434,7 +437,10 @@ fn pruning_drops_expired_backups_but_keeps_each_mods_newest() {
 fn pruning_without_a_retention_keeps_everything() {
     let sandbox = Sandbox::with(None, Limits::default());
     for dir in ["old/1.0-1000", "old/1.1-2000"] {
-        write_tree(&sandbox.backups().join(dir), &[("modinfo.json", "{}")]);
+        write_tree(
+            &sandbox.backups().join("anno117").join(dir),
+            &[("modinfo.json", "{}")],
+        );
     }
 
     sandbox.engine.prune_backups().unwrap();

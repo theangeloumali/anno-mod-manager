@@ -149,7 +149,7 @@ fn new_mods_start_off_applies_to_new_installs_not_updates() {
 #[test]
 fn expired_backups_are_pruned_without_touching_settings() {
     let harness = Harness::new();
-    let backups = harness.root.path().join("data/backups/old-mod");
+    let backups = harness.root.path().join("data/backups/anno117/old-mod");
     // 1.0 is 400 days old; 2.0 is the newest copy, which pruning always keeps.
     let day_ms: u64 = 86_400_000;
     let now_ms = std::time::SystemTime::now()

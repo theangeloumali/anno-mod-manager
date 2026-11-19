@@ -302,3 +302,27 @@ fn uninstall_keeps_a_backup_that_restore_puts_back() {
     assert_eq!(mods[0].id, "roman-roads");
     assert_eq!(mods[0].version, "1.0.0");
 }
+
+#[test]
+fn restore_never_brings_back_the_other_games_backup() {
+    let harness = Harness::new();
+    let anno117 = harness.add_mod(GameId::Anno117, "Shared", "shared", "1.0.0");
+    harness
+        .app
+        .uninstall_mod(GameId::Anno117, "shared")
+        .unwrap();
+
+    assert!(harness.app.restore_mod(GameId::Anno1800, "shared").is_err());
+    assert!(harness.app.list_mods(GameId::Anno1800).unwrap().is_empty());
+
+    harness.app.restore_mod(GameId::Anno117, "shared").unwrap();
+    assert!(
+        anno117
+            .parent()
+            .unwrap()
+            .read_dir()
+            .unwrap()
+            .next()
+            .is_some()
+    );
+}

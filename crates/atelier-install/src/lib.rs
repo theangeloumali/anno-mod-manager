@@ -130,7 +130,7 @@ impl InstallEngine {
         match install::install_all(
             &staged.items,
             target_mods_dir,
-            &self.config.backup_dir,
+            &self.game_backups(staged.game),
             include_downgrades,
         ) {
             Ok(result) => {
@@ -154,9 +154,9 @@ impl InstallEngine {
         fs::remove_dir_all(&staged.dir).map_err(error::io_at(&staged.dir))
     }
 
-    /// Restores the newest backup of `mod_id` into `target_mods_dir`.
-    pub fn rollback(&self, mod_id: &str, target_mods_dir: &Path) -> Result<()> {
-        backup::rollback(&self.config.backup_dir, target_mods_dir, mod_id)
+    /// Restores the newest backup of `game`'s `mod_id` into `target_mods_dir`.
+    pub fn rollback(&self, game: GameId, mod_id: &str, target_mods_dir: &Path) -> Result<()> {
+        backup::rollback(&self.game_backups(game), target_mods_dir, mod_id)
     }
 
     /// Lets a same-version item install as an update, for a new mod.io file whose author
@@ -175,13 +175,25 @@ impl InstallEngine {
     }
 
     /// Moves an installed mod's folder into the backups, where `rollback` can find it.
-    pub fn remove_to_backup(&self, mod_dir: &Path) -> Result<()> {
-        let backup = backup::backup_path(&self.config.backup_dir, mod_dir)?;
+    pub fn remove_to_backup(&self, game: GameId, mod_dir: &Path) -> Result<()> {
+        let backup = backup::backup_path(&self.game_backups(game), mod_dir)?;
         fsops::move_dir(mod_dir, &backup)
     }
 
     pub fn prune_backups(&self) -> Result<()> {
-        backup::prune(&self.config.backup_dir, self.config.retention_days)
+        for game in [GameId::Anno117, GameId::Anno1800] {
+            backup::prune(&self.game_backups(game), self.config.retention_days)?;
+        }
+        Ok(())
+    }
+
+    /// One folder per game: the same ModID in both games must never share a backup.
+    fn game_backups(&self, game: GameId) -> PathBuf {
+        let folder = match game {
+            GameId::Anno117 => "anno117",
+            GameId::Anno1800 => "anno1800",
+        };
+        self.config.backup_dir.join(folder)
     }
 
     fn stage_and_classify(
