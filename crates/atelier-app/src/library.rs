@@ -1,7 +1,7 @@
 //! Local mods: games, scanning, activation, profiles, options, health and launch.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::MutexGuard;
 
@@ -43,6 +43,13 @@ impl App {
                         game.executable().display(),
                         game.display_name()
                     ),
+                ));
+            }
+            Some(dir) if !dir.is_absolute() || self.mods_can_write(&dir) => {
+                return Err(AppError::new(
+                    ErrorCode::InvalidInput,
+                    "That folder is where mods or Atelier keep files, so it can't be the game. \
+                     Pick the folder the game is installed in.",
                 ));
             }
             other => other,
@@ -246,12 +253,31 @@ impl App {
         Ok(())
     }
 
-    /// A folder the user picked wins over detection.
+    /// A folder the user picked wins over detection, unless it has since become untrusted.
     pub(crate) fn install(&self, game: GameId) -> Option<(PathBuf, Store)> {
         let chosen = self.persisted().game_paths.get(&game).cloned();
         chosen
+            .filter(|path| !self.mods_can_write(path))
             .map(|path| (path, Store::Manual))
             .or_else(|| (self.0.locate)(game))
+    }
+
+    /// Launch runs the executable it finds, and a mod can ship its own Anno117.exe, so no
+    /// folder that mods or the app write into may stand in for the game.
+    fn mods_can_write(&self, dir: &Path) -> bool {
+        let mut roots: Vec<PathBuf> = GAMES
+            .iter()
+            .map(|&game| games::documents_game_dir(game, &self.0.documents))
+            .collect();
+        roots.push(self.0.data_dir.clone());
+        roots.extend(
+            GAMES
+                .iter()
+                .filter_map(|&game| (self.0.locate)(game))
+                .map(|(install, _)| install.join("mods")),
+        );
+        let dir = canonical(dir);
+        roots.iter().any(|root| dir.starts_with(canonical(root)))
     }
 
     pub(crate) fn scan(&self, game: GameId) -> Result<Vec<Mod>> {
@@ -343,4 +369,9 @@ pub(crate) fn game_not_found(game: GameId) -> AppError {
             game.display_name()
         ),
     )
+}
+
+/// Resolves `..` and links so a path can't dodge a prefix check; a missing path stays as given.
+fn canonical(path: &Path) -> PathBuf {
+    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }

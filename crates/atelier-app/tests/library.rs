@@ -263,3 +263,21 @@ fn toggles_from_many_threads_at_once_are_all_kept() {
         "a read-modify-write lost a toggle"
     );
 }
+
+#[test]
+fn a_game_folder_inside_the_mods_folder_is_refused() {
+    let harness = Harness::new();
+    let fake = harness.documents_mods(GameId::Anno117).join("Evil");
+    let exe = fake.join(GameId::Anno117.executable());
+    std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+    std::fs::write(&exe, b"not the game").unwrap();
+
+    let error = harness
+        .app
+        .set_game_path(GameId::Anno117, Some(fake.to_str().unwrap()))
+        .unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    let launch = harness.app.launch_game(GameId::Anno117).unwrap_err();
+    assert_eq!(launch.code, ErrorCode::GameNotFound);
+}
