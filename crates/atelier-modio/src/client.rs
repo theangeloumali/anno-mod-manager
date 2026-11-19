@@ -1,0 +1,235 @@
+use std::sync::Arc;
+use std::time::Duration;
+
+use atelier_core::GameId;
+use reqwest::{Method, RequestBuilder, Response, StatusCode};
+use serde::de::DeserializeOwned;
+use url::Url;
+
+use crate::api::ApiPage;
+use crate::error::{Error, Result};
+use crate::token_store::{KeyringTokenStore, TokenStore};
+
+/// mod.io caps `_limit` (and `id-in` lists) at 100.
+pub(crate) const MAX_LIMIT: usize = 100;
+const ROLLING_LIMIT_WAIT_SECS: u64 = 60;
+pub(crate) const PLATFORM_HEADER: &str = "X-Modio-Platform";
+pub(crate) const PLATFORM: &str = "windows";
+
+pub fn modio_game_id(game: GameId) -> u64 {
+    match game {
+        GameId::Anno117 => 11358,
+        GameId::Anno1800 => 4169,
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ClientConfig {
+    pub api_key: Option<String>,
+    /// Replaces `https://g-{game}.modapi.io/v1/` (tests, proxies).
+    pub base_override: Option<Url>,
+}
+
+impl std::fmt::Debug for ClientConfig {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ClientConfig")
+            .field("api_key", &self.api_key.as_ref().map(|_| "<redacted>"))
+            .field("base_override", &self.base_override)
+            .finish()
+    }
+}
+
+/// Which credential a request carries.
+#[derive(Clone, Copy)]
+pub(crate) enum Auth<'a> {
+    /// The stored bearer when signed in, else the api key.
+    Any,
+    /// The stored bearer, or `NotSignedIn`.
+    Bearer,
+    /// The api key only (terms must be read before login).
+    Key,
+    /// A token that is not stored yet (sign-in validation).
+    Token(&'a str),
+}
+
+pub struct ModioClient {
+    pub(crate) http: reqwest::Client,
+    api_key: Option<String>,
+    pub(crate) base_override: Option<Url>,
+    pub(crate) tokens: Arc<dyn TokenStore>,
+}
+
+impl ModioClient {
+    pub fn new(config: ClientConfig) -> Result<Self> {
+        let http = reqwest::Client::builder()
+            .user_agent(concat!("anno-mod-manager/", env!("CARGO_PKG_VERSION")))
+            .connect_timeout(Duration::from_secs(15))
+            .read_timeout(Duration::from_secs(60))
+            .build()
+            .map_err(Error::from_transport)?;
+        let base_override = config.base_override.map(with_trailing_slash);
+        Ok(Self {
+            http,
+            api_key: config.api_key,
+            base_override,
+            tokens: Arc::new(KeyringTokenStore),
+        })
+    }
+
+    pub fn with_token_store(mut self, store: Arc<dyn TokenStore>) -> Self {
+        self.tokens = store;
+        self
+    }
+
+    fn base(&self, game: GameId) -> Result<Url> {
+        match &self.base_override {
+            Some(base) => Ok(base.clone()),
+            None => Ok(Url::parse(&format!(
+                "https://g-{}.modapi.io/v1/",
+                modio_game_id(game)
+            ))?),
+        }
+    }
+
+    pub(crate) fn request(
+        &self,
+        game: GameId,
+        method: Method,
+        path: &str,
+        auth: Auth<'_>,
+    ) -> Result<RequestBuilder> {
+        let url = self.base(game)?.join(path)?;
+        let builder = self.http.request(method, url);
+        self.authorize(builder, auth)
+    }
+
+    fn authorize(&self, builder: RequestBuilder, auth: Auth<'_>) -> Result<RequestBuilder> {
+        let builder = builder.header(PLATFORM_HEADER, PLATFORM);
+        let token = match auth {
+            Auth::Token(token) => Some(token.to_owned()),
+            Auth::Any | Auth::Bearer => self.tokens.load()?,
+            Auth::Key => None,
+        };
+        // The bearer wins over the api key whenever both exist.
+        match (token, auth, &self.api_key) {
+            (Some(token), _, _) => Ok(builder.bearer_auth(token)),
+            (None, Auth::Bearer, _) => Err(Error::NotSignedIn),
+            (None, _, Some(key)) => Ok(builder.query(&[("api_key", key)])),
+            (None, _, None) => Err(Error::MissingCredentials),
+        }
+    }
+
+    pub(crate) fn signed_in(&self) -> Result<bool> {
+        Ok(self.tokens.load()?.is_some())
+    }
+
+    /// Sends once; on 429 waits `retry-after` and retries once.
+    pub(crate) async fn execute(&self, builder: RequestBuilder) -> Result<Response> {
+        let retry = builder.try_clone();
+        let response = builder.send().await.map_err(Error::from_transport)?;
+        if response.status() != StatusCode::TOO_MANY_REQUESTS {
+            return ensure_success(response).await;
+        }
+        let wait = retry_after_secs(&response);
+        let Some(retry) = retry else {
+            return Err(Error::RateLimited { retry_after: wait });
+        };
+        tokio::time::sleep(Duration::from_secs(wait)).await;
+        let response = retry.send().await.map_err(Error::from_transport)?;
+        if response.status() == StatusCode::TOO_MANY_REQUESTS {
+            return Err(Error::RateLimited {
+                retry_after: retry_after_secs(&response),
+            });
+        }
+        ensure_success(response).await
+    }
+
+    pub(crate) async fn get_json<T: DeserializeOwned>(
+        &self,
+        game: GameId,
+        path: &str,
+        auth: Auth<'_>,
+        query: &[(&str, String)],
+    ) -> Result<T> {
+        let builder = self.request(game, Method::GET, path, auth)?.query(query);
+        let body = self
+            .execute(builder)
+            .await?
+            .bytes()
+            .await
+            .map_err(Error::from_transport)?;
+        Ok(serde_json::from_slice(&body)?)
+    }
+
+    /// Walks every page of a list endpoint.
+    pub(crate) async fn get_all<T: DeserializeOwned>(
+        &self,
+        game: GameId,
+        path: &str,
+        auth: Auth<'_>,
+        query: &[(&str, String)],
+    ) -> Result<Vec<T>> {
+        let mut items = Vec::new();
+        loop {
+            let mut page_query = query.to_vec();
+            page_query.push(("_limit", MAX_LIMIT.to_string()));
+            page_query.push(("_offset", items.len().to_string()));
+            let page: ApiPage<T> = self.get_json(game, path, auth, &page_query).await?;
+            let fetched = page.result_count;
+            let total = page.result_total;
+            items.extend(page.data);
+            if fetched == 0 || items.len() as u64 >= total {
+                return Ok(items);
+            }
+        }
+    }
+
+    /// A bearer-authenticated write whose response body is not needed.
+    pub(crate) async fn write(
+        &self,
+        game: GameId,
+        method: Method,
+        path: &str,
+        auth: Auth<'_>,
+        form: &[(&str, String)],
+    ) -> Result<()> {
+        let mut builder = self.request(game, method, path, auth)?;
+        if !form.is_empty() {
+            builder = builder.form(form);
+        }
+        self.execute(builder).await.map(drop)
+    }
+}
+
+fn with_trailing_slash(mut url: Url) -> Url {
+    if !url.path().ends_with('/') {
+        let path = format!("{}/", url.path());
+        url.set_path(&path);
+    }
+    url
+}
+
+fn retry_after_secs(response: &Response) -> u64 {
+    let seconds = response
+        .headers()
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .unwrap_or(0);
+    // 0 (or absent) means a rolling limit; mod.io asks for a 60s pause.
+    if seconds == 0 {
+        ROLLING_LIMIT_WAIT_SECS
+    } else {
+        seconds
+    }
+}
+
+async fn ensure_success(response: Response) -> Result<Response> {
+    let status = response.status();
+    if status.is_success() {
+        return Ok(response);
+    }
+    let body = response.bytes().await.map_err(Error::from_transport)?;
+    Err(Error::from_status(status.as_u16(), &body))
+}

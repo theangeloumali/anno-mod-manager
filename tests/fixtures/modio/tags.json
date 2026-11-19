@@ -1,0 +1,41 @@
+{
+  "data": [
+    {
+      "name": "Type",
+      "name_localized": "Type",
+      "type": "checkboxes",
+      "tags": [
+        "Gameplay",
+        "Cosmetic"
+      ],
+      "tags_localized": {},
+      "tag_count_map": {
+        "Gameplay": 40,
+        "Cosmetic": 12
+      },
+      "hidden": false,
+      "locked": false
+    },
+    {
+      "name": "Region",
+      "name_localized": "Region",
+      "type": "dropdown",
+      "tags": [
+        "Latium",
+        "Albion",
+        "Gameplay"
+      ],
+      "tags_localized": {},
+      "tag_count_map": {
+        "Latium": 8,
+        "Albion": 6
+      },
+      "hidden": false,
+      "locked": false
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 2
+}

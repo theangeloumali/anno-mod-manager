@@ -1,0 +1,21 @@
+{
+  "id": 9120,
+  "name_id": "aurelia",
+  "username": "Aurelia",
+  "display_name_portal": null,
+  "date_online": 1763500000,
+  "date_joined": 1700000000,
+  "avatar": {
+    "filename": "avatar.png",
+    "original": "https://thumb.modcdn.io/members/avatar.png",
+    "thumb_50x50": "https://thumb.modcdn.io/members/crop_50x50/avatar.png",
+    "thumb_100x100": "https://thumb.modcdn.io/members/crop_100x100/avatar.png"
+  },
+  "timezone": "",
+  "language": "",
+  "profile_url": "https://mod.io/u/aurelia",
+  "country": "AU",
+  "privacy_options": 0,
+  "status": 1,
+  "monetization_status": 0
+}

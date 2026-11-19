@@ -1,0 +1,34 @@
+{
+  "plaintext": "This game uses mod.io to support user-generated content.",
+  "html": "<p>This game uses mod.io to support user-generated content.</p>",
+  "buttons": {
+    "agree": {
+      "text": "I Agree"
+    },
+    "disagree": {
+      "text": "No, Thanks"
+    }
+  },
+  "links": {
+    "website": {
+      "text": "Website",
+      "url": "https://mod.io",
+      "required": false
+    },
+    "terms": {
+      "text": "Terms of Use",
+      "url": "https://mod.io/terms",
+      "required": true
+    },
+    "privacy": {
+      "text": "Privacy Policy",
+      "url": "https://mod.io/privacy",
+      "required": true
+    },
+    "manage": {
+      "text": "Manage Account",
+      "url": "https://mod.io/me/account",
+      "required": false
+    }
+  }
+}
