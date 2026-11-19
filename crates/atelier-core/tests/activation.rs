@@ -381,6 +381,27 @@ fn set_off_in_profile_turns_only_the_named_mods_off() {
 }
 
 #[test]
+fn a_profile_name_that_escapes_the_profiles_folder_falls_back_to_default() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mods_dir = tmp.path().join("mods");
+    write(&mods_dir, "profile.txt", "ActiveProfile ../../escaped\n");
+    write_mod(&mods_dir, "A", &info117("a", ""));
+    let mods = scan_mods(GameId::Anno117, &mods_dir);
+
+    activation::set_active(
+        GameId::Anno117,
+        &documents(&mods_dir),
+        find(&mods, "a"),
+        false,
+        &snapshots(tmp.path()),
+    )
+    .unwrap();
+
+    assert!(!tmp.path().join("escaped.txt").exists());
+    assert!(mods_dir.join("profiles/default.txt").exists());
+}
+
+#[test]
 fn legacy_scheme_has_no_profiles() {
     let tmp = tempfile::tempdir().unwrap();
     write(tmp.path(), "active-profile.txt", "EnableNewMods\n");

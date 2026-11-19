@@ -166,7 +166,7 @@ fn require_profile_scheme(mods_dir: &Path) -> Result<()> {
 }
 
 /// Names become file names, so path separators and dots are refused.
-fn validate_name(name: &str) -> Result<()> {
+pub(super) fn validate_name(name: &str) -> Result<()> {
     let allowed = |c: char| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_');
     if name.trim().is_empty() || name.len() > MAX_PROFILE_NAME || !name.chars().all(allowed) {
         return Err(Error::InvalidProfileName(name.to_string()));

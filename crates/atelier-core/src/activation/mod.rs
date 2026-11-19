@@ -257,7 +257,9 @@ fn read_active_profile_name(mods_dir: &Path) -> Result<Option<String>> {
     Ok(text.lines().find_map(|line| {
         let rest = line.trim().strip_prefix(ACTIVE_PROFILE_KEY)?;
         let name = rest.trim();
-        (!name.is_empty() && rest.starts_with(char::is_whitespace)).then(|| name.to_string())
+        // The name becomes a file path, so one that fails the save-time rules (`../x`) is ignored.
+        (rest.starts_with(char::is_whitespace) && profiles::validate_name(name).is_ok())
+            .then(|| name.to_string())
     }))
 }
 
