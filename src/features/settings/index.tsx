@@ -1,27 +1,20 @@
 // Created by The Angelo Umali.
-import { FlaskConicalIcon, FolderOpenIcon } from "lucide-react";
+import { FlaskConicalIcon } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 import { useAppStore } from "@/components/app/app-store";
 import { ChoiceSelect } from "@/components/app/choice-select";
-import { FIELD_CLASS, SWITCH_CLASS } from "@/components/app/field-class";
+import { SWITCH_CLASS } from "@/components/app/field-class";
 import { withToast } from "@/components/app/notify";
 import { PageHeader } from "@/components/app/page-header";
 import { Panel } from "@/components/app/panel";
-import { StateBadge } from "@/components/app/state-badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useAction, useGames, useSettings } from "@/data/source";
-import type { GameInfo, Settings, Store } from "@/data/types";
+import type { Settings } from "@/data/types";
 import { AccountPanel } from "./account-panel";
 import { ApiKeyPanel } from "./api-key-panel";
+import { GamePaths } from "./game-paths";
 
-const STORE_LABEL: Record<Store, string> = {
-  steam: "Steam",
-  ubisoft: "Ubisoft Connect",
-  epic: "Epic Games",
-  manual: "Added by hand",
-};
 const RETENTION_CHOICES = [
   { value: "7", label: "7 days" },
   { value: "30", label: "30 days" },
@@ -29,55 +22,6 @@ const RETENTION_CHOICES = [
   { value: "forever", label: "Keep forever" },
 ];
 type Theme = "dark" | "light";
-
-function PathField({ label, value }: { label: string; value: string }) {
-  return (
-    <label className="grid gap-1.5 text-label font-medium text-copy-muted">
-      {label}
-      <span className="flex gap-2">
-        <input
-          readOnly
-          value={value}
-          className={`${FIELD_CLASS} font-mono text-label`}
-        />
-        {/* No path setter in the contract yet (report DEVIATIONS); the picker belongs to Tauri's dialog API. */}
-        <Button
-          className="shrink-0"
-          onClick={() =>
-            toast.info("The folder picker opens in the desktop app.")
-          }
-        >
-          <FolderOpenIcon aria-hidden="true" />
-          <span className="sr-only sm:not-sr-only">Browse</span>
-        </Button>
-      </span>
-    </label>
-  );
-}
-
-function GamePaths({ game }: { game: GameInfo }) {
-  return (
-    <div className="flex flex-col gap-3 rounded-field border border-line bg-bg p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-ui font-semibold">{game.displayName}</h3>
-        {game.store ? (
-          <StateBadge tone="ok">{STORE_LABEL[game.store]}</StateBadge>
-        ) : (
-          <StateBadge tone="warning">Not found</StateBadge>
-        )}
-      </div>
-      <PathField
-        label="Game folder"
-        value={game.installPath ?? "Not detected"}
-      />
-      <PathField
-        label="Mods folder (Atelier writes here)"
-        value={game.modsPath}
-      />
-      <PathField label="Mod loader log" value={game.logPath} />
-    </div>
-  );
-}
 
 export function SettingsScreen() {
   const { data: games = [] } = useGames();

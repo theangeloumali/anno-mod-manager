@@ -45,6 +45,7 @@ dependencies = [
 name = "anno-mod-manager-desktop"
 version = "0.1.0"
 dependencies = [
+ "atelier-app",
  "atelier-core",
  "atelier-install",
  "atelier-modio",
@@ -201,6 +202,23 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.10",
+]
+
+[[package]]
+name = "atelier-app"
+version = "0.1.0"
+dependencies = [
+ "atelier-core",
+ "atelier-install",
+ "atelier-modio",
+ "md-5",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "url",
+ "wiremock",
+ "zip",
 ]
 
 [[package]]

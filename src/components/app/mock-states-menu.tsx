@@ -17,7 +17,6 @@ import {
 import {
   MOCK_DROP_SOURCES,
   mockScenario,
-  rememberMockGame,
   resetMockData,
   restartSampleDownloads,
   setMockScenario,
@@ -43,7 +42,6 @@ export function MockStatesMenu() {
   const [scenario, setScenario] = useState(mockScenario);
 
   const simulateDrop = (fileName: string) => {
-    rememberMockGame(game);
     void startPreview([fileName]);
   };
 

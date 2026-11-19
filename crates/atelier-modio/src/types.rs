@@ -88,6 +88,7 @@ pub struct ModDetail {
     pub description: String,
     /// None when the mod has no live modfile yet.
     pub modfile: Option<Modfile>,
+    pub has_dependencies: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

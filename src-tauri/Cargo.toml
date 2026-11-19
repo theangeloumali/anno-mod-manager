@@ -22,3 +22,4 @@ serde_json = { workspace = true }
 atelier-core = { workspace = true }
 atelier-modio = { workspace = true }
 atelier-install = { workspace = true }
+atelier-app = { workspace = true }

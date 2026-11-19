@@ -6,20 +6,15 @@ import {
   FolderOpenIcon,
   UserIcon,
 } from "lucide-react";
-import { useAccount, useHealthChecks, useMods } from "@/data/source";
+import { useAccount, useConnectivity, useMods } from "@/data/source";
 import { useCurrentGame } from "./use-current-game";
-
-/** The mod.io reachability check id the core reports; the contract has no separate online flag. */
-const MODIO_REACHABLE_CHECK = "modio-reachable";
 
 export function StatusBar() {
   const { gameId, game, isWriteLocked, shortName } = useCurrentGame();
   const { data: mods = [] } = useMods(gameId);
   const { data: account } = useAccount();
-  const { data: checks = [] } = useHealthChecks(gameId);
-  const isOffline =
-    checks.find((check) => check.id === MODIO_REACHABLE_CHECK)?.level ===
-    "error";
+  const { data: isOnline } = useConnectivity();
+  const isOffline = isOnline === false;
   const activeCount = mods.filter((mod) => mod.active).length;
 
   return (

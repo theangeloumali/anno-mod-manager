@@ -110,9 +110,8 @@ export function ModDetail({
   const uninstall = useAction((source, modId: string) =>
     source.uninstallMod(gameId, modId),
   );
-  // No per-mod update in the contract; re-subscribing fetches the latest file (report DEVIATIONS).
-  const update = useAction((source, modioId: number) =>
-    source.subscribe(gameId, modioId),
+  const update = useAction((source, modId: string) =>
+    source.updateMod(gameId, modId),
   );
 
   if (!mod)
@@ -293,7 +292,7 @@ export function ModDetail({
               disabled={isWriteLocked || update.isPending}
               onClick={() =>
                 withToast(
-                  update.mutateAsync([mod.modioId ?? 0]),
+                  update.mutateAsync([mod.id]),
                   `Updating ${mod.name} to ${mod.update?.version}`,
                 )
               }

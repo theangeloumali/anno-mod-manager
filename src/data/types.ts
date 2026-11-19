@@ -4,8 +4,8 @@ export type GameId = "anno117" | "anno1800";
 export type Store = "steam" | "ubisoft" | "epic" | "manual";
 /** Where the loader found the mod: Documents is ours to write; game and ubi are read-only. */
 export type ModLocation = "documents" | "game" | "ubi";
-export type ModOrigin = "modio" | "local";
-export type Severity = "ok" | "warning" | "error";
+type ModOrigin = "modio" | "local";
+type Severity = "ok" | "warning" | "error";
 
 export interface GameInfo {
   id: GameId;
@@ -19,7 +19,7 @@ export interface GameInfo {
   activationScheme: "profile" | "legacy" | "activation-json";
 }
 
-export interface GameSetup {
+interface GameSetup {
   requiresNewGame?: boolean;
   safeToRemove?: boolean;
   multiplayer?: boolean;
@@ -95,7 +95,7 @@ export interface Profile {
   active: boolean;
 }
 
-export type ModOptionType = "toggle" | "enum" | "slider" | "text" | "color";
+type ModOptionType = "toggle" | "enum" | "slider" | "text" | "color";
 
 export interface ModOption {
   key: string;
@@ -112,14 +112,9 @@ export interface ModOption {
 }
 
 export type InstallItemStatus =
-  | "new"
-  | "update"
-  | "downgrade"
-  | "same"
-  | "wrong-game"
-  | "invalid";
+  "new" | "update" | "downgrade" | "same" | "wrong-game" | "invalid";
 
-export interface InstallCheck {
+interface InstallCheck {
   level: Severity;
   message: string;
 }
@@ -149,12 +144,7 @@ export interface InstallResult {
 }
 
 export type ModioSort =
-  | "trending"
-  | "downloads"
-  | "rating"
-  | "newest"
-  | "updated"
-  | "subscribers";
+  "trending" | "downloads" | "rating" | "newest" | "updated" | "subscribers";
 
 export interface ModioQuery {
   game: GameId;
@@ -180,6 +170,37 @@ export interface ModioMod {
   installedModId: string | null;
 }
 
+/** The file mod.io serves for a mod's current release. */
+interface Modfile {
+  id: number;
+  modId: number;
+  filename: string;
+  version: string | null;
+  filesize: number;
+  md5: string;
+  binaryUrl: string;
+  virusStatus: number;
+  /** 1 = malware found (refused), 2 = flagged but allowed. */
+  virusPositive: number;
+}
+
+export interface ModDetail extends ModioMod {
+  description: string;
+  /** null when the mod has no live file yet. */
+  modfile: Modfile | null;
+  hasDependencies: boolean;
+}
+
+export type ReportKind =
+  | "generic"
+  | "dmca"
+  | "not-working"
+  | "rude-content"
+  | "illegal-content"
+  | "stolen-content"
+  | "false-information"
+  | "other";
+
 export interface ModioPage {
   items: ModioMod[];
   total: number;
@@ -191,17 +212,14 @@ export interface ModioCollection {
   name: string;
   author: string;
   summary: string;
-  modCount: number;
+  /** mod.io's collection object carries no count. */
+  modCount: number | null;
   followers: number;
   following: boolean;
 }
 
 export type DownloadStatus =
-  | "queued"
-  | "downloading"
-  | "verifying"
-  | "done"
-  | "failed";
+  "queued" | "downloading" | "verifying" | "done" | "failed";
 
 export interface DownloadJob {
   id: string;
@@ -243,6 +261,30 @@ export interface DeviceCode {
   code: string;
   verifyUrl: string;
   expiresAt: string;
+}
+
+export type AppErrorCode =
+  | "not-supported"
+  | "game-running"
+  | "game-not-found"
+  | "no-api-key"
+  | "invalid-api-key"
+  | "offline"
+  | "unauthorized"
+  | "not-found"
+  | "not-signed-in"
+  | "terms-required"
+  | "rate-limited"
+  | "read-only"
+  | "invalid-input"
+  | "io"
+  | "install"
+  | "modio";
+
+/** What a failing core call rejects with, from Tauri and from the mock alike. */
+export interface AppError {
+  code: AppErrorCode;
+  message: string;
 }
 
 export interface Settings {

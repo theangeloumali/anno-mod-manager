@@ -1,8 +1,10 @@
 // Created by The Angelo Umali.
 // Stateful in-memory DataSource for the v2 mock-up. ModIDs and folders follow the real install (research 04).
+import { CoreError } from "./core-error.ts";
 import type { DataSource } from "./source.ts";
 import type {
   Account,
+  AppErrorCode,
   DownloadJob,
   GameId,
   GameInfo,
@@ -15,6 +17,7 @@ import type {
   LogEntry,
   Mod,
   ModDependencies,
+  ModDetail,
   ModioCollection,
   ModioMod,
   ModOption,
@@ -985,6 +988,7 @@ function seedDownloads(now: number): StoredJob[] {
 }
 
 function createState() {
+  const gamePaths: Partial<Record<GameId, string>> = {};
   return {
     scenario: {
       emptyLibrary: false,
@@ -993,7 +997,7 @@ function createState() {
       offline: false,
       noApiKey: false,
     } as MockScenario,
-    currentGame: "anno117" as GameId,
+    gamePaths,
     runningGame: null as GameId | null,
     mods: { anno117: seedMods117(), anno1800: seedMods1800() } as Record<
       GameId,
@@ -1072,10 +1076,17 @@ const NO_API_KEY_MESSAGE =
   "Add your mod.io API key in Settings to browse mod.io.";
 const lacksModioAccess = () => !state.apiKeySet && !state.account.signedIn;
 
-const refuse = (message: string): Promise<never> =>
+const refuse = (
+  message: string,
+  code: AppErrorCode = "invalid-input",
+): Promise<never> =>
   new Promise((_resolve, reject) =>
-    setTimeout(() => reject(new Error(message)), MOCK_LATENCY_MS),
+    setTimeout(() => reject(new CoreError(code, message)), MOCK_LATENCY_MS),
   );
+const refuseOffline = () =>
+  refuse("mod.io is unreachable. Check your connection.", "offline");
+const refuseSignedOut = (action: string) =>
+  refuse(`Sign in to mod.io to ${action}.`, "not-signed-in");
 
 const exeName = (game: GameId) => GAME_DETAILS[game].exe;
 const shortGameName = (game: GameId) =>
@@ -1303,6 +1314,20 @@ function installFromModio(game: GameId, item: ModioMod): void {
       active: state.settings.newModsStart !== "inactive",
       setup: { safeToRemove: true },
     }),
+  );
+}
+
+function startUpdate(mod: Mod): void {
+  const target = mod.update;
+  if (!target) return;
+  startJob(
+    mod.modioId ?? 0,
+    `${mod.name} ${target.version}`,
+    mod.sizeBytes,
+    () => {
+      mod.version = target.version;
+      mod.update = null;
+    },
   );
 }
 
@@ -1695,11 +1720,6 @@ function buildHealthChecks(game: GameId): HealthCheck[] {
   ];
 }
 
-/** The game the UI last listed mods for; previewInstall has no game argument (see report DEVIATIONS). */
-export function rememberMockGame(game: GameId): void {
-  state.currentGame = game;
-}
-
 function settleApproval(): void {
   if (
     state.pendingApprovalAt !== null &&
@@ -1760,33 +1780,48 @@ export const mockSource: DataSource = {
     respond(
       (Object.keys(GAME_DETAILS) as GameId[]).map((game) => {
         const { exe: _exe, ...info } = GAME_DETAILS[game];
-        return { ...info, running: state.runningGame === game };
+        const chosenPath = state.gamePaths[game];
+        return {
+          ...info,
+          ...(chosenPath && { installPath: chosenPath, store: "manual" }),
+          running: state.runningGame === game,
+        };
       }),
     ),
 
+  setGamePath: (game, path) => {
+    if (path === null) delete state.gamePaths[game];
+    else if (!path.trim())
+      return refuse(
+        `${exeName(game)} isn't in that folder. Pick the folder ${GAME_DETAILS[game].displayName} is installed in.`,
+      );
+    else state.gamePaths[game] = path.trim();
+    return respond(undefined);
+  },
+
   listMods: (game) => {
-    rememberMockGame(game);
     advanceDownloads();
     return respond(visibleMods(game));
   },
 
   setModActive: (game, modId, active) => {
     const blocked = writeBlockedReason(game);
-    if (blocked) return refuse(blocked);
+    if (blocked) return refuse(blocked, "game-running");
     const mod = findMod(game, modId);
-    if (!mod) return refuse(`No mod with ID ${modId}.`);
+    if (!mod) return refuse(`No mod with ID ${modId}.`, "not-found");
     mod.active = active;
     return respond(undefined);
   },
 
   uninstallMod: (game, modId) => {
     const blocked = writeBlockedReason(game);
-    if (blocked) return refuse(blocked);
+    if (blocked) return refuse(blocked, "game-running");
     const mod = findMod(game, modId);
-    if (!mod) return refuse(`No mod with ID ${modId}.`);
+    if (!mod) return refuse(`No mod with ID ${modId}.`, "not-found");
     if (mod.location !== "documents")
       return refuse(
         `${mod.name} lives in the ${mod.location === "ubi" ? "Ubisoft-managed .ubi" : "game"} folder. Atelier only removes mods in Documents.`,
+        "read-only",
       );
     state.mods[game] = state.mods[game].filter(
       (candidate) => candidate.id !== modId && candidate.parentId !== modId,
@@ -1809,14 +1844,14 @@ export const mockSource: DataSource = {
 
   switchProfile: (game, name) => {
     const blocked = writeBlockedReason(game);
-    if (blocked) return refuse(blocked);
+    if (blocked) return refuse(blocked, "game-running");
     const target = state.profiles[game].find(
       (profile) => profile.name === name,
     );
     const current = state.profiles[game].find(
       (profile) => profile.name === state.activeProfile[game],
     );
-    if (!target) return refuse(`No profile named ${name}.`);
+    if (!target) return refuse(`No profile named ${name}.`, "not-found");
     if (current && !current.builtIn)
       current.activeIds = state.mods[game]
         .filter((mod) => mod.active)
@@ -1828,7 +1863,7 @@ export const mockSource: DataSource = {
 
   saveProfile: (game, name) => {
     const blocked = writeBlockedReason(game);
-    if (blocked) return refuse(blocked);
+    if (blocked) return refuse(blocked, "game-running");
     const activeIds = state.mods[game]
       .filter((mod) => mod.active)
       .map((mod) => mod.id);
@@ -1836,7 +1871,7 @@ export const mockSource: DataSource = {
       (profile) => profile.name === name,
     );
     if (existing?.builtIn)
-      return refuse(`${name} is built in. Save under a new name.`);
+      return refuse(`${name} is built in. Save under a new name.`, "read-only");
     if (existing) existing.activeIds = activeIds;
     else state.profiles[game].push({ name, builtIn: false, activeIds });
     state.activeProfile[game] = name;
@@ -1847,9 +1882,9 @@ export const mockSource: DataSource = {
     const profile = state.profiles[game].find(
       (candidate) => candidate.name === name,
     );
-    if (!profile) return refuse(`No profile named ${name}.`);
+    if (!profile) return refuse(`No profile named ${name}.`, "not-found");
     if (profile.builtIn)
-      return refuse(`${name} is built in and can't be deleted.`);
+      return refuse(`${name} is built in and can't be deleted.`, "read-only");
     state.profiles[game] = state.profiles[game].filter(
       (candidate) => candidate.name !== name,
     );
@@ -1862,7 +1897,7 @@ export const mockSource: DataSource = {
     const profile = state.profiles[game].find(
       (candidate) => candidate.name === name,
     );
-    if (!profile) return refuse(`No profile named ${name}.`);
+    if (!profile) return refuse(`No profile named ${name}.`, "not-found");
     const ids =
       profile.activeIds ??
       state.mods[game].filter((mod) => mod.active).map((mod) => mod.id);
@@ -1878,22 +1913,22 @@ export const mockSource: DataSource = {
 
   setOption: (game, modId, key, value) => {
     const blocked = writeBlockedReason(game);
-    if (blocked) return refuse(blocked);
+    if (blocked) return refuse(blocked, "game-running");
     const mod = findMod(game, modId);
     if (mod && mod.location !== "documents")
       return refuse(
         `${mod.name} lives in the game folder, so its options are read-only here.`,
+        "read-only",
       );
     const option = state.options[`${game}:${modId}`]?.find(
       (candidate) => candidate.key === key,
     );
-    if (!option) return refuse(`No option ${key} on ${modId}.`);
+    if (!option) return refuse(`No option ${key} on ${modId}.`, "not-found");
     option.value = value ?? option.defaultValue;
     return respond(undefined);
   },
 
-  previewInstall: (paths) => {
-    const game = state.currentGame;
+  previewInstall: (game, paths) => {
     const seeds = paths.flatMap(
       (path) =>
         PACK_CONTENTS[path.split(/[\\/]/).pop() ?? path] ?? [
@@ -1914,7 +1949,10 @@ export const mockSource: DataSource = {
   confirmInstall: (previewId, includeDowngrades) => {
     const stored = state.previews.get(previewId);
     if (!stored)
-      return refuse("That preview has expired. Drop the file again.");
+      return refuse(
+        "That preview has expired. Drop the file again.",
+        "not-found",
+      );
     const onlyWrongGame = stored.preview.items.every(
       (item) => item.status === "wrong-game",
     );
@@ -1929,7 +1967,7 @@ export const mockSource: DataSource = {
       ? (installable[0]?.targetGame ?? stored.game)
       : stored.game;
     const blocked = writeBlockedReason(targetGame);
-    if (blocked) return refuse(blocked);
+    if (blocked) return refuse(blocked, "game-running");
     installable.forEach((item) => installPreviewItem(item, stored.game));
     state.previews.delete(previewId);
     const installedIds = new Set(installable.map((item) => item.modId));
@@ -1947,9 +1985,8 @@ export const mockSource: DataSource = {
   },
 
   browseModio: (query) => {
-    if (state.scenario.offline)
-      return refuse("mod.io is unreachable. Check your connection.");
-    if (lacksModioAccess()) return refuse(NO_API_KEY_MESSAGE);
+    if (state.scenario.offline) return refuseOffline();
+    if (lacksModioAccess()) return refuse(NO_API_KEY_MESSAGE, "no-api-key");
     const installedIds = new Set(state.mods[query.game].map((mod) => mod.id));
     const search = query.search.trim().toLowerCase();
     const sortValue: Record<string, (item: ModioMod) => number> = {
@@ -1988,23 +2025,69 @@ export const mockSource: DataSource = {
       [...new Set(state.modio[game].flatMap((item) => item.tags))].sort(),
     ),
 
-  listCollections: (game) => {
-    if (state.scenario.offline)
-      return refuse("mod.io is unreachable. Check your connection.");
-    if (lacksModioAccess()) return refuse(NO_API_KEY_MESSAGE);
-    return respond(state.collections[game]);
-  },
-
-  subscribe: (game, modioId) => {
-    if (state.scenario.offline)
-      return refuse("mod.io is unreachable. Check your connection.");
-    const blocked = writeBlockedReason(game);
-    if (blocked) return refuse(blocked);
+  modioDetail: (game, modioId) => {
+    if (state.scenario.offline) return refuseOffline();
+    if (lacksModioAccess()) return refuse(NO_API_KEY_MESSAGE, "no-api-key");
     const item = state.modio[game].find(
       (candidate) => candidate.id === modioId,
     );
     if (!item)
-      return refuse(`mod.io has no mod ${modioId} for ${shortGameName(game)}.`);
+      return refuse(
+        `mod.io has no mod ${modioId} for ${shortGameName(game)}.`,
+        "not-found",
+      );
+    const detail: ModDetail = {
+      ...item,
+      installedModId: findMod(game, item.nameId)?.id ?? null,
+      description: `${item.summary}\n\nTested on the current ${shortGameName(game)} patch.`,
+      modfile: {
+        id: item.id * 10,
+        modId: item.id,
+        filename: `${item.nameId}.zip`,
+        version: "1.0.0",
+        filesize: item.sizeBytes,
+        md5: "9e107d9d372bb6826bd81d3542a419d6",
+        binaryUrl: `https://g-anno.modapi.io/v1/games/mods/${item.id}/files/${item.id * 10}/download`,
+        virusStatus: 1,
+        virusPositive: 0,
+      },
+      hasDependencies: false,
+    };
+    return respond(detail);
+  },
+
+  listCollections: (game) => {
+    if (state.scenario.offline) return refuseOffline();
+    if (lacksModioAccess()) return refuse(NO_API_KEY_MESSAGE, "no-api-key");
+    return respond(state.collections[game]);
+  },
+
+  followCollection: (game, collectionId, follow) => {
+    if (state.scenario.offline) return refuseOffline();
+    if (!state.account.signedIn) return refuseSignedOut("follow collections");
+    const collection = state.collections[game].find(
+      (candidate) => candidate.id === collectionId,
+    );
+    if (!collection)
+      return refuse("That collection no longer exists.", "not-found");
+    if (collection.following !== follow)
+      collection.followers += follow ? 1 : -1;
+    collection.following = follow;
+    return respond(undefined);
+  },
+
+  subscribe: (game, modioId) => {
+    if (state.scenario.offline) return refuseOffline();
+    const blocked = writeBlockedReason(game);
+    if (blocked) return refuse(blocked, "game-running");
+    const item = state.modio[game].find(
+      (candidate) => candidate.id === modioId,
+    );
+    if (!item)
+      return refuse(
+        `mod.io has no mod ${modioId} for ${shortGameName(game)}.`,
+        "not-found",
+      );
     if (state.account.signedIn) item.subscribed = true;
     startJob(item.id, item.name, item.sizeBytes, () =>
       installFromModio(game, item),
@@ -2013,35 +2096,23 @@ export const mockSource: DataSource = {
   },
 
   installCollection: (game, collectionId) => {
-    if (state.scenario.offline)
-      return refuse("mod.io is unreachable. Check your connection.");
+    if (state.scenario.offline) return refuseOffline();
     const blocked = writeBlockedReason(game);
-    if (blocked) return refuse(blocked);
+    if (blocked) return refuse(blocked, "game-running");
     const collection = state.collections[game].find(
       (candidate) => candidate.id === collectionId,
     );
-    if (!collection) return refuse("That collection no longer exists.");
+    if (!collection)
+      return refuse("That collection no longer exists.", "not-found");
     const installedIds = new Set(state.mods[game].map((mod) => mod.id));
     const picks = state.modio[game]
       .filter((item) => !installedIds.has(item.nameId))
-      .slice(0, collection.modCount);
+      .slice(0, collection.modCount ?? undefined);
     picks.forEach((item) =>
       startJob(item.id, item.name, item.sizeBytes, () =>
         installFromModio(game, item),
       ),
     );
-    const profileIds = [
-      ...state.mods[game].filter((mod) => mod.active).map((mod) => mod.id),
-      ...picks.map((item) => item.nameId),
-    ];
-    if (
-      !state.profiles[game].some((profile) => profile.name === collection.name)
-    )
-      state.profiles[game].push({
-        name: collection.name,
-        builtIn: false,
-        activeIds: profileIds,
-      });
     return respond(undefined);
   },
 
@@ -2052,11 +2123,11 @@ export const mockSource: DataSource = {
 
   retryDownload: (jobId) => {
     if (state.scenario.offline)
-      return refuse("Still offline. Retry once you reconnect.");
+      return refuse("Still offline. Retry once you reconnect.", "offline");
     const stored = state.downloads.find(
       (candidate) => candidate.job.id === jobId,
     );
-    if (!stored) return refuse("That download is gone.");
+    if (!stored) return refuse("That download is gone.", "not-found");
     const resumedFrom = stored.job.progress;
     stored.job.status = "downloading";
     stored.job.error = null;
@@ -2075,27 +2146,75 @@ export const mockSource: DataSource = {
   },
 
   updateAll: (game) => {
-    if (state.scenario.offline)
-      return refuse("mod.io is unreachable. Check your connection.");
+    if (state.scenario.offline) return refuseOffline();
     const blocked = writeBlockedReason(game);
-    if (blocked) return refuse(blocked);
-    for (const mod of state.mods[game].filter(
-      (candidate) => candidate.update && candidate.location === "documents",
-    )) {
-      const target = mod.update;
-      if (!target) continue;
-      startJob(
-        mod.modioId ?? 0,
-        `${mod.name} ${target.version}`,
-        mod.sizeBytes,
-        () => {
-          mod.version = target.version;
-          mod.update = null;
-        },
-      );
-    }
+    if (blocked) return refuse(blocked, "game-running");
+    state.mods[game]
+      .filter((mod) => mod.location === "documents")
+      .forEach(startUpdate);
     return respond(undefined);
   },
+
+  updateMod: (game, modId) => {
+    const blocked = writeBlockedReason(game);
+    if (blocked) return refuse(blocked, "game-running");
+    const mod = findMod(game, modId);
+    if (!mod?.modioId)
+      return refuse(
+        `${modId} wasn't installed from mod.io, so it can't be updated here.`,
+        "not-found",
+      );
+    startUpdate(mod);
+    return respond(undefined);
+  },
+
+  checkUpdates: () => {
+    if (state.scenario.offline) return refuseOffline();
+    return respond(undefined);
+  },
+
+  syncSubscriptions: (game) => {
+    if (!state.account.signedIn)
+      return refuseSignedOut("sync your subscriptions");
+    if (state.scenario.offline) return refuseOffline();
+    const blocked = writeBlockedReason(game);
+    if (blocked) return refuse(blocked, "game-running");
+    const installedIds = new Set(state.mods[game].map((mod) => mod.id));
+    const queuedIds = new Set(
+      state.downloads
+        .filter((stored) => stored.job.status !== "done")
+        .map((stored) => stored.job.modioId),
+    );
+    state.modio[game]
+      .filter(
+        (item) =>
+          item.subscribed &&
+          !installedIds.has(item.nameId) &&
+          !queuedIds.has(item.id),
+      )
+      .forEach((item) =>
+        startJob(item.id, item.name, item.sizeBytes, () =>
+          installFromModio(game, item),
+        ),
+      );
+    return respond(undefined);
+  },
+
+  rateMod: () => {
+    if (state.scenario.offline) return refuseOffline();
+    if (!state.account.signedIn) return refuseSignedOut("rate mods");
+    return respond(undefined);
+  },
+
+  reportMod: (_game, _modioId, _kind, summary) => {
+    if (!summary.trim())
+      return refuse("Say what's wrong so mod.io can act on the report.");
+    if (state.scenario.offline) return refuseOffline();
+    if (lacksModioAccess()) return refuse(NO_API_KEY_MESSAGE, "no-api-key");
+    return respond(undefined);
+  },
+
+  connectivity: () => respond(!state.scenario.offline),
 
   healthChecks: (game) => {
     settleApproval();
@@ -2116,11 +2235,15 @@ export const mockSource: DataSource = {
 
   setApiKey: (key) => {
     if (state.scenario.offline)
-      return refuse("mod.io is unreachable, so the key can't be checked yet.");
+      return refuse(
+        "mod.io is unreachable, so the key can't be checked yet.",
+        "offline",
+      );
     // mod.io API keys are 32 hex characters; the real core checks them with GET /games/{id}.
     if (!/^[0-9a-f]{32}$/i.test(key.trim()))
       return refuse(
         "mod.io doesn't recognise that key. Copy it again from mod.io/me/access.",
+        "invalid-api-key",
       );
     state.apiKeySet = true;
     state.scenario.noApiKey = false;
@@ -2134,14 +2257,14 @@ export const mockSource: DataSource = {
   },
 
   signIn: (method, token) => {
-    if (state.scenario.offline)
-      return refuse("mod.io is unreachable. Check your connection.");
+    if (state.scenario.offline) return refuseOffline();
     if (!state.account.termsAccepted)
-      return refuse("Accept mod.io's terms first.");
+      return refuse("Accept mod.io's terms first.", "terms-required");
     if (method === "token") {
       if (!token || token.trim().length < 12)
         return refuse(
           "mod.io rejected that token (401). Create a read+write token at mod.io/me/access.",
+          "unauthorized",
         );
       state.account = {
         signedIn: true,
@@ -2182,7 +2305,7 @@ export const mockSource: DataSource = {
 
   launchGame: (game) => {
     if (state.runningGame === game)
-      return refuse(`${exeName(game)} is already running.`);
+      return refuse(`${exeName(game)} is already running.`, "game-running");
     state.runningGame = game;
     return respond(undefined);
   },

@@ -73,7 +73,7 @@ impl ModioClient {
             http,
             api_key: config.api_key,
             base_override,
-            tokens: Arc::new(KeyringTokenStore),
+            tokens: Arc::new(KeyringTokenStore::default()),
         })
     }
 

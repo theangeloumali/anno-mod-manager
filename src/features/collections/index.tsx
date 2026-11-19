@@ -6,7 +6,6 @@ import {
   PackageIcon,
   UsersIcon,
 } from "lucide-react";
-import { useState } from "react";
 import { formatCount } from "@/components/app/format";
 import { ModBanner, PoweredByModio } from "@/components/app/mod-badges";
 import { withToast } from "@/components/app/notify";
@@ -24,16 +23,16 @@ export function CollectionsScreen() {
   const install = useAction((source, collectionId: number) =>
     source.installCollection(gameId, collectionId),
   );
-  // No follow call in the contract (report DEVIATIONS): the toggle is local in the mock-up.
-  const [followOverrides, setFollowOverrides] = useState<
-    Record<number, boolean>
-  >({});
+  const follow = useAction(
+    (source, collectionId: number, isFollowing: boolean) =>
+      source.followCollection(gameId, collectionId, isFollowing),
+  );
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Collections"
-        description="Curated mod sets from mod.io. Installing one also creates a matching profile, so you can switch back to your own set in one click."
+        description="Curated mod sets from mod.io. Installing one downloads every mod in it; save a profile first if you want to switch back to your own set."
         actions={<PoweredByModio />}
       />
       <WriteLockNotice />
@@ -53,8 +52,7 @@ export function CollectionsScreen() {
       ) : (
         <ul className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {collections.map((collection) => {
-            const isFollowing =
-              followOverrides[collection.id] ?? collection.following;
+            const isFollowing = collection.following;
             return (
               <li
                 key={collection.id}
@@ -79,7 +77,9 @@ export function CollectionsScreen() {
                   <p className="flex gap-4 font-mono text-label text-copy-dim">
                     <span className="inline-flex items-center gap-1">
                       <PackageIcon aria-hidden="true" className="size-3.5" />
-                      {collection.modCount} mods
+                      {collection.modCount === null
+                        ? "Mod set"
+                        : `${collection.modCount} mods`}
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <UsersIcon aria-hidden="true" className="size-3.5" />
@@ -94,7 +94,7 @@ export function CollectionsScreen() {
                       onClick={() =>
                         withToast(
                           install.mutateAsync([collection.id]),
-                          `Installing ${collection.name}; profile “${collection.name}” created`,
+                          `Installing ${collection.name}`,
                         )
                       }
                     >
@@ -104,12 +104,14 @@ export function CollectionsScreen() {
                     <Button
                       size="sm"
                       aria-pressed={isFollowing}
-                      disabled={!account?.signedIn}
+                      disabled={!account?.signedIn || follow.isPending}
                       onClick={() =>
-                        setFollowOverrides((current) => ({
-                          ...current,
-                          [collection.id]: !isFollowing,
-                        }))
+                        withToast(
+                          follow.mutateAsync([collection.id, !isFollowing]),
+                          isFollowing
+                            ? `Unfollowed ${collection.name}`
+                            : `Following ${collection.name}`,
+                        )
                       }
                     >
                       <HeartIcon
