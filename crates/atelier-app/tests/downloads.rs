@@ -76,6 +76,17 @@ async fn wait_for_job(harness: &Harness) -> DownloadJob {
 /// Serves mod.io page `modio_id`, whose archive holds one mod `mod_id` at `version`.
 async fn serve_modio_mod(server: &MockServer, modio_id: u64, mod_id: &str, version: &str) {
     server.reset().await;
+    mount_modio_mod(server, modio_id, mod_id, version, false).await;
+}
+
+/// Adds mod.io page `modio_id` to what `server` already serves.
+async fn mount_modio_mod(
+    server: &MockServer,
+    modio_id: u64,
+    mod_id: &str,
+    version: &str,
+    has_dependencies: bool,
+) {
     let info = modinfo(mod_id, version, GameId::Anno117);
     let archive = zip_bytes(&[("Packed/modinfo.json", info.as_bytes())]);
     let download_path = format!("/v1/files/{modio_id}/download");
@@ -85,6 +96,7 @@ async fn serve_modio_mod(server: &MockServer, modio_id: u64, mod_id: &str, versi
         Value::String(format!("{}{download_path}", server.uri()));
     detail["modfile"]["filehash"]["md5"] = Value::String(format!("{:x}", Md5::digest(&archive)));
     detail["modfile"]["filesize"] = Value::from(archive.len());
+    detail["dependencies"] = Value::from(has_dependencies);
     Mock::given(method("GET"))
         .and(path(format!("/v1/games/11358/mods/{modio_id}")))
         .respond_with(ResponseTemplate::new(200).set_body_json(detail))
@@ -373,12 +385,75 @@ async fn a_running_game_refuses_a_collection_install_and_writes_nothing() {
 
     assert_eq!(error.code, ErrorCode::GameRunning);
     assert!(harness.app.list_downloads().is_empty());
-    assert!(
-        !harness
-            .documents_mods(GameId::Anno117)
-            .join("profiles")
-            .exists()
-    );
+    let mods_dir = harness.documents_mods(GameId::Anno117);
+    assert!(!mods_dir.join("profiles").exists());
+    assert!(!mods_dir.join("profile.txt").exists());
+}
+
+/// Installs collection 310 on 117 and waits for its one free download (4801, `roman-roads`).
+async fn install_collection_and_download(server: &MockServer, harness: &Harness) {
+    serve_modio_mod(server, 4801, "roman-roads", "1.0.0").await;
+    serve_collection(server, 11358).await;
+    harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap();
+    let job = wait_for_job(harness).await;
+    assert_eq!(job.status, DownloadStatus::Done, "{:?}", job.error);
+}
+
+#[tokio::test]
+async fn a_downloaded_collection_mod_is_off_in_default() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+
+    install_collection_and_download(&server, &harness).await;
+
+    assert!(installed(&harness, "roman-roads").active);
+    harness
+        .app
+        .switch_profile(GameId::Anno117, "Default")
+        .unwrap();
+    assert!(!installed(&harness, "roman-roads").active);
+}
+
+#[tokio::test]
+async fn a_collection_mod_already_on_in_default_stays_on_there() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    download(&harness, 4801).await;
+    serve_collection(&server, 11358).await;
+
+    harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap();
+    harness
+        .app
+        .switch_profile(GameId::Anno117, "Default")
+        .unwrap();
+
+    assert!(installed(&harness, "roman-roads").active);
+}
+
+#[tokio::test]
+async fn an_older_custom_profile_gets_downloaded_collection_mods_off() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.add_mod(GameId::Anno117, "Kept", "kept-on", "1.0.0");
+    harness.app.save_profile(GameId::Anno117, "Older").unwrap();
+
+    install_collection_and_download(&server, &harness).await;
+
+    harness
+        .app
+        .switch_profile(GameId::Anno117, "Older")
+        .unwrap();
+    assert!(!installed(&harness, "roman-roads").active);
+    assert!(installed(&harness, "kept-on").active);
 }
 
 #[tokio::test]
@@ -396,5 +471,51 @@ async fn a_collection_name_is_cleaned_into_a_valid_profile_name() {
     assert_eq!(
         profile.as_deref(),
         Some("Collection - Rome Roads Villas v2 1")
+    );
+}
+
+#[tokio::test]
+async fn a_collection_mods_new_dependency_is_off_in_default_too() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    mount_modio_mod(&server, 4801, "roman-roads", "1.0.0", true).await;
+    mount_modio_mod(&server, 4820, "aqueduct-lib", "1.0.0", false).await;
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801/dependencies"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("dependencies.json")))
+        .mount(&server)
+        .await;
+    serve_collection(&server, 11358).await;
+
+    harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap();
+    wait_for_all_jobs(&harness).await;
+    harness
+        .app
+        .switch_profile(GameId::Anno117, "Default")
+        .unwrap();
+
+    assert!(!installed(&harness, "aqueduct-lib").active);
+}
+
+/// The collection page and its dependency 4820 (4821 is a deleted page, which the client drops).
+async fn wait_for_all_jobs(harness: &Harness) {
+    for _ in 0..200 {
+        let jobs = harness.app.list_downloads();
+        if jobs.len() == 2
+            && jobs
+                .iter()
+                .all(|job| matches!(job.status, DownloadStatus::Done | DownloadStatus::Failed))
+        {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    panic!(
+        "download jobs never finished: {:?}",
+        harness.app.list_downloads()
     );
 }

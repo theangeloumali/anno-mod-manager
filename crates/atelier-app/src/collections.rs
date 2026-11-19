@@ -5,8 +5,8 @@ use std::collections::HashSet;
 
 use atelier_core::{ActivationScheme, GameId, activation};
 
-use crate::App;
 use crate::error::{AppError, ErrorCode, Result};
+use crate::{App, lock};
 
 const PROFILE_PREFIX: &str = "Collection - ";
 /// atelier-core refuses profile names over 64 bytes; this leaves room for a " 99" suffix.
@@ -38,12 +38,74 @@ impl App {
         let profile = if activation::detect_scheme(game, &self.documents_mods(game))
             == ActivationScheme::Profile
         {
-            Some(self.save_collection_profile(game, &collection.name, &modio_ids)?)
+            let name = self.save_collection_profile(game, &collection.name, &modio_ids)?;
+            self.hold_off_elsewhere(game, &name, &modio_ids)?;
+            Some(name)
         } else {
             None
         };
         self.start_missing(game, modio_ids.into_iter())?;
         Ok(profile)
+    }
+
+    /// Mods not installed yet are recorded off in every other profile as they land, so
+    /// switching back never turns them on. Their ModIDs only exist once the archive is read.
+    fn hold_off_elsewhere(
+        &self,
+        game: GameId,
+        collection_profile: &str,
+        modio_ids: &HashSet<u64>,
+    ) -> Result<()> {
+        let installed: HashSet<u64> = self
+            .list_mods(game)?
+            .into_iter()
+            .filter_map(|item| item.modio_id)
+            .collect();
+        let others: Vec<String> = self
+            .list_profiles(game)?
+            .into_iter()
+            .map(|profile| profile.name)
+            .filter(|name| name != collection_profile)
+            .collect();
+        let mut held = lock(&self.0.held_off);
+        for &modio_id in modio_ids.difference(&installed) {
+            held.insert((game, modio_id), others.clone());
+        }
+        Ok(())
+    }
+
+    /// A held page's dependencies are new to the user too, so they stay off in the same profiles.
+    pub(crate) fn hold_dependencies(&self, game: GameId, modio_id: u64, dependencies: &[u64]) {
+        let mut held = lock(&self.0.held_off);
+        if let Some(profiles) = held.get(&(game, modio_id)).cloned() {
+            for &dependency in dependencies {
+                held.entry((game, dependency))
+                    .or_insert_with(|| profiles.clone());
+            }
+        }
+    }
+
+    /// Runs once a held page installs; a profile deleted since is skipped, never recreated.
+    pub(crate) fn apply_held_off(
+        &self,
+        game: GameId,
+        modio_id: u64,
+        mod_ids: &[String],
+    ) -> Result<()> {
+        let Some(profiles) = lock(&self.0.held_off).get(&(game, modio_id)).cloned() else {
+            return Ok(());
+        };
+        let existing: Vec<String> = self
+            .list_profiles(game)?
+            .into_iter()
+            .map(|profile| profile.name)
+            .collect();
+        let writable = self.writable(game);
+        for name in profiles.iter().filter(|name| existing.contains(name)) {
+            activation::set_off_in_profile(&writable, name, mod_ids, &self.0.snapshots)?;
+        }
+        lock(&self.0.held_off).remove(&(game, modio_id));
+        Ok(())
     }
 
     /// Keeps today's on/off state, turns on the collection's installed mods, then switches.

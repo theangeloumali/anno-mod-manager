@@ -9,7 +9,7 @@ use serde_json::json;
 use super::profile_file::ProfileFile;
 use super::{
     ACTIVE_PROFILE_KEY, DEFAULT_PROFILE, PROFILE_POINTER, PROFILES_DIR, VANILLA_PROFILE,
-    detect_scheme, find_profile, profile_files, read_active_profile_name,
+    detect_scheme, edit_profile_file, find_profile, profile_files, read_active_profile_name,
 };
 use crate::error::io_at;
 use crate::scan::ModsFolder;
@@ -88,6 +88,35 @@ pub fn save_profile(
     let path = find_profile(dir, name)?
         .unwrap_or_else(|| dir.join(PROFILES_DIR).join(format!("{name}.txt")));
     write_with_snapshot(&path, &file.render(), snapshots)
+}
+
+/// Records `mod_ids` as off in one profile, active or not. A built-in profile's file is
+/// created on first write; a saved profile that is gone is an error, never recreated.
+pub fn set_off_in_profile(
+    writable: &ModsFolder,
+    name: &str,
+    mod_ids: &[String],
+    snapshots: &Snapshots,
+) -> Result<()> {
+    let dir = prepare(writable, name)?;
+    let path = match (find_profile(dir, name)?, built_in_name(name)) {
+        (Some(path), _) => path,
+        (None, Some(built_in)) => dir
+            .join(PROFILES_DIR)
+            .join(format!("{}.txt", built_in.to_ascii_lowercase())),
+        (None, None) => return Err(Error::ProfileNotFound(name.to_string())),
+    };
+    let enable_new = !name.eq_ignore_ascii_case(VANILLA_PROFILE);
+    edit_profile_file(
+        &path,
+        enable_new,
+        |file| {
+            for mod_id in mod_ids {
+                file.set(mod_id, false);
+            }
+        },
+        snapshots,
+    )
 }
 
 pub fn delete_profile(writable: &ModsFolder, name: &str, snapshots: &Snapshots) -> Result<()> {

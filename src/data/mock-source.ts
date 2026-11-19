@@ -879,6 +879,8 @@ interface StoredProfile {
   builtIn: boolean;
   /** null means "every installed mod on", which is what the game does with no profile file. */
   activeIds: string[] | null;
+  /** Off in an all-on profile, like an explicit off line in its profile file. */
+  offIds?: string[];
 }
 
 interface StoredJob {
@@ -1585,7 +1587,9 @@ function installPreviewItem(item: InstallPreviewItem, game: GameId): void {
 function applyProfile(game: GameId, profile: StoredProfile): void {
   for (const mod of state.mods[game])
     mod.active =
-      profile.activeIds === null || profile.activeIds.includes(mod.id);
+      profile.activeIds === null
+        ? !profile.offIds?.includes(mod.id)
+        : profile.activeIds.includes(mod.id);
 }
 
 function buildLog(game: GameId): LogEntry[] {
@@ -2133,6 +2137,14 @@ export const mockSource: DataSource = {
       GAME_DETAILS[game].activationScheme === "profile"
         ? saveCollectionProfile(game, collection.name)
         : null;
+    // The way back: new mods stay off elsewhere. Saved lists already leave them out.
+    if (profile)
+      for (const stored of state.profiles[game])
+        if (stored.name !== profile && stored.activeIds === null)
+          stored.offIds = [
+            ...(stored.offIds ?? []),
+            ...picks.map((item) => item.nameId),
+          ];
     picks.forEach((item) =>
       startJob(item.id, item.name, item.sizeBytes, () => {
         installFromModio(game, item);
