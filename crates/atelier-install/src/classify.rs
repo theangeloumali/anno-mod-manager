@@ -89,6 +89,10 @@ impl<'a> Classifier<'a> {
     }
 
     fn invalid_reason(&self, root: &FoundRoot) -> Option<String> {
+        // An empty ModID would name the mods folder itself as the install target.
+        if root.mod_id().is_empty() {
+            return Some("Its ModID is empty once normalised, so the game can't load it".into());
+        }
         match &root.manifest {
             Manifest::Parsed(_) => None,
             Manifest::Broken(reason) => Some(format!("modinfo.json can't be read: {reason}")),

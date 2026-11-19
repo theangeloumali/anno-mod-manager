@@ -150,6 +150,30 @@ fn downgrades_and_same_versions_are_skipped_unless_opted_in() {
 }
 
 #[test]
+fn a_mod_id_that_normalises_to_empty_is_invalid_and_never_touches_the_mods_folder() {
+    let sandbox = Sandbox::new();
+    seed(&sandbox, "keep-me", "keep-me", "1.0");
+    let blank = modinfo("!!!", "1", Some(8));
+    let preview = preview_zip(
+        &sandbox,
+        "Blank.zip",
+        &[Entry::File("Blank/modinfo.json", blank.as_bytes())],
+    );
+    assert_eq!(
+        preview.items[0].status,
+        atelier_install::InstallItemStatus::Invalid
+    );
+
+    let result = sandbox
+        .engine
+        .confirm(&preview.id, &sandbox.mods(), true)
+        .unwrap();
+
+    assert!(result.installed.is_empty());
+    assert!(sandbox.mods().join("keep-me/modinfo.json").exists());
+}
+
+#[test]
 fn wrong_game_and_invalid_items_are_skipped() {
     let sandbox = Sandbox::new();
     let other = modinfo("OtherGame", "1", Some(7));

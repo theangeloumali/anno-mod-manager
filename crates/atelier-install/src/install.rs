@@ -71,7 +71,14 @@ fn place(
     let mod_id = &staged.item.mod_id;
     // An update keeps the folder name the player already has.
     let folder = existing_folder(target, mod_id)?.unwrap_or_else(|| new_folder_name(mod_id));
-    let dest = target.join(folder);
+    let dest = target.join(&folder);
+    // Defence in depth: never back up or replace anything but a direct child of the mods folder.
+    if mod_id.is_empty()
+        || matches!(folder.as_str(), "" | "." | "..")
+        || dest.parent() != Some(target)
+    {
+        return Err(Error::UnsafeTarget(dest));
+    }
     if dest.exists() {
         let backup = backup_path(backup_dir, &dest)?;
         move_dir(&dest, &backup)?;

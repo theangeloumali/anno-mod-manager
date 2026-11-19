@@ -25,6 +25,8 @@ pub enum Error {
     MissingSource(PathBuf),
     #[error("install preview '{0}' no longer exists; drop the files again")]
     PreviewNotFound(String),
+    #[error("{} is not a mod folder inside the mods folder, so nothing was written", .0.display())]
+    UnsafeTarget(PathBuf),
     #[error("there is no backup of '{0}' to roll back to")]
     NoBackup(String),
     #[error("{path} changed while it was copied; the original is kept")]
