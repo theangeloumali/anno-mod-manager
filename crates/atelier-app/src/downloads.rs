@@ -38,13 +38,8 @@ impl App {
         }
         self.guard_writes(game)?;
         let subscriptions = self.client().subscriptions(game).await?;
-        self.start_missing(game, subscriptions.iter().map(|item| item.id))
-    }
-
-    pub async fn install_collection(&self, game: GameId, collection_id: u64) -> Result<()> {
-        self.guard_writes(game)?;
-        let mods = self.client().collection_mods(game, collection_id).await?;
-        self.start_missing(game, mods.iter().map(|item| item.id))
+        self.start_missing(game, subscriptions.iter().map(|item| item.id))?;
+        Ok(())
     }
 
     pub fn list_downloads(&self) -> Vec<DownloadJob> {
@@ -157,7 +152,12 @@ impl App {
         Ok(())
     }
 
-    fn start_missing(&self, game: GameId, modio_ids: impl Iterator<Item = u64>) -> Result<()> {
+    /// Returns the pages it queued.
+    pub(crate) fn start_missing(
+        &self,
+        game: GameId,
+        modio_ids: impl Iterator<Item = u64>,
+    ) -> Result<Vec<u64>> {
         let installed: HashSet<u64> = self
             .list_mods(game)?
             .into_iter()
@@ -168,12 +168,13 @@ impl App {
             .filter(|entry| !is_finished(entry.job.status))
             .map(|entry| entry.job.modio_id)
             .collect();
-        for modio_id in modio_ids {
-            if !installed.contains(&modio_id) && !queued.contains(&modio_id) {
-                self.start_job(game, modio_id);
-            }
+        let missing: Vec<u64> = modio_ids
+            .filter(|modio_id| !installed.contains(modio_id) && !queued.contains(modio_id))
+            .collect();
+        for &modio_id in &missing {
+            self.start_job(game, modio_id);
         }
-        Ok(())
+        Ok(missing)
     }
 
     fn start_job(&self, game: GameId, modio_id: u64) {
@@ -235,7 +236,8 @@ impl App {
         });
         if detail.has_dependencies && self.settings().install_dependencies {
             let dependencies = client.dependencies(game, modio_id).await?;
-            self.start_missing(game, dependencies.iter().map(|item| item.id))?;
+            let started = self.start_missing(game, dependencies.iter().map(|item| item.id))?;
+            self.hold_dependencies(game, modio_id, &started);
         }
         let staging = self.0.data_dir.join("downloads").join(job_id);
         let archive = client
@@ -269,7 +271,7 @@ impl App {
                 updates.remove(mod_id);
             }
         }
-        Ok(())
+        self.apply_held_off(game, modio_id, &top_level)
     }
 
     /// Returns the top-level mod ids that landed, so sub-mods never claim the mod.io link.

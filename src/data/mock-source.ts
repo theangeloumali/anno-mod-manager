@@ -879,6 +879,8 @@ interface StoredProfile {
   builtIn: boolean;
   /** null means "every installed mod on", which is what the game does with no profile file. */
   activeIds: string[] | null;
+  /** Off in an all-on profile, like an explicit off line in its profile file. */
+  offIds?: string[];
 }
 
 interface StoredJob {
@@ -1294,6 +1296,27 @@ function advanceDownloads(): void {
   }
 }
 
+/** Mirrors the core: "Collection - <name>", numbered when taken, then switched to. */
+function saveCollectionProfile(game: GameId, collectionName: string): string {
+  const words = collectionName.replace(/[^\p{L}\p{N}_-]+/gu, " ").trim();
+  const base = `Collection - ${words || "Mods"}`.slice(0, 60).trimEnd();
+  const isTaken = (candidate: string) =>
+    state.profiles[game].some(
+      (stored) => stored.name.toLowerCase() === candidate.toLowerCase(),
+    );
+  let name = base;
+  for (let number = 2; isTaken(name); number += 1) name = `${base} ${number}`;
+  state.profiles[game].push({
+    name,
+    builtIn: false,
+    activeIds: state.mods[game]
+      .filter((mod) => mod.active)
+      .map((mod) => mod.id),
+  });
+  state.activeProfile[game] = name;
+  return name;
+}
+
 function installFromModio(game: GameId, item: ModioMod): void {
   const existing = findMod(game, item.nameId);
   if (existing) {
@@ -1564,7 +1587,9 @@ function installPreviewItem(item: InstallPreviewItem, game: GameId): void {
 function applyProfile(game: GameId, profile: StoredProfile): void {
   for (const mod of state.mods[game])
     mod.active =
-      profile.activeIds === null || profile.activeIds.includes(mod.id);
+      profile.activeIds === null
+        ? !profile.offIds?.includes(mod.id)
+        : profile.activeIds.includes(mod.id);
 }
 
 function buildLog(game: GameId): LogEntry[] {
@@ -2108,12 +2133,28 @@ export const mockSource: DataSource = {
     const picks = state.modio[game]
       .filter((item) => !installedIds.has(item.nameId))
       .slice(0, collection.modCount ?? undefined);
+    const profile =
+      GAME_DETAILS[game].activationScheme === "profile"
+        ? saveCollectionProfile(game, collection.name)
+        : null;
+    // The way back: new mods stay off elsewhere. Saved lists already leave them out.
+    if (profile)
+      for (const stored of state.profiles[game])
+        if (stored.name !== profile && stored.activeIds === null)
+          stored.offIds = [
+            ...(stored.offIds ?? []),
+            ...picks.map((item) => item.nameId),
+          ];
     picks.forEach((item) =>
-      startJob(item.id, item.name, item.sizeBytes, () =>
-        installFromModio(game, item),
-      ),
+      startJob(item.id, item.name, item.sizeBytes, () => {
+        installFromModio(game, item);
+        // Like the core's enableNewMods: a mod that lands later is on in the collection profile.
+        state.profiles[game]
+          .find((stored) => stored.name === profile)
+          ?.activeIds?.push(item.nameId);
+      }),
     );
-    return respond(undefined);
+    return respond(profile);
   },
 
   listDownloads: () => {

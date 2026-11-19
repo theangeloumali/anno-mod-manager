@@ -1,6 +1,7 @@
 //! App state behind the Tauri commands. Every method returns UI-ready, camelCase types
 //! and an [`AppError`] the UI can show as is.
 
+mod collections;
 mod downloads;
 mod error;
 mod install;
@@ -65,6 +66,8 @@ struct Inner {
     jobs: Mutex<Vec<JobEntry>>,
     next_job: AtomicU64,
     updates: Mutex<HashMap<GameId, HashMap<String, ModUpdate>>>,
+    /// (game, mod.io page) → profiles its mods go into off once installed, from a collection.
+    held_off: Mutex<HashMap<(GameId, u64), Vec<String>>>,
 }
 
 impl App {
@@ -102,6 +105,7 @@ impl App {
             jobs: Mutex::new(Vec::new()),
             next_job: AtomicU64::new(1),
             updates: Mutex::new(HashMap::new()),
+            held_off: Mutex::new(HashMap::new()),
         })))
     }
 

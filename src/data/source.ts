@@ -62,7 +62,8 @@ export interface DataSource {
     follow: boolean,
   ): Promise<void>;
   subscribe(game: GameId, modioId: number): Promise<void>;
-  installCollection(game: GameId, collectionId: number): Promise<void>;
+  /** Resolves to the profile it created, or null where the game has no profiles. */
+  installCollection(game: GameId, collectionId: number): Promise<string | null>;
   syncSubscriptions(game: GameId): Promise<void>;
   listDownloads(): Promise<DownloadJob[]>;
   retryDownload(jobId: string): Promise<void>;
