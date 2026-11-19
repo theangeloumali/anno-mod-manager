@@ -65,7 +65,7 @@ export const ipcSource: DataSource = {
     call("follow_collection", { game, collectionId, follow }),
   subscribe: (game, modioId) => call("subscribe", { game, modioId }),
   installCollection: (game, collectionId) =>
-    call("install_collection", { game, collectionId }),
+    call<string | null>("install_collection", { game, collectionId }),
   syncSubscriptions: (game) => call("sync_subscriptions", { game }),
   listDownloads: () => call<DownloadJob[]>("list_downloads"),
   retryDownload: (jobId) => call("retry_download", { jobId }),

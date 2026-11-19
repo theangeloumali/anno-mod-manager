@@ -41,12 +41,6 @@ impl App {
         self.start_missing(game, subscriptions.iter().map(|item| item.id))
     }
 
-    pub async fn install_collection(&self, game: GameId, collection_id: u64) -> Result<()> {
-        self.guard_writes(game)?;
-        let mods = self.client().collection_mods(game, collection_id).await?;
-        self.start_missing(game, mods.iter().map(|item| item.id))
-    }
-
     pub fn list_downloads(&self) -> Vec<DownloadJob> {
         lock(&self.0.jobs)
             .iter()
@@ -157,7 +151,11 @@ impl App {
         Ok(())
     }
 
-    fn start_missing(&self, game: GameId, modio_ids: impl Iterator<Item = u64>) -> Result<()> {
+    pub(crate) fn start_missing(
+        &self,
+        game: GameId,
+        modio_ids: impl Iterator<Item = u64>,
+    ) -> Result<()> {
         let installed: HashSet<u64> = self
             .list_mods(game)?
             .into_iter()

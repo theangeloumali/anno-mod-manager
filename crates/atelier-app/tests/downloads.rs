@@ -2,6 +2,7 @@ mod common;
 
 use std::time::Duration;
 
+use atelier_app::ErrorCode;
 use atelier_core::GameId;
 use atelier_modio::{DownloadJob, DownloadStatus};
 use common::*;
@@ -197,4 +198,203 @@ async fn a_new_install_never_takes_over_another_pages_link() {
     serve_modio_mod(&server, 4801, "roman-roads", "1.2.0").await;
     download(&harness, 4801).await;
     assert_eq!(installed(&harness, "roman-roads").modio_id, Some(5000));
+}
+
+const COLLECTION_PROFILE: &str = "Collection - Province Starter Pack";
+
+/// Serves collection 310 (free page 4801, paid page 4802) for `modio_game`.
+async fn serve_collection(server: &MockServer, modio_game: u32) {
+    serve_collection_named(server, modio_game, "Province Starter Pack").await;
+}
+
+async fn serve_collection_named(server: &MockServer, modio_game: u32, name: &str) {
+    let mut collections = fixture("collections.json");
+    collections["data"][0]["name"] = Value::from(name);
+    Mock::given(method("GET"))
+        .and(path(format!("/v1/games/{modio_game}/collections")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(collections))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("/v1/games/{modio_game}/collections/310/mods")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("collection_mods.json")))
+        .mount(server)
+        .await;
+}
+
+fn active_profile(harness: &Harness, game: GameId) -> String {
+    harness
+        .app
+        .list_profiles(game)
+        .unwrap()
+        .into_iter()
+        .find(|profile| profile.active)
+        .unwrap()
+        .name
+}
+
+#[tokio::test]
+async fn installing_a_collection_saves_and_switches_to_a_profile_named_after_it() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.add_mod(GameId::Anno117, "Kept", "kept-on", "1.0.0");
+    harness.add_mod(GameId::Anno117, "Off", "kept-off", "1.0.0");
+    harness
+        .app
+        .set_mod_active(GameId::Anno117, "kept-off", false)
+        .unwrap();
+    serve_collection(&server, 11358).await;
+
+    let profile = harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap();
+
+    assert_eq!(profile.as_deref(), Some(COLLECTION_PROFILE));
+    assert_eq!(
+        active_profile(&harness, GameId::Anno117),
+        COLLECTION_PROFILE
+    );
+    assert!(installed(&harness, "kept-on").active);
+    assert!(!installed(&harness, "kept-off").active);
+    let queued: Vec<u64> = harness
+        .app
+        .list_downloads()
+        .iter()
+        .map(|job| job.modio_id)
+        .collect();
+    // 4802 is a paid mod, which the client drops.
+    assert_eq!(queued, [4801]);
+    // The previous profile stays in the bar as the way back.
+    harness
+        .app
+        .switch_profile(GameId::Anno117, "Default")
+        .unwrap();
+    assert!(!installed(&harness, "kept-off").active);
+}
+
+#[tokio::test]
+async fn a_missing_profiles_folder_is_created_for_the_collection_profile() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.add_mod(GameId::Anno117, "Kept", "kept-on", "1.0.0");
+    let profiles = harness.documents_mods(GameId::Anno117).join("profiles");
+    assert!(!profiles.exists());
+    serve_collection(&server, 11358).await;
+
+    harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap();
+
+    assert!(profiles.join(format!("{COLLECTION_PROFILE}.txt")).is_file());
+}
+
+#[tokio::test]
+async fn a_taken_collection_profile_name_gets_a_number() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.add_mod(GameId::Anno117, "Kept", "kept-on", "1.0.0");
+    harness
+        .app
+        .save_profile(GameId::Anno117, COLLECTION_PROFILE)
+        .unwrap();
+    serve_collection(&server, 11358).await;
+
+    let profile = harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap();
+
+    let expected = format!("{COLLECTION_PROFILE} 2");
+    assert_eq!(profile.as_deref(), Some(expected.as_str()));
+    assert_eq!(active_profile(&harness, GameId::Anno117), expected);
+}
+
+#[tokio::test]
+async fn a_collection_mod_installed_but_off_is_on_in_the_new_profile() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    download(&harness, 4801).await;
+    harness
+        .app
+        .set_mod_active(GameId::Anno117, "roman-roads", false)
+        .unwrap();
+    serve_collection(&server, 11358).await;
+
+    harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap();
+
+    assert!(installed(&harness, "roman-roads").active);
+}
+
+#[tokio::test]
+async fn anno_1800_installs_a_collection_without_a_profile() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    serve_collection(&server, 4169).await;
+
+    let profile = harness
+        .app
+        .install_collection(GameId::Anno1800, 310)
+        .await
+        .unwrap();
+
+    assert_eq!(profile, None);
+    assert_eq!(harness.app.list_downloads().len(), 1);
+    assert!(
+        !harness
+            .documents_mods(GameId::Anno1800)
+            .join("profiles")
+            .exists()
+    );
+}
+
+#[tokio::test]
+async fn a_running_game_refuses_a_collection_install_and_writes_nothing() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.add_mod(GameId::Anno117, "Kept", "kept-on", "1.0.0");
+    serve_collection(&server, 11358).await;
+    harness.set_running(true);
+
+    let error = harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::GameRunning);
+    assert!(harness.app.list_downloads().is_empty());
+    assert!(
+        !harness
+            .documents_mods(GameId::Anno117)
+            .join("profiles")
+            .exists()
+    );
+}
+
+#[tokio::test]
+async fn a_collection_name_is_cleaned_into_a_valid_profile_name() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    serve_collection_named(&server, 11358, "Rome: Roads & Villas / v2.1").await;
+
+    let profile = harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        profile.as_deref(),
+        Some("Collection - Rome Roads Villas v2 1")
+    );
 }

@@ -17,7 +17,9 @@ import { Button } from "@/components/ui/button";
 import { useAccount, useAction, useCollections } from "@/data/source";
 
 export function CollectionsScreen() {
-  const { gameId, isWriteLocked } = useCurrentGame();
+  const { gameId, game, shortName, isWriteLocked } = useCurrentGame();
+  // 1800 and legacy 117 have no profile files, so a collection joins the current set.
+  const hasProfiles = game?.activationScheme === "profile";
   const { data: collections = [], isError, refetch } = useCollections(gameId);
   const { data: account } = useAccount();
   const install = useAction((source, collectionId: number) =>
@@ -32,7 +34,11 @@ export function CollectionsScreen() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Collections"
-        description="Curated mod sets from mod.io. Installing one downloads every mod in it; save a profile first if you want to switch back to your own set."
+        description={
+          hasProfiles
+            ? "Curated mod sets from mod.io. Install all + create profile downloads every mod into a new profile; your current one stays in the Library's profile bar to switch back."
+            : `Curated mod sets from mod.io. ${shortName} has no profiles, so a collection's mods join your current set.`
+        }
         actions={<PoweredByModio />}
       />
       <WriteLockNotice />
@@ -94,12 +100,17 @@ export function CollectionsScreen() {
                       onClick={() =>
                         withToast(
                           install.mutateAsync([collection.id]),
-                          `Installing ${collection.name}`,
+                          (profile) =>
+                            profile
+                              ? `Installing ${collection.name} into profile “${profile}”`
+                              : `Installing ${collection.name}`,
                         )
                       }
                     >
                       <DownloadIcon aria-hidden="true" />
-                      Install collection
+                      {hasProfiles
+                        ? "Install all + create profile"
+                        : "Install all"}
                     </Button>
                     <Button
                       size="sm"

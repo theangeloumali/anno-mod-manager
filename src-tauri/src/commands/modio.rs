@@ -52,7 +52,7 @@ pub async fn install_collection(
     app: State<'_, App>,
     game: GameId,
     collection_id: u64,
-) -> CommandResult<()> {
+) -> CommandResult<Option<String>> {
     app.install_collection(game, collection_id).await
 }
 

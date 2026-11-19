@@ -1,6 +1,7 @@
 //! App state behind the Tauri commands. Every method returns UI-ready, camelCase types
 //! and an [`AppError`] the UI can show as is.
 
+mod collections;
 mod downloads;
 mod error;
 mod install;
