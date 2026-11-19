@@ -61,6 +61,8 @@ fn scan_top_level(
 ) -> Result<()> {
     let info = match modinfo::read_dir(dir) {
         Ok(Some(info)) => info,
+        // Anno 1800 loads a bare data/ folder, and the installer accepts one, so list it too.
+        Ok(None) if game == GameId::Anno1800 && dir.join("data").is_dir() => inferred_info(),
         Ok(None) => {
             skip(result, dir, SkipReason::MissingModinfo);
             return Ok(());
@@ -89,6 +91,26 @@ fn scan_top_level(
     }
     result.mods[parent_index] = parent;
     Ok(())
+}
+
+/// A manifest-less mod: build_mod names it after its folder.
+fn inferred_info() -> ModInfo {
+    ModInfo {
+        anno: None,
+        mod_id: None,
+        version: String::new(),
+        name: None,
+        category: None,
+        description: None,
+        author: None,
+        difficulty: None,
+        setup: Default::default(),
+        dependencies: Default::default(),
+        dlc_dependencies: Vec::new(),
+        known_issues: Vec::new(),
+        options: Vec::new(),
+        modio_id: None,
+    }
 }
 
 fn skip(result: &mut ScanResult, dir: &Path, reason: SkipReason) {

@@ -162,6 +162,33 @@ fn folder_without_modinfo_is_skipped_and_reported() {
 }
 
 #[test]
+fn an_1800_mod_with_only_a_data_folder_is_listed_by_its_folder_name() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(tmp.path().join("Bare Mod/data/config")).unwrap();
+    fs::create_dir(tmp.path().join("Not A Mod")).unwrap();
+
+    let result = scan::scan(GameId::Anno1800, &[documents(tmp.path())]).unwrap();
+
+    assert_eq!(result.mods.len(), 1);
+    assert_eq!(result.mods[0].id, "bare-mod");
+    assert_eq!(result.mods[0].name, "Bare Mod");
+    assert_eq!(
+        result.skipped.len(),
+        1,
+        "a folder with no data/ is still not a mod"
+    );
+}
+
+#[test]
+fn anno_117_still_needs_a_modinfo_even_with_a_data_folder() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(tmp.path().join("Bare Mod/data")).unwrap();
+    let result = scan::scan(GameId::Anno117, &[documents(tmp.path())]).unwrap();
+    assert!(result.mods.is_empty());
+    assert_eq!(result.skipped[0].reason, SkipReason::MissingModinfo);
+}
+
+#[test]
 fn invalid_modinfo_is_skipped_with_a_reason() {
     let tmp = tempfile::tempdir().unwrap();
     write_mod(tmp.path(), "Bad", "{oops");
