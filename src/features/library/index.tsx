@@ -37,6 +37,7 @@ export function LibraryScreen() {
   const setView = useAppStore((store) => store.setView);
   const startPreview = useStartInstallPreview();
   const updateAll = useAction((source) => source.updateAll(gameId));
+  const checkUpdates = useAction((source) => source.checkUpdates(gameId));
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<LibraryFilter>("all");
@@ -109,6 +110,18 @@ export function LibraryScreen() {
         actions={
           <>
             {fileButton}
+            <Button
+              disabled={checkUpdates.isPending}
+              onClick={() =>
+                withToast(
+                  checkUpdates.mutateAsync([]),
+                  "Checked mod.io for updates",
+                )
+              }
+            >
+              <SearchIcon aria-hidden="true" />
+              Check for updates
+            </Button>
             {updatableCount > 0 && (
               <Button
                 disabled={isWriteLocked || updateAll.isPending}

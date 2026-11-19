@@ -202,6 +202,30 @@ export const useSettings = () =>
     queryFn: () => activeSource.getSettings(),
   });
 
+const HOUR_MS = 3_600_000;
+const GAME_IDS: GameId[] = ["anno117", "anno1800"];
+
+/** Runs the mod.io update check the Settings choice asks for: once at start, or hourly. */
+export function useScheduledUpdateChecks(): void {
+  const client = useQueryClient();
+  const updateCheck = useSettings().data?.updateCheck;
+  useQuery({
+    queryKey: ["scheduled-update-check", updateCheck],
+    queryFn: async () => {
+      // One game failing (no key, offline) must not stop the other's check.
+      await Promise.allSettled(
+        GAME_IDS.map((game) => activeSource.checkUpdates(game)),
+      );
+      await client.invalidateQueries({ queryKey: ["mods"] });
+      return Date.now();
+    },
+    enabled: updateCheck === "startup" || updateCheck === "hourly",
+    staleTime: Infinity,
+    refetchInterval: updateCheck === "hourly" ? HOUR_MS : false,
+    refetchOnWindowFocus: false,
+  });
+}
+
 /** Any write can change mods, issues, order and health, so a mutation refreshes all cached reads. */
 export function useAction<TArgs extends unknown[], TResult>(
   action: (source: DataSource, ...args: TArgs) => Promise<TResult>,

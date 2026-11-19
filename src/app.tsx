@@ -7,6 +7,7 @@ import { InstallPreviewSheet } from "@/components/app/install-preview-sheet";
 import { MockStatesMenu } from "@/components/app/mock-states-menu";
 import { Shell } from "@/components/app/shell";
 import { Toaster } from "@/components/ui/sonner";
+import { useScheduledUpdateChecks } from "@/data/source";
 import { BrowseScreen } from "@/features/browse";
 import { CollectionsScreen } from "@/features/collections";
 import { DownloadsScreen } from "@/features/downloads";
@@ -39,6 +40,7 @@ const TOAST_STYLE = {
 export function App() {
   const view = useAppStore((store) => store.view);
   const Screen = SCREENS[view];
+  useScheduledUpdateChecks();
 
   // shadcn's dark: variant keys off data-theme, so the default ground must set it explicitly.
   useEffect(() => {
