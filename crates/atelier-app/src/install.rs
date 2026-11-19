@@ -62,6 +62,8 @@ impl App {
             .cloned()
             .collect();
         self.apply_new_mods_start(game, &fresh)?;
+        // Each install adds a backup, so expired ones go now; a failure here loses nothing.
+        let _ = self.prune_backups();
         Ok(result)
     }
 

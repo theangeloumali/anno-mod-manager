@@ -90,7 +90,7 @@ impl App {
         ));
         let api_key = current_key(&*config.api_key_store, config.dev_api_key.as_deref())?;
         let client = build_client(api_key, config.modio_base.clone(), &config.token_store)?;
-        Ok(Self(Arc::new(Inner {
+        let app = Self(Arc::new(Inner {
             snapshots: Snapshots::new(config.data_dir.join("snapshots"), SNAPSHOTS_KEPT),
             data_dir: config.data_dir,
             documents,
@@ -109,7 +109,10 @@ impl App {
             updates: Mutex::new(HashMap::new()),
             held_off: Mutex::new(HashMap::new()),
             writes: Mutex::new(()),
-        })))
+        }));
+        // Backups expire with time, not only when the setting changes; a failure loses nothing.
+        let _ = app.prune_backups();
+        Ok(app)
     }
 
     pub fn settings(&self) -> Settings {
@@ -118,8 +121,13 @@ impl App {
 
     /// Retention changes prune right away; a fresh engine is enough because pruning is stateless.
     pub fn save_settings(&self, settings: Settings) -> Result<()> {
-        let retention = settings.backup_retention_days;
         self.update_persisted(|state| state.settings = settings)?;
+        self.prune_backups()
+    }
+
+    /// Uses the current retention setting; the long-lived engine holds the one from startup.
+    pub(crate) fn prune_backups(&self) -> Result<()> {
+        let retention = self.settings().backup_retention_days;
         InstallEngine::new(engine_config(&self.0.data_dir, retention))
             .prune_backups()
             .map_err(AppError::from)

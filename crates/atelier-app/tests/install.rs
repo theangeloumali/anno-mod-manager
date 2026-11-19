@@ -145,3 +145,24 @@ fn new_mods_start_off_applies_to_new_installs_not_updates() {
     assert_eq!(updated.version, "2.0.0");
     assert!(updated.active, "an update keeps the player's choice");
 }
+
+#[test]
+fn expired_backups_are_pruned_without_touching_settings() {
+    let harness = Harness::new();
+    let backups = harness.root.path().join("data/backups/old-mod");
+    // 1.0 is 400 days old; 2.0 is the newest copy, which pruning always keeps.
+    let day_ms: u64 = 86_400_000;
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
+    let expired = backups.join(format!("1.0-{}", now_ms - 400 * day_ms));
+    let newest = backups.join(format!("2.0-{}", now_ms - 300 * day_ms));
+    fs::create_dir_all(&expired).unwrap();
+    fs::create_dir_all(&newest).unwrap();
+
+    install_version(&harness, "1.0.0");
+
+    assert!(!expired.exists(), "older than the 30-day default");
+    assert!(newest.exists());
+}
