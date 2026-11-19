@@ -177,9 +177,16 @@ impl App {
         Ok(missing)
     }
 
+    /// A page already downloading is not queued again; two installs of one mod would race.
     fn start_job(&self, game: GameId, modio_id: u64) {
+        let mut jobs = lock(&self.0.jobs);
+        if jobs.iter().any(|entry| {
+            entry.game == game && entry.job.modio_id == modio_id && !is_finished(entry.job.status)
+        }) {
+            return;
+        }
         let id = format!("job-{}", self.0.next_job.fetch_add(1, Ordering::Relaxed));
-        lock(&self.0.jobs).push(JobEntry {
+        jobs.push(JobEntry {
             job: DownloadJob {
                 id: id.clone(),
                 modio_id,
@@ -192,6 +199,7 @@ impl App {
             game,
             abort: None,
         });
+        drop(jobs);
         self.spawn(id, game, modio_id);
     }
 
@@ -271,7 +279,20 @@ impl App {
                 updates.remove(mod_id);
             }
         }
-        self.apply_held_off(game, modio_id, &top_level)
+        // A retry skips the already-installed mod, so the page's links name it, not this run.
+        let linked: Vec<String> = self
+            .persisted()
+            .modio_links
+            .get(&game)
+            .map(|links| {
+                links
+                    .iter()
+                    .filter(|(_, link)| link.modio_id == modio_id)
+                    .map(|(mod_id, _)| mod_id.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.apply_held_off(game, modio_id, &linked)
     }
 
     /// Returns the top-level mod ids that landed, so sub-mods never claim the mod.io link.

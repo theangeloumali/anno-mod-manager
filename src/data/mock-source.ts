@@ -1241,6 +1241,14 @@ function startJob(
   sizeBytes: number,
   onDone: () => void,
 ): void {
+  // Matches the core: a page already downloading isn't queued twice.
+  const alreadyRunning = state.downloads.some(
+    (entry) =>
+      entry.job.modioId === modioId &&
+      entry.job.status !== "done" &&
+      entry.job.status !== "failed",
+  );
+  if (alreadyRunning) return;
   state.downloads.unshift({
     job: {
       id: `job-${state.nextId++}`,

@@ -59,6 +59,26 @@ async fn a_failed_download_is_a_failed_job_with_a_reason() {
     assert!(job.error.is_some());
 }
 
+#[tokio::test]
+async fn subscribing_twice_while_downloading_queues_one_job() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(fixture("mod_no_modfile.json"))
+                .set_delay(Duration::from_millis(300)),
+        )
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+
+    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
+    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
+
+    assert_eq!(harness.app.list_downloads().len(), 1);
+}
+
 async fn wait_for_job(harness: &Harness) -> DownloadJob {
     for _ in 0..200 {
         let jobs = harness.app.list_downloads();
