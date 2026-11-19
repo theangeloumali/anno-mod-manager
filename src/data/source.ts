@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { mockSource } from "./mock-source.ts";
 import type {
   Account,
@@ -201,6 +202,24 @@ export const useSettings = () =>
     queryKey: keys.settings,
     queryFn: () => activeSource.getSettings(),
   });
+
+/** Downloads install in the background, so a finished one must refresh what the screens show. */
+export function useRefreshWhenDownloadsFinish(): void {
+  const client = useQueryClient();
+  const { data: jobs } = useDownloads();
+  const finishedIds = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!jobs) return;
+    const done = new Set(
+      jobs.filter((job) => job.status === "done").map((job) => job.id),
+    );
+    const previous = finishedIds.current;
+    finishedIds.current = done;
+    // The first poll only records what was already done before this session saw it.
+    if (previous && [...done].some((id) => !previous.has(id)))
+      void client.invalidateQueries();
+  }, [jobs, client]);
+}
 
 const HOUR_MS = 3_600_000;
 const GAME_IDS: GameId[] = ["anno117", "anno1800"];

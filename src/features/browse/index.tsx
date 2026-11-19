@@ -172,7 +172,7 @@ export function BrowseScreen() {
           actions={<Button onClick={() => void refetch()}>Try again</Button>}
         >
           You're offline or mod.io is down. Installed mods still work, and
-          downloads you started resume when you reconnect.
+          failed downloads can be retried from Downloads once you're back.
         </EmptyState>
       ) : isPending ? (
         <ul

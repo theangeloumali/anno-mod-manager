@@ -14,7 +14,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useAction } from "@/data/source";
-import type { InstallItemStatus, InstallPreviewItem } from "@/data/types";
+import type {
+  GameId,
+  InstallItemStatus,
+  InstallPreviewItem,
+} from "@/data/types";
 import { useAppStore } from "./app-store";
 import { errorMessage, gameShortName } from "./format";
 import { withToast } from "./notify";
@@ -44,7 +48,7 @@ export function useStartInstallPreview() {
   );
   return async (paths: string[]) => {
     try {
-      showPreview(await preview.mutateAsync([paths]));
+      showPreview(await preview.mutateAsync([paths]), paths);
     } catch (error) {
       toast.error(errorMessage(error));
     }
@@ -115,6 +119,10 @@ export function InstallPreviewSheet() {
   const cancel = useAction((source, previewId: string) =>
     source.cancelInstall(previewId),
   );
+  const previewSources = useAppStore((store) => store.previewSources);
+  const previewFor = useAction((source, game: GameId, paths: string[]) =>
+    source.previewInstall(game, paths),
+  );
 
   const items = preview?.items ?? [];
   const subModCount = items.reduce(
@@ -148,9 +156,24 @@ export function InstallPreviewSheet() {
           ? `; skipped ${installResult.skipped.length}`
           : ""),
     );
-    if (!result) return;
-    if (wrongGameTarget) setGame(wrongGameTarget);
+    if (!result.ok) return;
     close(false);
+  };
+
+  // The preview was built for this game, so its items can't install; preview them for theirs.
+  const previewForTarget = async (target: GameId) => {
+    if (preview) void cancel.mutateAsync([preview.id]);
+    setIncludeDowngrades(false);
+    setGame(target);
+    try {
+      showPreview(
+        await previewFor.mutateAsync([target, previewSources]),
+        previewSources,
+      );
+    } catch (error) {
+      showPreview(null);
+      toast.error(errorMessage(error));
+    }
   };
 
   const title = `Found ${items.length} mod${items.length === 1 ? "" : "s"}${
@@ -206,11 +229,11 @@ export function InstallPreviewSheet() {
           {wrongGameTarget ? (
             <Button
               variant="primary"
-              disabled={confirm.isPending}
-              onClick={() => void install()}
+              disabled={previewFor.isPending || previewSources.length === 0}
+              onClick={() => void previewForTarget(wrongGameTarget)}
             >
               <DownloadIcon aria-hidden="true" />
-              Install for {gameShortName(wrongGameTarget)} instead
+              Check for {gameShortName(wrongGameTarget)} instead
             </Button>
           ) : (
             <Button

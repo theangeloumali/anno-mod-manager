@@ -107,7 +107,7 @@ export function DownloadsScreen() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Downloads"
-        description="mod.io downloads and updates. Each file is verified before it's installed, and an interrupted download resumes where it stopped."
+        description="mod.io downloads and updates. Each file is verified before it's installed, and a failed download can be retried from the start."
         actions={
           <Button
             disabled={isWriteLocked || updateAll.isPending}

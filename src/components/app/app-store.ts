@@ -39,6 +39,8 @@ interface AppState {
   selectedModCopy: ModCopy | null;
   tweaksModId: string | null;
   preview: InstallPreview | null;
+  /** The dropped paths behind `preview`, to preview them again for the other game. */
+  previewSources: string[];
   isWizardOpen: boolean;
   isMobileNavOpen: boolean;
   setGame: (game: GameId) => void;
@@ -46,7 +48,7 @@ interface AppState {
   /** Without `copy` the copy the game loads is shown (links from issues and load order). */
   selectMod: (modId: string | null, copy?: ModCopy) => void;
   openTweaks: (modId: string) => void;
-  showPreview: (preview: InstallPreview | null) => void;
+  showPreview: (preview: InstallPreview | null, sources?: string[]) => void;
   setWizardOpen: (isOpen: boolean) => void;
   setMobileNavOpen: (isOpen: boolean) => void;
 }
@@ -58,6 +60,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedModCopy: null,
   tweaksModId: null,
   preview: null,
+  previewSources: [],
   isWizardOpen: false,
   isMobileNavOpen: false,
   setGame: (game) =>
@@ -71,7 +74,8 @@ export const useAppStore = create<AppState>((set) => ({
   selectMod: (selectedModId, copy) =>
     set({ selectedModId, selectedModCopy: copy ?? null }),
   openTweaks: (tweaksModId) => set({ tweaksModId, view: "tweaks" }),
-  showPreview: (preview) => set({ preview }),
+  showPreview: (preview, sources = []) =>
+    set({ preview, previewSources: sources }),
   setWizardOpen: (isWizardOpen) => set({ isWizardOpen }),
   setMobileNavOpen: (isMobileNavOpen) => set({ isMobileNavOpen }),
 }));
