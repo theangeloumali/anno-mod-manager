@@ -400,6 +400,47 @@ async fn a_taken_collection_profile_name_gets_a_number() {
 }
 
 #[tokio::test]
+async fn a_game_started_while_a_collection_loads_stops_it_before_any_write() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/collections"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("collections.json")))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/collections/310/mods"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(fixture("collection_mods.json"))
+                .set_delay(Duration::from_millis(400)),
+        )
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.add_mod(GameId::Anno117, "Kept", "kept-on", "1.0.0");
+    let running = harness.running.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        running.store(true, std::sync::atomic::Ordering::SeqCst);
+    });
+
+    let error = harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::GameRunning);
+    assert!(
+        !harness
+            .documents_mods(GameId::Anno117)
+            .join("profiles")
+            .exists()
+    );
+    assert!(harness.app.list_downloads().is_empty());
+}
+
+#[tokio::test]
 async fn a_collection_never_takes_a_profile_name_that_differs_only_in_unicode_case() {
     let server = MockServer::start().await;
     let harness = harness_for(&server, Some(API_KEY));

@@ -35,6 +35,8 @@ impl App {
             .iter()
             .map(|item| item.id)
             .collect();
+        // The game may have started while mod.io answered; check again before the first write.
+        self.guard_writes(game)?;
         let profile = if activation::detect_scheme(game, &self.documents_mods(game))
             == ActivationScheme::Profile
         {
