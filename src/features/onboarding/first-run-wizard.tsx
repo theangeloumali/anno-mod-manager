@@ -192,7 +192,8 @@ export function FirstRunWizard() {
             Step {stepIndex + 1} of {STEP_TITLES.length}
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-3">{steps[stepIndex]}</div>
+        {/* min-w-0: a grid child would otherwise widen to the unwrapped path and scroll the dialog. */}
+        <div className="flex min-w-0 flex-col gap-3">{steps[stepIndex]}</div>
         <DialogFooter className="flex-row justify-end bg-transparent">
           {stepIndex > 0 && (
             <Button
