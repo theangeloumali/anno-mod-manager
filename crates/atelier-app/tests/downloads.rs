@@ -400,6 +400,26 @@ async fn a_taken_collection_profile_name_gets_a_number() {
 }
 
 #[tokio::test]
+async fn a_collection_never_takes_a_profile_name_that_differs_only_in_unicode_case() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.add_mod(GameId::Anno117, "Kept", "kept-on", "1.0.0");
+    harness
+        .app
+        .save_profile(GameId::Anno117, "Collection - Été")
+        .unwrap();
+    serve_collection_named(&server, 11358, "été").await;
+
+    let profile = harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap();
+
+    assert_eq!(profile.as_deref(), Some("Collection - été 2"));
+}
+
+#[tokio::test]
 async fn a_collection_mod_installed_but_off_is_on_in_the_new_profile() {
     let server = MockServer::start().await;
     let harness = harness_for(&server, Some(API_KEY));

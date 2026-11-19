@@ -263,11 +263,16 @@ fn read_active_profile_name(mods_dir: &Path) -> Result<Option<String>> {
     }))
 }
 
+/// NTFS ignores case for every letter, not just ASCII, so `Été` and `été` are one file.
+pub fn same_profile_name(left: &str, right: &str) -> bool {
+    left.to_lowercase() == right.to_lowercase()
+}
+
 /// Profile file names are matched case-insensitively, as on Windows.
 fn find_profile(mods_dir: &Path, name: &str) -> Result<Option<PathBuf>> {
     Ok(profile_files(mods_dir)?
         .into_iter()
-        .find(|(stem, _)| stem.eq_ignore_ascii_case(name))
+        .find(|(stem, _)| same_profile_name(stem, name))
         .map(|(_, path)| path))
 }
 

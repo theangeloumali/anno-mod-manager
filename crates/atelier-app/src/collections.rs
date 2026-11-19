@@ -157,12 +157,12 @@ fn profile_base_name(collection_name: &str) -> String {
     name.trim_end().to_owned()
 }
 
-/// `name`, then `name 2`, `name 3`, …; the game matches profile files case-insensitively.
+/// `name`, then `name 2`, `name 3`, …; matched as NTFS matches file names, case-blind.
 fn unique_name(base: &str, taken: &[String]) -> String {
     let is_taken = |candidate: &str| {
         taken
             .iter()
-            .any(|name| name.eq_ignore_ascii_case(candidate))
+            .any(|name| activation::same_profile_name(name, candidate))
     };
     let mut candidate = base.to_owned();
     let mut number = 2;

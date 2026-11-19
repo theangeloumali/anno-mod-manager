@@ -402,6 +402,26 @@ fn a_profile_name_that_escapes_the_profiles_folder_falls_back_to_default() {
 }
 
 #[test]
+fn profile_names_match_without_case_beyond_ascii_as_on_windows() {
+    let tmp = tempfile::tempdir().unwrap();
+    let docs = documents(tmp.path());
+    let snaps = snapshots(tmp.path());
+    write(tmp.path(), "profile.txt", "ActiveProfile default\n");
+    write_mod(tmp.path(), "A", &info117("a", ""));
+    let mods = scan_mods(GameId::Anno117, tmp.path());
+
+    activation::save_profile(&docs, "Été", &mods, &snaps).unwrap();
+    activation::save_profile(&docs, "été", &mods, &snaps).unwrap();
+
+    let custom: Vec<_> = activation::list_profiles(tmp.path())
+        .unwrap()
+        .into_iter()
+        .filter(|profile| !profile.built_in)
+        .collect();
+    assert_eq!(custom.len(), 1, "NTFS would see one file");
+}
+
+#[test]
 fn legacy_scheme_has_no_profiles() {
     let tmp = tempfile::tempdir().unwrap();
     write(tmp.path(), "active-profile.txt", "EnableNewMods\n");

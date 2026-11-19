@@ -10,6 +10,7 @@ use super::profile_file::ProfileFile;
 use super::{
     ACTIVE_PROFILE_KEY, DEFAULT_PROFILE, PROFILE_POINTER, PROFILES_DIR, VANILLA_PROFILE,
     detect_scheme, edit_profile_file, find_profile, profile_files, read_active_profile_name,
+    same_profile_name,
 };
 use crate::error::io_at;
 use crate::scan::ModsFolder;
@@ -26,13 +27,13 @@ pub fn list_profiles(mods_dir: &Path) -> Result<Vec<Profile>> {
     let built_in = BUILT_IN_PROFILES.iter().map(|name| Profile {
         name: (*name).to_string(),
         built_in: true,
-        active: name.eq_ignore_ascii_case(&active),
+        active: same_profile_name(name, &active),
     });
     let saved = profile_files(mods_dir)?
         .into_iter()
         .filter(|(stem, _)| built_in_name(stem).is_none())
         .map(|(stem, _)| Profile {
-            active: stem.eq_ignore_ascii_case(&active),
+            active: same_profile_name(&stem, &active),
             name: stem,
             built_in: false,
         });
@@ -125,7 +126,7 @@ pub fn delete_profile(writable: &ModsFolder, name: &str, snapshots: &Snapshots) 
         return Err(Error::BuiltInProfile(name.to_string()));
     }
     let path = find_profile(dir, name)?.ok_or_else(|| Error::ProfileNotFound(name.into()))?;
-    if active_name(dir)?.eq_ignore_ascii_case(name) {
+    if same_profile_name(&active_name(dir)?, name) {
         return Err(Error::ProfileActive(name.to_string()));
     }
     snapshots.take(&path)?;
@@ -183,7 +184,7 @@ fn built_in_name(name: &str) -> Option<&'static str> {
 fn saved_stem(mods_dir: &Path, name: &str) -> Result<String> {
     profile_files(mods_dir)?
         .into_iter()
-        .find(|(stem, _)| stem.eq_ignore_ascii_case(name))
+        .find(|(stem, _)| same_profile_name(stem, name))
         .map(|(stem, _)| stem)
         .ok_or_else(|| Error::ProfileNotFound(name.to_string()))
 }
