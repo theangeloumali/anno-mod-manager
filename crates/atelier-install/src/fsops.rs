@@ -20,7 +20,8 @@ pub(crate) fn move_dir(from: &Path, to: &Path) -> Result<()> {
 }
 
 fn copy_verify_delete(from: &Path, to: &Path) -> Result<()> {
-    let copied = copy_tree(from, to, &|_| false).and_then(|()| {
+    // Moving already-staged files: they were charged when they were staged.
+    let copied = copy_tree(from, to, &|_| false, &mut |_| Ok(())).and_then(|()| {
         if tree_signature(from)? == tree_signature(to)? {
             Ok(())
         } else {
@@ -38,11 +39,23 @@ fn copy_verify_delete(from: &Path, to: &Path) -> Result<()> {
 }
 
 /// Copies a tree, leaving out what `skip` (given the relative path) rejects. Symlinks are refused.
-pub(crate) fn copy_tree(from: &Path, to: &Path, skip: &dyn Fn(&Path) -> bool) -> Result<()> {
-    copy_level(from, from, to, skip)
+/// `charge` sees each file's size before it is copied and can stop the copy (a drop's budget).
+pub(crate) fn copy_tree(
+    from: &Path,
+    to: &Path,
+    skip: &dyn Fn(&Path) -> bool,
+    charge: &mut dyn FnMut(u64) -> Result<()>,
+) -> Result<()> {
+    copy_level(from, from, to, skip, charge)
 }
 
-fn copy_level(base: &Path, from: &Path, to: &Path, skip: &dyn Fn(&Path) -> bool) -> Result<()> {
+fn copy_level(
+    base: &Path,
+    from: &Path,
+    to: &Path,
+    skip: &dyn Fn(&Path) -> bool,
+    charge: &mut dyn FnMut(u64) -> Result<()>,
+) -> Result<()> {
     fs::create_dir_all(to).map_err(io_at(to))?;
     for entry in fs::read_dir(from).map_err(io_at(from))? {
         let source = entry.map_err(io_at(from))?.path();
@@ -50,9 +63,8 @@ fn copy_level(base: &Path, from: &Path, to: &Path, skip: &dyn Fn(&Path) -> bool)
         if skip(relative) {
             continue;
         }
-        let kind = fs::symlink_metadata(&source)
-            .map_err(io_at(&source))?
-            .file_type();
+        let metadata = fs::symlink_metadata(&source).map_err(io_at(&source))?;
+        let kind = metadata.file_type();
         let target = to.join(source.file_name().unwrap_or_default());
         if kind.is_symlink() {
             return Err(Error::UnsafePath {
@@ -60,8 +72,9 @@ fn copy_level(base: &Path, from: &Path, to: &Path, skip: &dyn Fn(&Path) -> bool)
                 entry: relative.to_string_lossy().replace('\\', "/"),
             });
         } else if kind.is_dir() {
-            copy_level(base, &source, &target, skip)?;
+            copy_level(base, &source, &target, skip, charge)?;
         } else {
+            charge(metadata.len())?;
             fs::copy(&source, &target).map_err(io_at(&source))?;
         }
     }

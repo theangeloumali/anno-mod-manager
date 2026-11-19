@@ -24,9 +24,12 @@ pub(crate) fn stage_source(source: &Path, dest: &Path, limits: Limits) -> Result
     let kind = classify(source)?;
     fs::create_dir_all(dest).map_err(io_at(dest))?;
     match kind {
-        SourceKind::Folder(folder) => {
-            copy_tree(&folder, &dest.join(file_name(&folder)), &is_mac_metadata)?
-        }
+        SourceKind::Folder(folder) => copy_tree(
+            &folder,
+            &dest.join(file_name(&folder)),
+            &is_mac_metadata,
+            &mut |size| budget.admit(size),
+        )?,
         SourceKind::Zip => extract_zip(source, dest, &mut budget)?,
         SourceKind::SevenZip => extract_7z(source, dest, &mut budget)?,
     }

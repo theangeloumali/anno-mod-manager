@@ -37,7 +37,7 @@ impl Budget {
         }
     }
 
-    fn admit(&mut self, size: u64) -> Result<()> {
+    pub(crate) fn admit(&mut self, size: u64) -> Result<()> {
         self.entries += 1;
         if self.entries > self.limits.max_entries {
             return Err(Error::TooManyEntries {

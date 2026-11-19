@@ -113,6 +113,61 @@ fn too_many_entries_fails() {
 }
 
 #[test]
+fn a_dropped_folder_is_held_to_the_same_entry_cap_as_an_archive() {
+    let sandbox = Sandbox::with(
+        Some(30),
+        Limits {
+            max_entries: 3,
+            ..Limits::default()
+        },
+    );
+    let folder = sandbox.drop_path("Big Folder");
+    let info = modinfo("big", "1", Some(8));
+    let mut files = vec![("modinfo.json", info.as_str())];
+    files.extend([
+        ("a.txt", "x"),
+        ("b.txt", "x"),
+        ("c.txt", "x"),
+        ("d.txt", "x"),
+    ]);
+    write_tree(&folder, &files);
+
+    let error = sandbox
+        .engine
+        .preview(GameId::Anno117, &[folder], &[])
+        .unwrap_err();
+
+    assert!(matches!(error, Error::TooManyEntries { .. }), "{error}");
+    assert!(staging_is_empty(&sandbox));
+}
+
+#[test]
+fn a_dropped_folder_is_held_to_the_same_size_cap_as_an_archive() {
+    let sandbox = Sandbox::with(
+        Some(30),
+        Limits {
+            max_total_bytes: 1024,
+            ..Limits::default()
+        },
+    );
+    let folder = sandbox.drop_path("Heavy Folder");
+    let info = modinfo("heavy", "1", Some(8));
+    let heavy = "x".repeat(4096);
+    write_tree(
+        &folder,
+        &[("modinfo.json", &info), ("data/big.bin", &heavy)],
+    );
+
+    let error = sandbox
+        .engine
+        .preview(GameId::Anno117, &[folder], &[])
+        .unwrap_err();
+
+    assert!(matches!(error, Error::TooLarge { .. }), "{error}");
+    assert!(staging_is_empty(&sandbox));
+}
+
+#[test]
 fn the_default_caps_are_4_gib_and_50k_entries() {
     let limits = Limits::default();
     assert_eq!(limits.max_total_bytes, 4 * 1024 * 1024 * 1024);
