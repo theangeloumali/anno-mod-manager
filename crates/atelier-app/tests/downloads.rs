@@ -94,12 +94,18 @@ async fn a_retry_refused_while_the_game_runs_leaves_the_job_failed() {
     harness.set_running(true);
     let refused = harness.app.retry_download(&failed.id).unwrap_err();
     assert_eq!(refused.code, ErrorCode::GameRunning);
-    assert_eq!(harness.app.list_downloads()[0].status, DownloadStatus::Failed);
+    assert_eq!(
+        harness.app.list_downloads()[0].status,
+        DownloadStatus::Failed
+    );
 
     // Once the game closes the same page can be queued again.
     harness.set_running(false);
     harness.app.retry_download(&failed.id).unwrap();
-    assert_ne!(harness.app.list_downloads()[0].status, DownloadStatus::Failed);
+    assert_ne!(
+        harness.app.list_downloads()[0].status,
+        DownloadStatus::Failed
+    );
 }
 
 #[tokio::test]

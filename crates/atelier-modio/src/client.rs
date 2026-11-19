@@ -13,6 +13,13 @@ use crate::token_store::{KeyringTokenStore, TokenStore};
 /// mod.io caps `_limit` (and `id-in` lists) at 100.
 pub(crate) const MAX_LIMIT: usize = 100;
 const ROLLING_LIMIT_WAIT_SECS: u64 = 60;
+/// Longer waits are surfaced to the UI rather than slept through.
+const MAX_RETRY_WAIT_SECS: u64 = 60;
+/// mod.io pages are tens of KB; this only stops a runaway body.
+const MAX_JSON_BYTES: usize = 16 * 1024 * 1024;
+/// 50 pages of 100 covers any real subscription or collection list.
+const MAX_PAGES: usize = 50;
+const MAX_REDIRECTS: usize = 10;
 pub(crate) const PLATFORM_HEADER: &str = "X-Modio-Platform";
 pub(crate) const PLATFORM: &str = "windows";
 
@@ -62,13 +69,14 @@ pub struct ModioClient {
 
 impl ModioClient {
     pub fn new(config: ClientConfig) -> Result<Self> {
+        let base_override = config.base_override.map(with_trailing_slash);
         let http = reqwest::Client::builder()
             .user_agent(concat!("anno-mod-manager/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(15))
             .read_timeout(Duration::from_secs(60))
+            .redirect(redirect_policy(base_override.is_none()))
             .build()
             .map_err(Error::from_transport)?;
-        let base_override = config.base_override.map(with_trailing_slash);
         Ok(Self {
             http,
             api_key: config.api_key,
@@ -132,7 +140,7 @@ impl ModioClient {
             return ensure_success(response).await;
         }
         let wait = retry_after_secs(&response);
-        let Some(retry) = retry else {
+        let Some(retry) = retry.filter(|_| wait <= MAX_RETRY_WAIT_SECS) else {
             return Err(Error::RateLimited { retry_after: wait });
         };
         tokio::time::sleep(Duration::from_secs(wait)).await;
@@ -153,12 +161,7 @@ impl ModioClient {
         query: &[(&str, String)],
     ) -> Result<T> {
         let builder = self.request(game, Method::GET, path, auth)?.query(query);
-        let body = self
-            .execute(builder)
-            .await?
-            .bytes()
-            .await
-            .map_err(Error::from_transport)?;
+        let body = read_capped(self.execute(builder).await?, MAX_JSON_BYTES).await?;
         Ok(serde_json::from_slice(&body)?)
     }
 
@@ -171,7 +174,8 @@ impl ModioClient {
         query: &[(&str, String)],
     ) -> Result<Vec<T>> {
         let mut items = Vec::new();
-        loop {
+        // A total that never stops growing would otherwise page forever.
+        for _ in 0..MAX_PAGES {
             let mut page_query = query.to_vec();
             page_query.push(("_limit", MAX_LIMIT.to_string()));
             page_query.push(("_offset", items.len().to_string()));
@@ -183,6 +187,7 @@ impl ModioClient {
                 return Ok(items);
             }
         }
+        Ok(items)
     }
 
     /// A bearer-authenticated write whose response body is not needed.
@@ -225,11 +230,43 @@ fn retry_after_secs(response: &Response) -> u64 {
     }
 }
 
+/// mod.io's download links redirect to a CDN; in production a hop off https is refused.
+fn redirect_policy(https_only: bool) -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(move |attempt| {
+        if attempt.previous().len() >= MAX_REDIRECTS {
+            attempt.error("too many redirects")
+        } else if https_only && attempt.url().scheme() != "https" {
+            attempt.error("redirect away from https")
+        } else {
+            attempt.follow()
+        }
+    })
+}
+
+pub(crate) async fn read_capped(response: Response, limit: usize) -> Result<Vec<u8>> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > limit as u64)
+    {
+        return Err(Error::ResponseTooLarge);
+    }
+    let mut body = Vec::new();
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = futures_util::StreamExt::next(&mut stream).await {
+        let chunk = chunk.map_err(Error::from_transport)?;
+        if body.len() + chunk.len() > limit {
+            return Err(Error::ResponseTooLarge);
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
 async fn ensure_success(response: Response) -> Result<Response> {
     let status = response.status();
     if status.is_success() {
         return Ok(response);
     }
-    let body = response.bytes().await.map_err(Error::from_transport)?;
+    let body = read_capped(response, MAX_JSON_BYTES).await?;
     Err(Error::from_status(status.as_u16(), &body))
 }

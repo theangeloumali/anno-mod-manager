@@ -36,6 +36,8 @@ pub enum Error {
     InvalidFileName,
     #[error("mod.io gave a download link that isn't https")]
     InsecureUrl,
+    #[error("mod.io sent a response too large to read")]
+    ResponseTooLarge,
     #[error("the download is larger than the {listed} bytes mod.io listed")]
     TooLarge { listed: u64 },
     #[error("invalid mod.io url: {0}")]

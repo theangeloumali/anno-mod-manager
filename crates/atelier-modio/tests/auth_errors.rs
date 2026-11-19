@@ -141,6 +141,69 @@ async fn a_429_backs_off_once_then_succeeds() {
 }
 
 #[tokio::test]
+async fn a_retry_after_longer_than_a_minute_is_surfaced_not_slept() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/tags"))
+        .respond_with(
+            ResponseTemplate::new(429)
+                .insert_header("retry-after", "3600")
+                .set_body_json(fixture("error_429.json")),
+        )
+        .mount(&server)
+        .await;
+
+    let started = Instant::now();
+    let error = anonymous_client(&server)
+        .tags(GameId::Anno117)
+        .await
+        .unwrap_err();
+    assert!(matches!(error, Error::RateLimited { retry_after: 3600 }));
+    assert!(started.elapsed().as_secs() < 5, "never sleeps an hour");
+}
+
+#[tokio::test]
+async fn an_oversized_json_response_is_refused() {
+    let server = MockServer::start().await;
+    let padding = "x".repeat(17 * 1024 * 1024);
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/tags"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_raw(format!("{{\"pad\":\"{padding}\"}}"), "application/json"),
+        )
+        .mount(&server)
+        .await;
+
+    let error = anonymous_client(&server)
+        .tags(GameId::Anno117)
+        .await
+        .unwrap_err();
+    assert!(matches!(error, Error::ResponseTooLarge), "{error}");
+}
+
+#[tokio::test]
+async fn a_list_that_never_ends_stops_after_the_page_cap() {
+    let server = MockServer::start().await;
+    let mut page = fixture("tags.json");
+    let first = page["data"][0].clone();
+    page["data"] = serde_json::Value::Array(vec![first]);
+    page["result_count"] = 1.into();
+    page["result_total"] = 1_000_000.into();
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/tags"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(page))
+        .expect(50)
+        .mount(&server)
+        .await;
+
+    anonymous_client(&server)
+        .tags(GameId::Anno117)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn a_second_429_surfaces_rate_limited() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))

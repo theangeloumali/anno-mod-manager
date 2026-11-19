@@ -90,6 +90,19 @@ impl ModioClient {
             request = request.bearer_auth(token);
         }
         let response = self.execute(request).await?;
+        // The redirect policy already refuses this; checked again where the bytes land.
+        if self.base_override.is_none() && response.url().scheme() != "https" {
+            return Err(Error::InsecureUrl);
+        }
+        let too_large = Error::TooLarge {
+            listed: modfile.filesize,
+        };
+        if response
+            .content_length()
+            .is_some_and(|length| length > modfile.filesize)
+        {
+            return Err(too_large);
+        }
         let total = response.content_length().unwrap_or(modfile.filesize);
 
         let mut file = tokio::fs::File::create(part_path).await?;
@@ -107,11 +120,10 @@ impl ModioClient {
         while let Some(chunk) = body.next().await {
             let chunk = chunk.map_err(Error::from_transport)?;
             // The md5 only runs at the end, so an endless body must be cut off here.
-            if modfile.filesize > 0 && downloaded + chunk.len() as u64 > modfile.filesize {
+            // A listed size of 0 fails closed: it allows no bytes at all.
+            if downloaded + chunk.len() as u64 > modfile.filesize {
                 drop(file);
-                return Err(Error::TooLarge {
-                    listed: modfile.filesize,
-                });
+                return Err(too_large);
             }
             hasher.update(&chunk);
             file.write_all(&chunk).await?;
