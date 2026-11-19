@@ -1005,6 +1005,8 @@ function createState() {
       GameId,
       Mod[]
     >,
+    /** Uninstalled mods with their sub-mods, newest last, as the core's backups keep them. */
+    backups: { anno117: [], anno1800: [] } as Record<GameId, Mod[][]>,
     profiles: {
       anno117: [
         { name: "default", builtIn: true, activeIds: null },
@@ -1856,9 +1858,27 @@ export const mockSource: DataSource = {
         `${mod.name} lives in the ${mod.location === "ubi" ? "Ubisoft-managed .ubi" : "game"} folder. Atelier only removes mods in Documents.`,
         "read-only",
       );
+    const isRemoved = (candidate: Mod) =>
+      candidate.id === modId || candidate.parentId === modId;
+    state.backups[game].push(state.mods[game].filter(isRemoved));
     state.mods[game] = state.mods[game].filter(
-      (candidate) => candidate.id !== modId && candidate.parentId !== modId,
+      (candidate) => !isRemoved(candidate),
     );
+    return respond(undefined);
+  },
+
+  restoreMod: (game, modId) => {
+    const blocked = writeBlockedReason(game);
+    if (blocked) return refuse(blocked, "game-running");
+    const backups = state.backups[game];
+    const index = backups.findLastIndex((saved) => saved[0]?.id === modId);
+    if (index === -1)
+      return refuse(`There is no backup of ${modId} to restore.`, "not-found");
+    const restored = backups.splice(index, 1).flat();
+    state.mods[game] = [
+      ...state.mods[game].filter((candidate) => candidate.id !== modId),
+      ...restored,
+    ];
     return respond(undefined);
   },
 

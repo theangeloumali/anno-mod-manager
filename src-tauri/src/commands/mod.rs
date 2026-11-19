@@ -14,6 +14,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         library::list_mods,
         library::set_mod_active,
         library::uninstall_mod,
+        library::restore_mod,
         library::list_issues,
         library::load_order,
         library::list_profiles,

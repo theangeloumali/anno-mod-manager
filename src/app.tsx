@@ -54,7 +54,13 @@ export function App() {
       <InstallPreviewSheet />
       <FirstRunWizard />
       {!isTauri() && <MockStatesMenu />}
-      <Toaster position="bottom-left" style={TOAST_STYLE} />
+      {/* Lifted clear of the status bar, which wraps to two lines on phones. */}
+      <Toaster
+        position="bottom-left"
+        offset={{ bottom: "3rem" }}
+        mobileOffset={{ bottom: "5.5rem" }}
+        style={TOAST_STYLE}
+      />
     </>
   );
 }

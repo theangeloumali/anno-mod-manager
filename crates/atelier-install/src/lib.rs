@@ -159,6 +159,12 @@ impl InstallEngine {
         backup::rollback(&self.config.backup_dir, target_mods_dir, mod_id)
     }
 
+    /// Moves an installed mod's folder into the backups, where `rollback` can find it.
+    pub fn remove_to_backup(&self, mod_dir: &Path) -> Result<()> {
+        let backup = backup::backup_path(&self.config.backup_dir, mod_dir)?;
+        fsops::move_dir(mod_dir, &backup)
+    }
+
     pub fn prune_backups(&self) -> Result<()> {
         backup::prune(&self.config.backup_dir, self.config.retention_days)
     }

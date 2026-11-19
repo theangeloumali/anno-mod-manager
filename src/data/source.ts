@@ -32,6 +32,8 @@ export interface DataSource {
   listMods(game: GameId): Promise<Mod[]>;
   setModActive(game: GameId, modId: string, active: boolean): Promise<void>;
   uninstallMod(game: GameId, modId: string): Promise<void>;
+  /** Puts back the newest backup of a mod: an uninstall or a replaced version. */
+  restoreMod(game: GameId, modId: string): Promise<void>;
   listIssues(game: GameId): Promise<Issue[]>;
   loadOrder(game: GameId): Promise<LoadOrder>;
   listProfiles(game: GameId): Promise<Profile[]>;

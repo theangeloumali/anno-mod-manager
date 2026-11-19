@@ -48,6 +48,7 @@ export const ipcSource: DataSource = {
   setModActive: (game, modId, active) =>
     call("set_mod_active", { game, modId, active }),
   uninstallMod: (game, modId) => call("uninstall_mod", { game, modId }),
+  restoreMod: (game, modId) => call("restore_mod", { game, modId }),
   listIssues: (game) => call<Issue[]>("list_issues", { game }),
   loadOrder: (game) => call<LoadOrder>("load_order", { game }),
   listProfiles: (game) => call<Profile[]>("list_profiles", { game }),

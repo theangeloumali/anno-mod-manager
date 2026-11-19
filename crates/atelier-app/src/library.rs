@@ -120,7 +120,8 @@ impl App {
             });
         };
         let dir = scan::mod_dir(&self.folders(game), target).ok_or_else(|| not_found(mod_id))?;
-        fs::remove_dir_all(&dir).map_err(|error| AppError::io(&error, &dir))?;
+        // Kept in the backups for the retention period, so restore_mod can undo this.
+        self.0.engine.remove_to_backup(&dir)?;
         let has_link = self
             .persisted()
             .modio_links
@@ -134,6 +135,12 @@ impl App {
             })?;
         }
         Ok(())
+    }
+
+    /// Puts back the newest backup of `mod_id`: an uninstall or a replaced version.
+    pub fn restore_mod(&self, game: GameId, mod_id: &str) -> Result<()> {
+        let _writes = self.write_guard(game)?;
+        Ok(self.0.engine.rollback(mod_id, &self.documents_mods(game))?)
     }
 
     pub fn list_profiles(&self, game: GameId) -> Result<Vec<Profile>> {

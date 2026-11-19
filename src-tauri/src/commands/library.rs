@@ -41,6 +41,11 @@ pub async fn uninstall_mod(app: State<'_, App>, game: GameId, mod_id: String) ->
 }
 
 #[tauri::command]
+pub async fn restore_mod(app: State<'_, App>, game: GameId, mod_id: String) -> CommandResult<()> {
+    app.restore_mod(game, &mod_id)
+}
+
+#[tauri::command]
 pub async fn list_issues(app: State<'_, App>, game: GameId) -> CommandResult<Vec<Issue>> {
     app.list_issues(game)
 }

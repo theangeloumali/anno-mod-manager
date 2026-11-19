@@ -110,6 +110,9 @@ export function ModDetail({
   const uninstall = useAction((source, modId: string) =>
     source.uninstallMod(gameId, modId),
   );
+  const restore = useAction((source, modId: string) =>
+    source.restoreMod(gameId, modId),
+  );
   const update = useAction((source, modId: string) =>
     source.updateMod(gameId, modId),
   );
@@ -323,8 +326,8 @@ export function ModDetail({
                 Uninstall {mod.name}?
               </DialogTitle>
               <DialogDescription className="text-ui text-copy-muted">
-                Its folder moves to Atelier's backups for 30 days, so you can
-                restore it.
+                Its folder moves to Atelier's backups, kept for as long as
+                Settings says. Undo puts it straight back.
                 {mod.setup.safeToRemove === false &&
                   " The author marks it as not safe to remove from an existing save."}
               </DialogDescription>
@@ -339,6 +342,14 @@ export function ModDetail({
                   const result = await withToast(
                     uninstall.mutateAsync([mod.id]),
                     `Uninstalled ${mod.name}`,
+                    {
+                      label: "Undo",
+                      onClick: () =>
+                        void withToast(
+                          restore.mutateAsync([mod.id]),
+                          `Restored ${mod.name}`,
+                        ),
+                    },
                   );
                   setConfirmOpen(false);
                   if (result !== undefined) selectMod(null);

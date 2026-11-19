@@ -281,3 +281,24 @@ fn a_game_folder_inside_the_mods_folder_is_refused() {
     let launch = harness.app.launch_game(GameId::Anno117).unwrap_err();
     assert_eq!(launch.code, ErrorCode::GameNotFound);
 }
+
+#[test]
+fn uninstall_keeps_a_backup_that_restore_puts_back() {
+    let harness = Harness::new();
+    let dir = harness.add_mod(GameId::Anno117, "Roman Roads", "roman-roads", "1.0.0");
+
+    harness
+        .app
+        .uninstall_mod(GameId::Anno117, "roman-roads")
+        .unwrap();
+    assert!(!dir.exists());
+
+    harness
+        .app
+        .restore_mod(GameId::Anno117, "roman-roads")
+        .unwrap();
+    let mods = harness.app.list_mods(GameId::Anno117).unwrap();
+    assert_eq!(mods.len(), 1);
+    assert_eq!(mods[0].id, "roman-roads");
+    assert_eq!(mods[0].version, "1.0.0");
+}

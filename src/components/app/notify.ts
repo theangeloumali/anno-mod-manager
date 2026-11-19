@@ -6,6 +6,7 @@ import { errorMessage } from "./format";
 export async function withToast<TResult>(
   work: Promise<TResult>,
   successMessage: string | ((result: TResult) => string),
+  successAction?: { label: string; onClick: () => void },
 ): Promise<TResult | undefined> {
   try {
     const result = await work;
@@ -13,6 +14,7 @@ export async function withToast<TResult>(
       typeof successMessage === "function"
         ? successMessage(result)
         : successMessage,
+      successAction && { action: successAction },
     );
     return result;
   } catch (error) {
