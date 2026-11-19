@@ -13,6 +13,8 @@ use crate::{Error, InstallItemStatus, InstallPreviewItem, InstallResult, Result}
 pub(crate) struct StagedItem {
     pub item: InstallPreviewItem,
     pub staged_dir: PathBuf,
+    /// The installed copy as the preview saw it, checked again at confirm.
+    pub seen: Option<crate::classify::CopyStamp>,
 }
 
 /// One completed move, kept so a later failure can put everything back.

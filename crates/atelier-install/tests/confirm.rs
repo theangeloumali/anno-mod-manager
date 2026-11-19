@@ -133,6 +133,40 @@ fn a_preview_made_stale_by_a_later_install_is_refused() {
 }
 
 #[test]
+fn a_same_version_copy_swapped_in_after_the_preview_is_refused() {
+    let sandbox = Sandbox::new();
+    seed(&sandbox, "Keeper", "keeper", "1.0");
+    let preview = preview_zip(
+        &sandbox,
+        "keeper-2.0.zip",
+        &[Entry::File(
+            "Keeper/modinfo.json",
+            modinfo("keeper", "2.0", Some(8)).as_bytes(),
+        )],
+    );
+    // Another copy with the same version lands in between, with different contents.
+    write_tree(
+        &sandbox.mods().join("Keeper"),
+        &[("textures/extra.dds", "a different build")],
+    );
+
+    let error = sandbox
+        .engine
+        .confirm(
+            &preview.id,
+            &sandbox.mods(),
+            &sandbox.installed(GAME),
+            false,
+        )
+        .unwrap_err();
+
+    assert!(
+        matches!(error, Error::PreviewStale(ref id) if id == "keeper"),
+        "{error}"
+    );
+}
+
+#[test]
 fn a_mod_id_that_is_a_windows_device_name_gets_a_safe_folder() {
     let sandbox = Sandbox::new();
 

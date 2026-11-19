@@ -192,6 +192,21 @@ fn installed_copy<'m>(game: GameId, installed: &'m [Mod], mod_id: &str) -> Optio
     })
 }
 
+/// Where, which version and how big: a copy swapped for another with the same version still
+/// changes its folder or size.
+pub(crate) type CopyStamp = (ModLocation, String, String, u64);
+
+pub(crate) fn copy_stamp(game: GameId, installed: &[Mod], mod_id: &str) -> Option<CopyStamp> {
+    installed_copy(game, installed, mod_id).map(|copy| {
+        (
+            copy.location,
+            copy.folder.clone(),
+            copy.version.clone(),
+            copy.size_bytes,
+        )
+    })
+}
+
 /// The first item that would install whose installed copy is not what the preview saw.
 pub(crate) fn changed_since_preview(
     game: GameId,
@@ -201,13 +216,9 @@ pub(crate) fn changed_since_preview(
 ) -> Option<String> {
     items
         .iter()
-        .map(|staged| &staged.item)
-        .filter(|item| is_eligible(item.status, include_downgrades))
-        .find(|item| {
-            installed_copy(game, installed, &item.mod_id).map(|copy| &copy.version)
-                != item.previous_version.as_ref()
-        })
-        .map(|item| item.mod_id.clone())
+        .filter(|staged| is_eligible(staged.item.status, include_downgrades))
+        .find(|staged| copy_stamp(game, installed, &staged.item.mod_id) != staged.seen)
+        .map(|staged| staged.item.mod_id.clone())
 }
 
 fn check(level: Severity, message: String) -> InstallCheck {

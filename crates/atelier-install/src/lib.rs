@@ -214,9 +214,13 @@ impl InstallEngine {
         let mut classifier = Classifier::new(game, installed, found.iter().map(|(_, root)| root));
         Ok(found
             .iter()
-            .map(|(staged, root)| StagedItem {
-                item: classifier.describe(staged, root),
-                staged_dir: root.dir.clone(),
+            .map(|(staged, root)| {
+                let item = classifier.describe(staged, root);
+                StagedItem {
+                    seen: classify::copy_stamp(game, installed, &item.mod_id),
+                    item,
+                    staged_dir: root.dir.clone(),
+                }
             })
             .collect())
     }
