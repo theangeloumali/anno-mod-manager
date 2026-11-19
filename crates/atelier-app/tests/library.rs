@@ -86,6 +86,19 @@ fn toggling_a_mod_off_persists_across_a_fresh_scan() {
 }
 
 #[test]
+fn uninstall_never_deletes_a_sub_mod_that_shares_the_mod_id() {
+    let harness = Harness::new();
+    harness.add_mod(GameId::Anno117, "A Pack", "a-pack", "1.0.0");
+    let sub_mod = harness.add_mod(GameId::Anno117, "A Pack/x [SubMod]", "x", "1.0.0");
+    let real = harness.add_mod(GameId::Anno117, "Z Real", "x", "1.0.0");
+
+    harness.app.uninstall_mod(GameId::Anno117, "x").unwrap();
+
+    assert!(sub_mod.exists(), "the pack's sub-mod must survive");
+    assert!(!real.exists());
+}
+
+#[test]
 fn uninstall_removes_only_the_documents_copy() {
     let harness = Harness::new();
     let dir = harness.add_mod(GameId::Anno117, "Roman Roads", "roman-roads", "1.0.0");

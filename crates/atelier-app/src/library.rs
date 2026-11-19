@@ -97,7 +97,11 @@ impl App {
     pub fn uninstall_mod(&self, game: GameId, mod_id: &str) -> Result<()> {
         self.guard_writes(game)?;
         let mods = self.scan(game)?;
-        let matches: Vec<&Mod> = mods.iter().filter(|item| item.id == mod_id).collect();
+        // A sub-mod lives inside another mod's folder, so only top-level mods are removable.
+        let matches: Vec<&Mod> = mods
+            .iter()
+            .filter(|item| item.id == mod_id && item.parent_id.is_none())
+            .collect();
         let Some(target) = matches
             .iter()
             .find(|item| item.location == ModLocation::Documents)
