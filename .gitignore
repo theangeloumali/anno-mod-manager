@@ -1,0 +1,20 @@
+# Dependencies and builds
+node_modules/
+dist/
+target/
+src-tauri/target/
+src-tauri/gen/
+*.tsbuildinfo
+
+# Secrets (mod.io key lives here)
+.env
+.env.*
+!.env.example
+
+# Local-only artifacts
+recordings/
+.claude/worktrees/
+.claude/settings.local.json
+*-20[0-9][0-9]-[0-9][0-9]-[0-9][0-9].html
+.DS_Store
+Thumbs.db

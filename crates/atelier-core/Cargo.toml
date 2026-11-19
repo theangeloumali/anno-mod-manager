@@ -1,0 +1,12 @@
+[package]
+name = "atelier-core"
+description = "Game detection, modinfo parsing, scanning, activation, load order, issues and health for Anno 117 and Anno 1800."
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

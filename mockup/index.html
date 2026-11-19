@@ -1,0 +1,3908 @@
+<!doctype html>
+<html lang="en" data-game="a117">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Atelier Mod Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,500;6..96,600&family=Cinzel:wght@500;600&family=Libre+Franklin:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Tokens: one system, two skins. Lena lifts these into the React theme. */
+      :root {
+        --ok: #74c27a;
+        --warn: #e6b64a;
+        --err: #ef6d5e;
+        --info: #74ade3;
+        --font-body: "Libre Franklin", "Franklin Gothic Book", "Segoe UI", system-ui, sans-serif;
+        --font-data: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+        --radius-control: 6px;
+        --radius-panel: 10px;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 24px;
+        --space-6: 32px;
+        --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+        --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+        --sidebar-w: 232px;
+        --detail-w: 360px;
+      }
+      [data-game="a117"] {
+        --ground: #15110e;
+        --surface: #1d1813;
+        --raised: #272019;
+        --line: #3b3027;
+        --line-strong: #54453a;
+        --text: #efe6d8;
+        --muted: #b9aa94;
+        --accent: #e07a4f;
+        --accent-ink: #1a0f09;
+        --accent-soft: rgba(224, 122, 79, 0.14);
+        --accent-2: #a98bd0;
+        --font-display: "Cinzel", "Trajan Pro", Georgia, serif;
+        --display-tracking: 0.06em;
+      }
+      [data-game="a1800"] {
+        --ground: #0d1316;
+        --surface: #141c20;
+        --raised: #1b262b;
+        --line: #2a383e;
+        --line-strong: #3d5058;
+        --text: #e5ecea;
+        --muted: #a3b3b2;
+        --accent: #d3a64c;
+        --accent-ink: #171106;
+        --accent-soft: rgba(211, 166, 76, 0.14);
+        --accent-2: #4fb3ab;
+        --font-display: "Bodoni Moda", "Didot", Georgia, serif;
+        --display-tracking: 0.01em;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        background: var(--ground);
+        color: var(--text);
+        font: 400 14px/1.5 var(--font-body);
+        -webkit-font-smoothing: antialiased;
+        transition: background-color 160ms ease;
+        overflow: hidden;
+      }
+      ::selection {
+        background: var(--accent);
+        color: var(--accent-ink);
+      }
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--line-strong) transparent;
+      }
+      ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--line-strong);
+        border-radius: 10px;
+        border: 3px solid var(--surface);
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+        color: inherit;
+        caret-color: var(--accent);
+      }
+      button {
+        cursor: pointer;
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 3px;
+      }
+      svg.i {
+        width: 18px;
+        height: 18px;
+        flex: none;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.75;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .data {
+        font-family: var(--font-data);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+      }
+
+      /* App frame */
+      .app {
+        display: grid;
+        grid-template-columns: var(--sidebar-w) 1fr;
+        grid-template-rows: 44px 1fr 30px;
+        grid-template-areas: "title title" "side main" "status status";
+        height: 100vh;
+      }
+      .titlebar {
+        grid-area: title;
+        display: flex;
+        align-items: center;
+        gap: var(--space-4);
+        padding: 0 var(--space-2) 0 var(--space-4);
+        border-bottom: 1px solid var(--line);
+        background: var(--surface);
+      }
+      .brand {
+        display: flex;
+        align-items: baseline;
+        gap: var(--space-2);
+        font-family: var(--font-display);
+        letter-spacing: var(--display-tracking);
+        font-weight: 600;
+        font-size: 16px;
+        white-space: nowrap;
+      }
+      .brand small {
+        font-family: var(--font-body);
+        letter-spacing: 0;
+        font-weight: 500;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .game-switch {
+        display: inline-flex;
+        padding: 3px;
+        gap: 2px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--ground);
+      }
+      .game-switch button {
+        border: 0;
+        background: none;
+        padding: 4px 12px;
+        border-radius: var(--radius-control);
+        color: var(--muted);
+        font-weight: 500;
+        font-size: 13px;
+        transition:
+          background-color 120ms ease,
+          color 120ms ease;
+      }
+      .game-switch button[aria-pressed="true"] {
+        background: var(--accent);
+        color: var(--accent-ink);
+      }
+      .game-switch button:not([aria-pressed="true"]):hover {
+        color: var(--text);
+      }
+      .title-spacer {
+        flex: 1;
+      }
+      .win-controls {
+        display: flex;
+      }
+      .win-controls button {
+        width: 40px;
+        height: 32px;
+        border: 0;
+        background: none;
+        color: var(--muted);
+        border-radius: var(--radius-control);
+      }
+      .win-controls button:hover {
+        background: var(--raised);
+        color: var(--text);
+      }
+
+      .sidebar {
+        grid-area: side;
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid var(--line);
+        background: var(--surface);
+        min-height: 0;
+      }
+      .ornament {
+        height: 10px;
+        margin: var(--space-3) var(--space-4) var(--space-2);
+        color: var(--line-strong);
+      }
+      .ornament svg {
+        width: 100%;
+        height: 10px;
+        display: block;
+      }
+      .nav {
+        list-style: none;
+        margin: 0;
+        padding: var(--space-2);
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        overflow-y: auto;
+      }
+      .nav-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding: var(--space-4) var(--space-3) var(--space-1);
+      }
+      .nav button {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: 7px var(--space-3);
+        border: 0;
+        background: none;
+        border-radius: var(--radius-control);
+        color: var(--muted);
+        text-align: left;
+        font-weight: 500;
+        transition:
+          background-color 120ms ease,
+          color 120ms ease;
+      }
+      .nav button:hover {
+        background: var(--raised);
+        color: var(--text);
+      }
+      .nav button[aria-current="page"] {
+        background: var(--accent-soft);
+        color: var(--text);
+      }
+      .nav button[aria-current="page"] svg {
+        color: var(--accent);
+      }
+      .nav .count {
+        margin-left: auto;
+        font: 500 11px var(--font-data);
+        color: var(--muted);
+      }
+      .nav .count.warn {
+        color: var(--warn);
+      }
+      .nav .count.err {
+        color: var(--err);
+      }
+      .launch {
+        margin-top: auto;
+        padding: var(--space-4);
+        border-top: 1px solid var(--line);
+      }
+      .btn-launch {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+        padding: 12px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        font-family: var(--font-display);
+        letter-spacing: var(--display-tracking);
+        font-weight: 600;
+        font-size: 14px;
+        white-space: nowrap;
+        transition:
+          filter 120ms ease,
+          transform 160ms var(--ease-out);
+      }
+      .btn-launch:hover {
+        filter: brightness(1.08);
+      }
+      .btn-launch[disabled] {
+        background: var(--raised);
+        color: var(--muted);
+        cursor: not-allowed;
+        filter: none;
+      }
+      .launch-meta {
+        margin-top: var(--space-2);
+        font-size: 12px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .launch-meta.err {
+        color: var(--err);
+      }
+
+      .main {
+        grid-area: main;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .view {
+        flex: 1;
+        min-height: 0;
+        display: none;
+        flex-direction: column;
+      }
+      .view.on {
+        display: flex;
+      }
+      .view-head {
+        display: flex;
+        align-items: flex-end;
+        gap: var(--space-4);
+        padding: var(--space-5) var(--space-5) var(--space-4);
+        flex-wrap: wrap;
+      }
+      .view-head h1 {
+        margin: 0;
+        font-family: var(--font-display);
+        letter-spacing: var(--display-tracking);
+        font-weight: 600;
+        font-size: 24px;
+        line-height: 1.15;
+      }
+      .view-head p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        max-width: 68ch;
+      }
+      .view-head .actions {
+        margin-left: auto;
+        display: flex;
+        gap: var(--space-2);
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .scroll {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 0 var(--space-5) var(--space-5);
+      }
+
+      /* Controls */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: 7px 12px;
+        border-radius: var(--radius-control);
+        border: 1px solid var(--line-strong);
+        background: var(--raised);
+        font-weight: 500;
+        font-size: 13px;
+        white-space: nowrap;
+        transition:
+          background-color 120ms ease,
+          border-color 120ms ease,
+          transform 160ms var(--ease-out);
+      }
+      .btn:hover {
+        border-color: var(--muted);
+      }
+      .btn:active:not([disabled]),
+      .btn-launch:active:not([disabled]),
+      .chip:active,
+      .auth-option:active {
+        transform: scale(0.97);
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-ink);
+      }
+      .btn.primary:hover {
+        filter: brightness(1.08);
+      }
+      .btn.ghost {
+        background: none;
+        border-color: transparent;
+        color: var(--muted);
+      }
+      .btn.ghost:hover {
+        color: var(--text);
+        background: var(--raised);
+      }
+      .btn.danger {
+        color: var(--err);
+      }
+      .btn[disabled] {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .btn svg.i {
+        width: 16px;
+        height: 16px;
+      }
+      .field {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: 0 10px;
+        height: 34px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-control);
+        background: var(--ground);
+        min-width: 0;
+      }
+      .field:focus-within {
+        border-color: var(--accent);
+      }
+      .field input,
+      .field select {
+        border: 0;
+        background: none;
+        outline: none;
+        min-width: 0;
+        flex: 1;
+        height: 100%;
+      }
+      .field input::placeholder {
+        color: var(--muted);
+      }
+      .field select option {
+        background: var(--surface);
+      }
+      .field svg.i {
+        width: 16px;
+        height: 16px;
+        color: var(--muted);
+      }
+      .chips {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .chip {
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--line-strong);
+        background: none;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 500;
+        transition:
+          border-color 120ms ease,
+          color 120ms ease,
+          transform 160ms var(--ease-out);
+      }
+      .chip[aria-pressed="true"] {
+        border-color: var(--accent);
+        color: var(--text);
+        background: var(--accent-soft);
+      }
+      .chip .n {
+        font-family: var(--font-data);
+        margin-left: 4px;
+      }
+      .toggle {
+        position: relative;
+        width: 34px;
+        height: 20px;
+        flex: none;
+        border-radius: 999px;
+        border: 1px solid var(--line-strong);
+        background: var(--ground);
+        padding: 0;
+        transition:
+          background-color 120ms ease,
+          border-color 120ms ease;
+      }
+      .toggle::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--muted);
+        transition: transform 160ms var(--ease-out);
+      }
+      .toggle[aria-checked="true"] {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+      .toggle[aria-checked="true"]::after {
+        transform: translateX(14px);
+        background: var(--accent-ink);
+      }
+      .toggle[disabled] {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      /* Stamps: states as small-caps outlined marks */
+      .stamp {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 1px 6px;
+        border: 1px solid currentColor;
+        border-radius: 4px;
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        line-height: 1.5;
+      }
+      .stamp.ok {
+        color: var(--ok);
+      }
+      .stamp.warn {
+        color: var(--warn);
+      }
+      .stamp.err {
+        color: var(--err);
+      }
+      .stamp.info {
+        color: var(--info);
+      }
+      .stamp.accent {
+        color: var(--accent);
+      }
+      .stamp.late {
+        color: var(--accent-2);
+      }
+      .stamp.dim {
+        color: var(--muted);
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex: none;
+        background: var(--muted);
+      }
+      .dot.ok {
+        background: var(--ok);
+      }
+      .dot.warn {
+        background: var(--warn);
+      }
+      .dot.err {
+        background: var(--err);
+      }
+
+      /* Library */
+      .lib {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 1fr var(--detail-w);
+      }
+      .lib-list {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: 0 var(--space-5) var(--space-3);
+        flex-wrap: wrap;
+      }
+      .toolbar .field.search {
+        flex: 1 1 220px;
+      }
+      .ledger {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .ledger th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--ground);
+        text-align: left;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--line-strong);
+      }
+      .ledger td {
+        padding: 9px 10px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: middle;
+      }
+      .ledger tr.row {
+        cursor: pointer;
+      }
+      .ledger tr.row:hover td {
+        background: var(--surface);
+      }
+      .ledger tr.row[aria-selected="true"] td {
+        background: var(--accent-soft);
+      }
+      .ledger tr.row.off .mod-name {
+        color: var(--muted);
+      }
+      .ledger .num {
+        text-align: right;
+      }
+      .mod-name {
+        font-weight: 500;
+      }
+      .mod-cat {
+        color: var(--muted);
+        font-size: 12px;
+        margin-right: 6px;
+      }
+      .mod-id {
+        color: var(--muted);
+        display: block;
+        margin-top: 1px;
+      }
+      .state-cell {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+      .lib-stats {
+        padding: var(--space-3) var(--space-5);
+        border-top: 1px solid var(--line);
+        display: flex;
+        gap: var(--space-5);
+        color: var(--muted);
+        font-size: 12px;
+        flex-wrap: wrap;
+      }
+      .lib-stats b {
+        color: var(--text);
+        font-weight: 500;
+        font-family: var(--font-data);
+      }
+
+      .detail {
+        border-left: 1px solid var(--line);
+        background: var(--surface);
+        overflow-y: auto;
+        min-height: 0;
+      }
+      .banner {
+        aspect-ratio: 16/9;
+        background: linear-gradient(
+            160deg,
+            transparent 40%,
+            rgba(0, 0, 0, 0.55)
+          ),
+          linear-gradient(135deg, var(--accent-soft), var(--raised) 70%);
+        display: flex;
+        align-items: flex-end;
+        padding: var(--space-4);
+        border-bottom: 1px solid var(--line);
+      }
+      .banner .initials {
+        font-family: var(--font-display);
+        font-size: 44px;
+        letter-spacing: var(--display-tracking);
+        color: var(--accent);
+        opacity: 0.85;
+        line-height: 1;
+      }
+      .detail-body {
+        padding: var(--space-4) var(--space-5) var(--space-5);
+      }
+      .detail h2 {
+        margin: 0;
+        font-family: var(--font-display);
+        letter-spacing: var(--display-tracking);
+        font-size: 19px;
+        font-weight: 600;
+        line-height: 1.25;
+      }
+      .detail .byline,
+      .byline {
+        margin: 2px 0 var(--space-3);
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .detail h3,
+      .label-h {
+        margin: var(--space-5) 0 var(--space-2);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .detail p {
+        margin: 0 0 var(--space-2);
+        max-width: 65ch;
+      }
+      .kv {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 4px var(--space-4);
+        font-size: 13px;
+        margin: 0;
+      }
+      .kv dt {
+        color: var(--muted);
+      }
+      .kv dd {
+        margin: 0;
+        word-break: break-all;
+      }
+      .dep-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .dep-list li {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        font-size: 13px;
+      }
+      .dep-list .kind {
+        margin-left: auto;
+      }
+      .callout {
+        display: flex;
+        gap: var(--space-3);
+        padding: var(--space-3);
+        border-radius: 8px;
+        background: var(--raised);
+        font-size: 13px;
+        margin-bottom: var(--space-2);
+      }
+      .callout svg.i {
+        margin-top: 1px;
+      }
+      .callout.err svg {
+        color: var(--err);
+      }
+      .callout.warn svg {
+        color: var(--warn);
+      }
+      .callout.info svg {
+        color: var(--info);
+      }
+      .callout-actions {
+        margin-top: var(--space-2);
+        display: flex;
+        gap: var(--space-2);
+        flex-wrap: wrap;
+      }
+      .detail-actions {
+        display: flex;
+        gap: var(--space-2);
+        flex-wrap: wrap;
+        margin-top: var(--space-5);
+      }
+
+      /* Empty state */
+      .empty {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: var(--space-6);
+      }
+      .drop-cta {
+        width: min(560px, 100%);
+        text-align: center;
+        padding: 48px var(--space-6);
+        border: 1.5px dashed var(--line-strong);
+        border-radius: 14px;
+      }
+      .drop-cta svg.i {
+        width: 40px;
+        height: 40px;
+        color: var(--accent);
+      }
+      .drop-cta h2 {
+        font-family: var(--font-display);
+        letter-spacing: var(--display-tracking);
+        margin: var(--space-3) 0 var(--space-2);
+        font-size: 22px;
+        font-weight: 600;
+      }
+      .drop-cta p {
+        color: var(--muted);
+        margin: 0 auto var(--space-5);
+        max-width: 46ch;
+        overflow-wrap: anywhere;
+      }
+      .drop-cta .row-actions {
+        display: flex;
+        gap: var(--space-2);
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      /* Load order */
+      .phase {
+        margin-bottom: var(--space-6);
+      }
+      .phase-head {
+        display: flex;
+        align-items: baseline;
+        gap: var(--space-3);
+        padding-bottom: var(--space-2);
+        border-bottom: 1px solid var(--line-strong);
+        margin-bottom: var(--space-2);
+      }
+      .phase-head h2 {
+        margin: 0;
+        font-family: var(--font-display);
+        letter-spacing: var(--display-tracking);
+        font-size: 17px;
+        font-weight: 600;
+      }
+      .order-row {
+        display: grid;
+        grid-template-columns: 44px 1fr auto;
+        gap: var(--space-3);
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .order-row .pos {
+        font: 500 13px var(--font-data);
+        color: var(--muted);
+        text-align: right;
+      }
+      .why {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .why b {
+        color: var(--text);
+        font-weight: 500;
+      }
+
+      /* Browse grid */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+        gap: var(--space-4);
+      }
+      .tile {
+        text-align: left;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-panel);
+        background: var(--surface);
+        padding: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        transition: border-color 120ms ease;
+      }
+      .tile:hover {
+        border-color: var(--line-strong);
+      }
+      .tile .thumb {
+        aspect-ratio: 16/9;
+        background: linear-gradient(
+          135deg,
+          var(--accent-soft),
+          var(--raised) 75%
+        );
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        padding: var(--space-2) var(--space-3);
+      }
+      .tile .thumb .initials {
+        font-family: var(--font-display);
+        font-size: 28px;
+        color: var(--accent);
+        opacity: 0.8;
+        letter-spacing: var(--display-tracking);
+      }
+      .tile .meta {
+        padding: var(--space-3);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        flex: 1;
+        width: 100%;
+      }
+      .tile .meta strong {
+        font-weight: 600;
+        line-height: 1.3;
+      }
+      .tile .meta .row {
+        display: flex;
+        gap: var(--space-3);
+        align-items: center;
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: auto;
+        padding-top: var(--space-2);
+      }
+      .tile .meta .row svg.i {
+        width: 14px;
+        height: 14px;
+      }
+      .tile .meta .row span {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .powered {
+        font-size: 11px;
+        color: var(--muted);
+        letter-spacing: 0.04em;
+      }
+      .banner-state {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        margin: 0 var(--space-5) var(--space-4);
+        padding: var(--space-3) var(--space-4);
+        border-radius: 8px;
+        background: var(--raised);
+        font-size: 13px;
+      }
+      .banner-state svg.i {
+        color: var(--warn);
+      }
+      .banner-state .btn {
+        margin-left: auto;
+      }
+
+      /* Drawer + dialogs */
+      .scrim {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 200ms ease;
+        z-index: 40;
+      }
+      .scrim.on {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .drawer {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(520px, 100vw);
+        background: var(--surface);
+        border-left: 1px solid var(--line-strong);
+        z-index: 41;
+        transform: translateX(100%);
+        visibility: hidden;
+        transition:
+          transform 280ms var(--ease-drawer),
+          visibility 0s linear 280ms;
+        display: flex;
+        flex-direction: column;
+      }
+      .drawer.on {
+        transform: none;
+        visibility: visible;
+        transition: transform 280ms var(--ease-drawer);
+      }
+      .drawer-head {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-4) var(--space-5);
+        border-bottom: 1px solid var(--line);
+      }
+      .drawer-head h2 {
+        margin: 0;
+        font-family: var(--font-display);
+        letter-spacing: var(--display-tracking);
+        font-size: 19px;
+        font-weight: 600;
+        flex: 1;
+        line-height: 1.25;
+      }
+      .drawer-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: var(--space-5);
+      }
+      .drawer-foot {
+        padding: var(--space-4) var(--space-5);
+        border-top: 1px solid var(--line);
+        display: flex;
+        gap: var(--space-2);
+        justify-content: flex-end;
+        flex-wrap: wrap;
+      }
+      .gallery {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 6px;
+        aspect-ratio: 2/1;
+        margin-bottom: var(--space-4);
+      }
+      .gallery div {
+        border-radius: 8px;
+        background: linear-gradient(135deg, var(--accent-soft), var(--raised));
+      }
+      .gallery div:first-child {
+        grid-row: span 2;
+      }
+
+      /* Drop target: the one authored motion moment */
+      .dropzone {
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(6px);
+        clip-path: inset(46% 46% 46% 46% round 24px);
+        opacity: 0;
+        pointer-events: none;
+        transition:
+          clip-path 280ms var(--ease-out),
+          opacity 180ms ease;
+      }
+      .dropzone.on {
+        clip-path: inset(0 0 0 0 round 0);
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .dropzone-inner {
+        width: min(640px, calc(100vw - 48px));
+        padding: 56px var(--space-6);
+        border: 2px dashed var(--accent);
+        border-radius: 18px;
+        text-align: center;
+        background: var(--surface);
+      }
+      .dropzone-inner svg.i {
+        width: 48px;
+        height: 48px;
+        color: var(--accent);
+      }
+      .dropzone-inner h2 {
+        font-family: var(--font-display);
+        letter-spacing: var(--display-tracking);
+        font-size: 26px;
+        margin: var(--space-3) 0 var(--space-2);
+        font-weight: 600;
+      }
+      .dropzone-inner p {
+        color: var(--muted);
+        margin: 0 auto;
+        max-width: 52ch;
+      }
+
+      dialog {
+        border: 1px solid var(--line-strong);
+        border-radius: 14px;
+        background: var(--surface);
+        color: var(--text);
+        padding: 0;
+        width: min(720px, calc(100vw - 32px));
+        max-height: calc(100vh - 48px);
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+      }
+      dialog::backdrop {
+        background: rgba(0, 0, 0, 0.6);
+      }
+      dialog[open] {
+        display: flex;
+        flex-direction: column;
+      }
+      .dlg-body {
+        overflow-y: auto;
+        padding: var(--space-5);
+      }
+      .dlg-body > p {
+        margin-top: 0;
+        max-width: 65ch;
+      }
+      .preview-item {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-panel);
+        padding: var(--space-4);
+        margin-bottom: var(--space-3);
+      }
+      .preview-item header {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-3);
+      }
+      .preview-item header .grow {
+        flex: 1;
+        min-width: 0;
+      }
+      .preview-checks {
+        list-style: none;
+        margin: var(--space-3) 0 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 6px var(--space-4);
+        font-size: 13px;
+      }
+      .preview-checks li {
+        display: flex;
+        gap: var(--space-2);
+        align-items: flex-start;
+      }
+      .preview-checks svg.i {
+        width: 16px;
+        height: 16px;
+        margin-top: 2px;
+      }
+      .ic-ok {
+        color: var(--ok);
+      }
+      .ic-warn {
+        color: var(--warn);
+      }
+      .ic-err {
+        color: var(--err);
+      }
+
+      /* Queue */
+      .queue-row {
+        display: grid;
+        grid-template-columns: 1fr 200px auto;
+        gap: var(--space-4);
+        align-items: center;
+        padding: var(--space-3) 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .bar {
+        height: 6px;
+        border-radius: 6px;
+        background: var(--raised);
+        overflow: hidden;
+      }
+      .bar span {
+        display: block;
+        height: 100%;
+        background: var(--accent);
+        border-radius: 6px;
+        transform-origin: left;
+        transition: transform 400ms linear;
+      }
+      .bar.err span {
+        background: var(--err);
+      }
+      .bar.ok span {
+        background: var(--ok);
+      }
+
+      /* Tweaks */
+      .tweak-layout {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        gap: var(--space-5);
+        align-items: start;
+      }
+      .tweak-mods {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        position: sticky;
+        top: 0;
+      }
+      .tweak-mods button {
+        text-align: left;
+        border: 0;
+        background: none;
+        padding: 8px 10px;
+        border-radius: var(--radius-control);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .tweak-mods button:hover {
+        color: var(--text);
+      }
+      .tweak-mods button[aria-current="true"] {
+        background: var(--accent-soft);
+        color: var(--text);
+      }
+      details.group {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-panel);
+        margin-bottom: var(--space-3);
+        background: var(--surface);
+      }
+      details.group summary {
+        cursor: pointer;
+        padding: var(--space-3) var(--space-4);
+        font-weight: 600;
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+      details.group summary::-webkit-details-marker {
+        display: none;
+      }
+      details.group summary svg {
+        transition: transform 160ms var(--ease-out);
+      }
+      details.group[open] summary svg {
+        transform: rotate(90deg);
+      }
+      .opt {
+        display: grid;
+        grid-template-columns: 1fr 260px auto;
+        gap: var(--space-4);
+        align-items: center;
+        padding: var(--space-3) var(--space-4);
+        border-top: 1px solid var(--line);
+      }
+      .opt label {
+        font-weight: 500;
+      }
+      .opt .hint {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 400;
+      }
+      .opt input[type="range"] {
+        width: 100%;
+        accent-color: var(--accent);
+      }
+      .opt input[type="color"] {
+        width: 44px;
+        height: 30px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-control);
+        background: none;
+        padding: 2px;
+      }
+      .modified {
+        color: var(--accent);
+        font-size: 11px;
+        margin-left: 6px;
+      }
+
+      /* Health */
+      .health-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-5);
+        align-items: start;
+      }
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-panel);
+        background: var(--surface);
+        min-width: 0;
+      }
+      .panel > h2 {
+        margin: 0;
+        padding: var(--space-3) var(--space-4);
+        font-size: 13px;
+        font-weight: 600;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+      .check-row,
+      .log-row {
+        display: flex;
+        gap: var(--space-3);
+        padding: var(--space-3) var(--space-4);
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+        align-items: flex-start;
+      }
+      .check-row:last-child,
+      .log-row:last-child {
+        border-bottom: 0;
+      }
+      .check-row .grow,
+      .log-row .grow {
+        flex: 1;
+        min-width: 0;
+      }
+      .log-row code,
+      .check-row code {
+        font-family: var(--font-data);
+        font-size: 12px;
+        color: var(--muted);
+        word-break: break-all;
+      }
+      pre.raw {
+        margin: 0;
+        padding: var(--space-4);
+        font: 12px/1.6 var(--font-data);
+        color: var(--muted);
+        overflow: auto;
+        max-height: 240px;
+        white-space: pre;
+      }
+
+      /* Settings */
+      .settings {
+        max-width: 860px;
+      }
+      .set-section {
+        padding: var(--space-5) 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .set-section h2 {
+        margin: 0 0 var(--space-1);
+        font-family: var(--font-display);
+        letter-spacing: var(--display-tracking);
+        font-size: 17px;
+        font-weight: 600;
+      }
+      .set-section > p {
+        margin: 0 0 var(--space-4);
+        color: var(--muted);
+        max-width: 68ch;
+      }
+      .set-row {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        gap: var(--space-4);
+        align-items: center;
+        padding: var(--space-2) 0;
+      }
+      .set-row > span {
+        font-weight: 500;
+      }
+      .set-row .hint {
+        display: block;
+        font-weight: 400;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .path-row {
+        display: flex;
+        gap: var(--space-2);
+        align-items: center;
+        min-width: 0;
+      }
+      .path-row .field {
+        flex: 1;
+      }
+      .radio-row {
+        display: flex;
+        gap: var(--space-4);
+        flex-wrap: wrap;
+      }
+      .radio-row label {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .radio-row input {
+        accent-color: var(--accent);
+      }
+      .account {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-panel);
+        padding: var(--space-4);
+        background: var(--surface);
+      }
+      .account-row {
+        display: flex;
+        gap: var(--space-4);
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .account-row .grow {
+        flex: 1;
+        min-width: 180px;
+      }
+      .account p {
+        margin: 6px 0 12px;
+        color: var(--muted);
+        max-width: 65ch;
+      }
+      .code-inputs {
+        display: flex;
+        gap: 6px;
+        margin: 14px 0;
+      }
+      .code-inputs input {
+        width: 40px;
+        height: 46px;
+        text-align: center;
+        font: 500 20px var(--font-data);
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-control);
+        background: var(--ground);
+        outline: none;
+      }
+      .auth-options {
+        display: grid;
+        gap: var(--space-2);
+        margin-top: var(--space-3);
+      }
+      .auth-option {
+        display: flex;
+        gap: var(--space-3);
+        align-items: flex-start;
+        text-align: left;
+        padding: var(--space-3) var(--space-4);
+        border: 1px solid var(--line-strong);
+        border-radius: 8px;
+        background: var(--ground);
+        transition:
+          border-color 120ms ease,
+          transform 160ms var(--ease-out);
+      }
+      .auth-option:hover {
+        border-color: var(--accent);
+      }
+      .auth-option strong {
+        display: block;
+      }
+      .auth-option span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .btn-row {
+        display: flex;
+        gap: var(--space-2);
+        flex-wrap: wrap;
+      }
+
+      /* Wizard */
+      .steps {
+        display: flex;
+        gap: var(--space-2);
+        padding: var(--space-4) var(--space-5) 0;
+        list-style: none;
+        margin: 0;
+      }
+      .steps li {
+        flex: 1;
+        height: 3px;
+        border-radius: 3px;
+        background: var(--line);
+      }
+      .steps li.done {
+        background: var(--accent);
+      }
+      .found {
+        display: flex;
+        gap: var(--space-3);
+        align-items: center;
+        padding: var(--space-3) var(--space-4);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        margin-bottom: var(--space-2);
+      }
+      .found .grow {
+        flex: 1;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      /* Status bar + toasts */
+      .statusbar {
+        grid-area: status;
+        display: flex;
+        align-items: center;
+        gap: var(--space-5);
+        padding: 0 var(--space-4);
+        border-top: 1px solid var(--line);
+        background: var(--surface);
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .statusbar .item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .statusbar svg.i {
+        width: 14px;
+        height: 14px;
+      }
+      .statusbar button {
+        border: 0;
+        background: none;
+        color: inherit;
+        font-size: 12px;
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .statusbar button:hover {
+        color: var(--text);
+        background: var(--raised);
+      }
+      .statusbar .err-link {
+        color: var(--err);
+      }
+      .statusbar .push {
+        margin-left: auto;
+      }
+      .mock-menu {
+        position: fixed;
+        right: 12px;
+        bottom: 38px;
+        z-index: 70;
+        width: 300px;
+        padding: var(--space-3);
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-panel);
+        background: var(--raised);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+        display: none;
+      }
+      .mock-menu.on {
+        display: block;
+      }
+      .mock-menu h3 {
+        margin: 0 0 var(--space-2);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .mock-menu label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        font-size: 13px;
+      }
+      .mock-menu .btn {
+        width: 100%;
+        justify-content: flex-start;
+        margin-top: 6px;
+      }
+      .toasts {
+        position: fixed;
+        right: 16px;
+        bottom: 44px;
+        z-index: 80;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+        pointer-events: none;
+      }
+      .toast {
+        pointer-events: auto;
+        display: flex;
+        gap: var(--space-3);
+        align-items: flex-start;
+        min-width: 280px;
+        max-width: 380px;
+        padding: var(--space-3) var(--space-4);
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-panel);
+        background: var(--raised);
+        font-size: 13px;
+        opacity: 1;
+        transform: translateY(0);
+        transition:
+          opacity 240ms ease,
+          transform 240ms var(--ease-out);
+      }
+      @starting-style {
+        .toast {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+      }
+      .toast.leaving {
+        opacity: 0;
+        transform: translateY(4px);
+        transition-duration: 160ms;
+      }
+      .toast svg.i {
+        color: var(--ok);
+      }
+      .toast.warn svg.i {
+        color: var(--warn);
+      }
+      .toast.err svg.i {
+        color: var(--err);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .drawer,
+        .dropzone,
+        .toast,
+        .toggle::after,
+        .btn,
+        .chip {
+          transition-property: opacity, background-color, color, border-color !important;
+        }
+      }
+
+      /* Narrow: the 960px app still reads at 375 (panels stack, nav scrolls). */
+      @media (max-width: 1100px) {
+        :root {
+          --detail-w: 300px;
+        }
+      }
+      @media (max-width: 860px) {
+        body {
+          overflow: auto;
+        }
+        .app {
+          /* minmax(0) stops the unwrapped nav row from widening the column. */
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: auto auto 1fr auto;
+          grid-template-areas: "title" "side" "main" "status";
+          height: auto;
+          min-height: 100vh;
+        }
+        .titlebar {
+          flex-wrap: wrap;
+          padding: var(--space-2) var(--space-4);
+          gap: var(--space-2);
+        }
+        .win-controls {
+          display: none;
+        }
+        .sidebar {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+          min-width: 0;
+        }
+        .scroll .ledger {
+          display: block;
+          overflow-x: auto;
+        }
+        .ornament,
+        .nav-label {
+          display: none;
+        }
+        .nav {
+          flex-direction: row;
+          overflow-x: auto;
+        }
+        .nav button {
+          white-space: nowrap;
+        }
+        .launch {
+          margin: 0;
+          padding: var(--space-2) var(--space-4) var(--space-3);
+          border-top: 0;
+        }
+        .main {
+          overflow: visible;
+        }
+        .scroll {
+          overflow: visible;
+          padding: 0 var(--space-4) var(--space-5);
+        }
+        .view-head {
+          padding: var(--space-4) var(--space-4) var(--space-3);
+        }
+        .view-head .actions {
+          margin-left: 0;
+        }
+        .toolbar {
+          padding: 0 var(--space-4) var(--space-3);
+        }
+        .lib {
+          grid-template-columns: 1fr;
+        }
+        .detail {
+          border-left: 0;
+          border-top: 1px solid var(--line);
+        }
+        .ledger .col-size,
+        .ledger .col-ver {
+          display: none;
+        }
+        .health-grid,
+        .tweak-layout {
+          grid-template-columns: 1fr;
+        }
+        .tweak-mods {
+          position: static;
+          flex-direction: row;
+          overflow-x: auto;
+        }
+        .opt {
+          grid-template-columns: 1fr;
+          gap: var(--space-2);
+        }
+        .set-row {
+          grid-template-columns: 1fr;
+          gap: var(--space-1);
+        }
+        .queue-row {
+          grid-template-columns: 1fr;
+          gap: var(--space-2);
+        }
+        .statusbar {
+          flex-wrap: wrap;
+          white-space: normal;
+          padding: var(--space-2) var(--space-4);
+          gap: var(--space-3);
+        }
+        .banner-state {
+          margin: 0 var(--space-4) var(--space-3);
+          flex-wrap: wrap;
+        }
+        .banner-state .btn {
+          margin-left: 0;
+        }
+        .lib-stats {
+          padding: var(--space-3) var(--space-4);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Authored icon sprite: one stroke weight, 24px grid. -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol id="i-library" viewBox="0 0 24 24">
+        <path d="M4 5h4v14H4zM10 5h4v14h-4zM16.5 5.5l3.5 1-3.4 13-3.6-1z" />
+      </symbol>
+      <symbol id="i-order" viewBox="0 0 24 24">
+        <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
+      </symbol>
+      <symbol id="i-browse" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path
+          d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"
+        />
+      </symbol>
+      <symbol id="i-collection" viewBox="0 0 24 24">
+        <path d="M4 7l8-4 8 4-8 4zM4 12l8 4 8-4M4 17l8 4 8-4" />
+      </symbol>
+      <symbol id="i-download" viewBox="0 0 24 24">
+        <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+      </symbol>
+      <symbol id="i-tweak" viewBox="0 0 24 24">
+        <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+        <circle cx="16" cy="7" r="2" />
+        <circle cx="10" cy="17" r="2" />
+      </symbol>
+      <symbol id="i-health" viewBox="0 0 24 24">
+        <path d="M3 12h4l2-5 4 10 2-5h6" />
+      </symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3" />
+        <path
+          d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"
+        />
+      </symbol>
+      <symbol id="i-play" viewBox="0 0 24 24">
+        <path d="M7 4.5v15l12-7.5z" />
+      </symbol>
+      <symbol id="i-search" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="6.5" />
+        <path d="M20 20l-4.2-4.2" />
+      </symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24">
+        <path
+          d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+        />
+      </symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24">
+        <path d="M12 16V5M7 10l5-5 5 5M5 20h14" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <path d="M5 12.5l4.5 4.5L19 7.5" />
+      </symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24">
+        <path d="M12 3l9.5 17h-19zM12 10v4M12 17.5h.01" />
+      </symbol>
+      <symbol id="i-x" viewBox="0 0 24 24">
+        <path d="M6 6l12 12M18 6L6 18" />
+      </symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24">
+        <path
+          d="M20 11a8 8 0 0 0-14.6-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.6 4.5L20 16M20 20v-4h-4"
+        />
+      </symbol>
+      <symbol id="i-user" viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
+      </symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24">
+        <path d="M9 6l6 6-6 6" />
+      </symbol>
+      <symbol id="i-info" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v6M12 7.5h.01" />
+      </symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24">
+        <rect x="5" y="11" width="14" height="10" rx="2" />
+        <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+      </symbol>
+      <symbol id="i-cloud-off" viewBox="0 0 24 24">
+        <path
+          d="M3 3l18 18M8 7.5A6 6 0 0 1 18 12h.5a3.5 3.5 0 0 1 1.9 6.4M16 19H7a4 4 0 0 1-1.3-7.8"
+        />
+      </symbol>
+      <symbol id="i-star" viewBox="0 0 24 24">
+        <path
+          d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z"
+        />
+      </symbol>
+      <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
+      <symbol id="i-square" viewBox="0 0 24 24">
+        <rect x="6" y="6" width="12" height="12" rx="1" />
+      </symbol>
+      <symbol id="i-flask" viewBox="0 0 24 24">
+        <path
+          d="M9 3h6M10 3v6l-5.5 9.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"
+        />
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24">
+        <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+      </symbol>
+      <symbol id="i-export" viewBox="0 0 24 24">
+        <path d="M12 15V4M8 8l4-4 4 4M5 14v5h14v-5" />
+      </symbol>
+    </svg>
+
+    <div class="app">
+      <header class="titlebar">
+        <div class="brand">Atelier <small>Anno Mod Manager</small></div>
+        <div class="game-switch" role="group" aria-label="Game">
+          <button data-action="game" data-game="a117" aria-pressed="true">
+            Anno 117
+          </button>
+          <button data-action="game" data-game="a1800" aria-pressed="false">
+            Anno 1800
+          </button>
+        </div>
+        <div class="title-spacer"></div>
+        <div class="win-controls" aria-hidden="true">
+          <button tabindex="-1">
+            <svg class="i"><use href="#i-minus" /></svg>
+          </button>
+          <button tabindex="-1">
+            <svg class="i"><use href="#i-square" /></svg>
+          </button>
+          <button tabindex="-1">
+            <svg class="i"><use href="#i-x" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <div class="ornament" id="ornament" aria-hidden="true"></div>
+        <ul class="nav" id="nav"></ul>
+        <div class="launch">
+          <button class="btn-launch" id="launchBtn" data-action="launch">
+            <svg class="i"><use href="#i-play" /></svg
+            ><span id="launchLabel">Launch Anno 117</span>
+          </button>
+          <div class="launch-meta" id="launchMeta"></div>
+        </div>
+      </aside>
+
+      <main class="main" id="main">
+        <section
+          class="view"
+          id="view-library"
+          aria-labelledby="h-library"
+        ></section>
+        <section
+          class="view"
+          id="view-order"
+          aria-labelledby="h-order"
+        ></section>
+        <section
+          class="view"
+          id="view-browse"
+          aria-labelledby="h-browse"
+        ></section>
+        <section
+          class="view"
+          id="view-collections"
+          aria-labelledby="h-collections"
+        ></section>
+        <section
+          class="view"
+          id="view-downloads"
+          aria-labelledby="h-downloads"
+        ></section>
+        <section
+          class="view"
+          id="view-tweaks"
+          aria-labelledby="h-tweaks"
+        ></section>
+        <section
+          class="view"
+          id="view-health"
+          aria-labelledby="h-health"
+        ></section>
+        <section
+          class="view"
+          id="view-settings"
+          aria-labelledby="h-settings"
+        ></section>
+      </main>
+
+      <footer class="statusbar" id="statusbar"></footer>
+    </div>
+
+    <div class="scrim" id="scrim" data-action="close-drawer"></div>
+    <aside
+      class="drawer"
+      id="drawer"
+      aria-hidden="true"
+      aria-labelledby="drawerTitle"
+    ></aside>
+
+    <div class="dropzone" id="dropzone" aria-hidden="true">
+      <div class="dropzone-inner">
+        <svg class="i"><use href="#i-upload" /></svg>
+        <h2>Drop to install</h2>
+        <p>
+          Zip, 7z, rar or a mod folder. Atelier finds every mod inside, checks
+          it, and shows you before anything is written.
+        </p>
+      </div>
+    </div>
+
+    <dialog id="previewDlg" aria-labelledby="previewTitle"></dialog>
+    <dialog id="wizardDlg" aria-labelledby="wizardTitle"></dialog>
+
+    <div
+      class="mock-menu"
+      id="mockMenu"
+      role="dialog"
+      aria-label="Mock-up states"
+    >
+      <h3>Mock-up states (not in the app)</h3>
+      <label
+        >Empty library
+        <button
+          class="toggle"
+          role="switch"
+          data-action="mock"
+          data-key="empty"
+          aria-checked="false"
+          aria-label="Empty library"
+        ></button
+      ></label>
+      <label
+        >Offline
+        <button
+          class="toggle"
+          role="switch"
+          data-action="mock"
+          data-key="offline"
+          aria-checked="false"
+          aria-label="Offline"
+        ></button
+      ></label>
+      <label
+        >Signed out of mod.io
+        <button
+          class="toggle"
+          role="switch"
+          data-action="mock"
+          data-key="signedOut"
+          aria-checked="false"
+          aria-label="Signed out of mod.io"
+        ></button
+      ></label>
+      <label
+        >Game running
+        <button
+          class="toggle"
+          role="switch"
+          data-action="mock"
+          data-key="running"
+          aria-checked="false"
+          aria-label="Game running"
+        ></button
+      ></label>
+      <button class="btn" data-action="simulate-drop" data-kind="multi">
+        <svg class="i"><use href="#i-upload" /></svg>Drop: archive with 3 mods +
+        sub-mod
+      </button>
+      <button class="btn" data-action="simulate-drop" data-kind="wrong">
+        <svg class="i"><use href="#i-alert" /></svg>Drop: mod for the other game
+      </button>
+      <button class="btn" data-action="wizard">
+        <svg class="i"><use href="#i-flask" /></svg>Open first-run setup
+      </button>
+    </div>
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+
+    <script>
+      "use strict";
+
+      // ---------- Mock data (illustrative, not real mods) ----------
+      const GAMES = {
+        a117: {
+          label: "Anno 117",
+          fullName: "Anno 117: Pax Romana",
+          exe: "Anno117.exe",
+          modsPath: "C:\\Users\\Marcus\\Documents\\Anno 117 - Pax Romana\\mods",
+          logPath: "Documents\\Anno 117 - Pax Romana\\log",
+          profileFile: "mods\\profile.txt → profiles\\<name>.txt",
+          profiles: [
+            "Default",
+            "Vanilla",
+            "Campaign Run",
+            "Multiplayer with Livia",
+          ],
+          mods: [
+            {
+              id: "shared-ui-library-collegium",
+              name: "Shared UI Library",
+              cat: "Shared",
+              ver: "2.3.0",
+              author: "Collegium",
+              size: 1.2,
+              active: true,
+              source: "modio",
+              difficulty: "unchanged",
+              setup: { safe: true, mp: true },
+              desc: "Common UI widgets other mods build on. Safe to keep active.",
+            },
+            {
+              id: "roads-of-latium-octavia",
+              name: "Roads of Latium",
+              cat: "Gameplay",
+              ver: "1.4.2",
+              update: "1.5.0",
+              author: "Octavia",
+              size: 18.4,
+              active: true,
+              source: "modio",
+              difficulty: "unchanged",
+              requires: ["shared-ui-library-collegium"],
+              setup: { safe: false, mp: true },
+              desc: "Paved via and milestone roads with a speed bonus per tier, plus a road-upkeep chain.",
+            },
+            {
+              id: "harbour-expansion-cassius",
+              name: "Harbour Expansion",
+              cat: "Gameplay",
+              ver: "0.9.1",
+              author: "Cassius",
+              size: 42.0,
+              active: true,
+              source: "modio",
+              difficulty: "unchanged",
+              requires: ["shared-ui-library-collegium", "aqueduct-core-felix"],
+              deprecates: ["old-harbour-fix-cassius"],
+              setup: { newGame: true, safe: false, mp: false },
+              issues: ["Quay modules may float on custom maps."],
+              desc: "Twelve new quay and warehouse modules with a cargo-handling chain.",
+            },
+            {
+              id: "grand-forum-pack-livia",
+              name: "Grand Forum Pack",
+              cat: "Cosmetic",
+              ver: "3.0.0",
+              author: "Livia",
+              size: 96.3,
+              active: true,
+              source: "modio",
+              difficulty: "unchanged",
+              loadAfter: ["roads-of-latium-octavia"],
+              setup: { safe: true, mp: true },
+              desc: "Forum ornaments, statues and colonnades. Purely visual.",
+            },
+            {
+              id: "legion-economy-marcus",
+              name: "Legion Economy",
+              cat: "Balance",
+              ver: "1.1.0",
+              author: "Marcus V.",
+              size: 0.4,
+              active: true,
+              source: "modio",
+              difficulty: "harder",
+              incompatible: ["relaxed-economy-junia"],
+              setup: { safe: false, mp: true },
+              desc: "Military upkeep scales with population. Tighter late game.",
+            },
+            {
+              id: "relaxed-economy-junia",
+              name: "Relaxed Economy",
+              cat: "Balance",
+              ver: "2.0.4",
+              author: "Junia",
+              size: 0.3,
+              active: true,
+              source: "modio",
+              difficulty: "easier",
+              setup: { safe: true, mp: true },
+              desc: "Lower upkeep and faster construction for a calmer game.",
+            },
+            {
+              id: "night-lighting-aurelian",
+              name: "Night Lighting",
+              cat: "Visual",
+              ver: "1.0.3",
+              author: "Aurelian",
+              size: 6.1,
+              active: false,
+              source: "modio",
+              difficulty: "unchanged",
+              setup: { safe: true, mp: true },
+              desc: "Warmer lamps and torch glow at night.",
+            },
+            {
+              id: "old-harbour-fix-cassius",
+              name: "Old Harbour Fix",
+              cat: "Fix",
+              ver: "0.4.0",
+              author: "Cassius",
+              size: 0.1,
+              active: true,
+              source: "local",
+              difficulty: "unchanged",
+              setup: { safe: true, mp: true },
+              desc: "Fixes harbour pathing. Folded into Harbour Expansion.",
+            },
+            {
+              id: "camera-unlock-tiberius",
+              name: "Camera Unlock",
+              cat: "UI",
+              ver: "4.2.0",
+              author: "Tiberius",
+              size: 0.2,
+              active: true,
+              source: "modio",
+              difficulty: "unchanged",
+              loadAfter: ["*"],
+              options: true,
+              setup: { safe: true, mp: true },
+              desc: "Zoom further out and tilt lower. Loads last so it wins every camera setting.",
+            },
+            {
+              id: "fertility-atlas-sabina",
+              name: "Fertility Atlas",
+              cat: "Gameplay",
+              ver: "1.8.0",
+              author: "Sabina",
+              size: 3.4,
+              active: true,
+              source: "modio",
+              difficulty: "easier",
+              loadAfter: ["shared-ui-library-collegium"],
+              options: true,
+              setup: { safe: false, newGame: true, mp: true },
+              desc: "Configurable island fertilities with a map overlay.",
+            },
+            {
+              id: "trade-route-planner-gaius",
+              name: "Trade Route Planner",
+              cat: "UI",
+              ver: "2.2.1",
+              author: "Gaius",
+              size: 2.8,
+              active: false,
+              source: "local",
+              difficulty: "unchanged",
+              setup: { safe: true, mp: true },
+              desc: "Route timing overlay. Installed from a zip, so it isn't linked to mod.io.",
+            },
+            {
+              id: "celtic-village-set-brennus",
+              name: "Celtic Village Set",
+              cat: "Cosmetic",
+              ver: "1.0.0",
+              author: "Brennus",
+              size: 54.7,
+              active: true,
+              source: "modio",
+              difficulty: "unchanged",
+              loadAfter: ["grand-forum-pack-livia"],
+              optional: ["night-lighting-aurelian"],
+              setup: { safe: true, mp: true },
+              desc: "Thatched houses and palisades for the northern provinces.",
+            },
+          ],
+        },
+        a1800: {
+          label: "Anno 1800",
+          fullName: "Anno 1800",
+          exe: "Anno1800.exe",
+          modsPath: "C:\\Users\\Marcus\\Documents\\Anno 1800\\mods",
+          logPath: "Documents\\Anno 1800\\log",
+          profileFile: "mods\\activation.json",
+          profiles: ["Default", "Vanilla", "Endgame Metropolis"],
+          mods: [
+            {
+              id: "shared-production-library-ada",
+              name: "Shared Production Library",
+              cat: "Shared",
+              ver: "1.6.0",
+              author: "Ada L.",
+              size: 2.1,
+              active: true,
+              source: "modio",
+              setup: {},
+              desc: "Production templates other mods reuse.",
+            },
+            {
+              id: "industrial-zoning-brunel",
+              name: "Industrial Zoning",
+              cat: "Gameplay",
+              ver: "3.1.0",
+              author: "Brunel",
+              size: 12.9,
+              active: true,
+              source: "modio",
+              requires: ["shared-production-library-ada"],
+              setup: {},
+              desc: "Zones that boost factories and cut pollution near residences.",
+            },
+            {
+              id: "railway-overhaul-stephenson",
+              name: "Railway Overhaul",
+              cat: "Gameplay",
+              ver: "2.0.0",
+              update: "2.1.0",
+              author: "Stephenson",
+              size: 38.2,
+              active: true,
+              source: "modio",
+              loadAfter: ["industrial-zoning-brunel"],
+              setup: {},
+              desc: "Freight rail with depots, signals and coal upkeep.",
+            },
+            {
+              id: "skyscraper-tiers-otis",
+              name: "Skyscraper Tiers",
+              cat: "Gameplay",
+              ver: "1.2.0",
+              author: "Otis",
+              size: 71.5,
+              active: true,
+              source: "modio",
+              dlc: "Seat of Power (not owned)",
+              setup: {},
+              desc: "Three more skyscraper tiers. Needs the Seat of Power DLC.",
+            },
+            {
+              id: "electricity-rebalance-faraday",
+              name: "Electricity Rebalance",
+              cat: "Balance",
+              ver: "0.8.2",
+              author: "Faraday",
+              size: 0.2,
+              active: true,
+              source: "modio",
+              incompatible: ["power-plus-edison"],
+              setup: {},
+              desc: "Power plants supply wider radii and cost more oil.",
+            },
+            {
+              id: "power-plus-edison",
+              name: "Power Plus",
+              cat: "Balance",
+              ver: "1.3.0",
+              author: "Edison",
+              size: 0.3,
+              active: false,
+              source: "local",
+              setup: {},
+              desc: "Doubles power plant output.",
+            },
+            {
+              id: "harbour-cranes-telford",
+              name: "Harbour Cranes",
+              cat: "Cosmetic",
+              ver: "1.0.1",
+              author: "Telford",
+              size: 22.0,
+              active: true,
+              source: "modio",
+              loadAfter: ["railway-overhaul-stephenson"],
+              setup: {},
+              desc: "Animated steam cranes on every pier.",
+            },
+            {
+              id: "exact-numbers-babbage",
+              name: "Exact Numbers",
+              cat: "UI",
+              ver: "5.0.0",
+              author: "Babbage",
+              size: 0.1,
+              active: true,
+              source: "modio",
+              loadAfter: ["*"],
+              options: true,
+              setup: {},
+              desc: "Shows exact production and consumption figures.",
+            },
+            {
+              id: "street-lamps-davy",
+              name: "Gas Street Lamps",
+              cat: "Visual",
+              ver: "1.1.0",
+              author: "Davy",
+              size: 4.4,
+              active: true,
+              source: "modio",
+              loadAfter: ["harbour-cranes-telford", "pier-lighting-telford"],
+              setup: {},
+              desc: "Decorative gas lamps with night glow.",
+            },
+            {
+              id: "pier-lighting-telford",
+              name: "Pier Lighting",
+              cat: "Visual",
+              ver: "0.2.0",
+              author: "Telford",
+              size: 1.0,
+              active: true,
+              source: "local",
+              loadAfter: ["street-lamps-davy"],
+              setup: {},
+              desc: "Pier lights. Its LoadAfter rule forms a loop with Gas Street Lamps.",
+            },
+          ],
+        },
+      };
+
+      const BROWSE = {
+        a117: [
+          [
+            "Aqueduct Core",
+            "Felix",
+            "Gameplay",
+            "48.2k",
+            4.8,
+            "31 MB",
+            "aqueduct-core-felix",
+          ],
+          [
+            "Province Rebalance",
+            "Aemilia",
+            "Balance",
+            "22.9k",
+            4.6,
+            "0.6 MB",
+            "province-rebalance-aemilia",
+          ],
+          [
+            "Legionary Camps",
+            "Varro",
+            "Gameplay",
+            "19.4k",
+            4.5,
+            "64 MB",
+            "legionary-camps-varro",
+          ],
+          [
+            "Mosaic Floors",
+            "Lucilla",
+            "Cosmetic",
+            "15.0k",
+            4.9,
+            "120 MB",
+            "mosaic-floors-lucilla",
+          ],
+          [
+            "Exact Needs Tooltip",
+            "Cato",
+            "UI",
+            "41.3k",
+            4.7,
+            "0.2 MB",
+            "exact-needs-tooltip-cato",
+          ],
+          [
+            "Vineyard Terraces",
+            "Flavia",
+            "Gameplay",
+            "9.8k",
+            4.4,
+            "28 MB",
+            "vineyard-terraces-flavia",
+          ],
+          [
+            "Grand Forum Pack",
+            "Livia",
+            "Cosmetic",
+            "33.1k",
+            4.8,
+            "96 MB",
+            "grand-forum-pack-livia",
+          ],
+          [
+            "Bath House Chain",
+            "Severus",
+            "Gameplay",
+            "12.2k",
+            4.3,
+            "17 MB",
+            "bath-house-chain-severus",
+          ],
+          [
+            "Province Roads",
+            "Boudica",
+            "Cosmetic",
+            "7.7k",
+            4.2,
+            "9 MB",
+            "province-roads-boudica",
+          ],
+        ],
+        a1800: [
+          [
+            "Steam Ferries",
+            "Brunel",
+            "Gameplay",
+            "61.0k",
+            4.8,
+            "24 MB",
+            "steam-ferries-brunel",
+          ],
+          [
+            "Arctic Heaters Plus",
+            "Nansen",
+            "Gameplay",
+            "18.6k",
+            4.5,
+            "3 MB",
+            "arctic-heaters-plus-nansen",
+          ],
+          [
+            "Victorian Parks",
+            "Paxton",
+            "Cosmetic",
+            "44.4k",
+            4.9,
+            "88 MB",
+            "victorian-parks-paxton",
+          ],
+          [
+            "Trade Union Slots",
+            "Owen",
+            "Balance",
+            "29.3k",
+            4.6,
+            "0.4 MB",
+            "trade-union-slots-owen",
+          ],
+          [
+            "Exact Numbers",
+            "Babbage",
+            "UI",
+            "90.2k",
+            4.9,
+            "0.1 MB",
+            "exact-numbers-babbage",
+          ],
+          [
+            "Brick Warehouses",
+            "Telford",
+            "Gameplay",
+            "13.5k",
+            4.4,
+            "15 MB",
+            "brick-warehouses-telford",
+          ],
+          [
+            "Enbesa Irrigation",
+            "Menelik",
+            "Gameplay",
+            "11.1k",
+            4.3,
+            "8 MB",
+            "enbesa-irrigation-menelik",
+          ],
+          [
+            "Factory Smoke Off",
+            "Chadwick",
+            "Visual",
+            "25.7k",
+            4.7,
+            "0.1 MB",
+            "factory-smoke-off-chadwick",
+          ],
+        ],
+      };
+      const COLLECTIONS = {
+        a117: [
+          {
+            name: "Imperial Starter Kit",
+            by: "Collegium",
+            mods: 14,
+            follows: "8.1k",
+            desc: "Quality-of-life and UI mods that don't change balance.",
+          },
+          {
+            name: "Hard Mode Rome",
+            by: "Marcus V.",
+            mods: 9,
+            follows: "2.4k",
+            desc: "Tighter economy, harsher military upkeep.",
+          },
+          {
+            name: "Beautiful Provinces",
+            by: "Livia",
+            mods: 22,
+            follows: "5.7k",
+            desc: "Cosmetics only. Safe for existing saves.",
+          },
+        ],
+        a1800: [
+          {
+            name: "Metropolis Essentials",
+            by: "Ada L.",
+            mods: 18,
+            follows: "12.3k",
+            desc: "Skyscraper, rail and logistics staples.",
+          },
+          {
+            name: "Vanilla Plus",
+            by: "Paxton",
+            mods: 11,
+            follows: "9.0k",
+            desc: "Small fixes and UI that keep the original feel.",
+          },
+        ],
+      };
+      const TWEAK_GROUPS = {
+        "camera-unlock-tiberius": [
+          {
+            group: "Camera",
+            open: true,
+            opts: [
+              {
+                key: "maxZoom",
+                label: "Maximum zoom-out",
+                hint: "Game default is 100%.",
+                type: "slider",
+                min: 100,
+                max: 300,
+                step: 10,
+                value: 180,
+                def: 100,
+                unit: "%",
+              },
+              {
+                key: "lowTilt",
+                label: "Allow low tilt",
+                type: "toggle",
+                value: true,
+                def: false,
+              },
+              {
+                key: "edgeScroll",
+                label: "Edge scrolling",
+                type: "enum",
+                values: ["Off", "Slow", "Normal", "Fast"],
+                value: "Normal",
+                def: "Normal",
+              },
+            ],
+          },
+          {
+            group: "Photo mode",
+            open: false,
+            opts: [
+              {
+                key: "hideUi",
+                label: "Hide UI hotkey",
+                type: "text",
+                value: "F10",
+                def: "F10",
+              },
+              {
+                key: "vignette",
+                label: "Vignette colour",
+                type: "color",
+                value: "#1a0f09",
+                def: "#000000",
+              },
+            ],
+          },
+        ],
+        "fertility-atlas-sabina": [
+          {
+            group: "Fertilities",
+            open: true,
+            opts: [
+              {
+                key: "density",
+                label: "Fertilities per island",
+                type: "slider",
+                min: 1,
+                max: 8,
+                step: 1,
+                value: 4,
+                def: 3,
+                unit: "",
+              },
+              {
+                key: "overlay",
+                label: "Show map overlay",
+                type: "toggle",
+                value: true,
+                def: true,
+              },
+              {
+                key: "preset",
+                label: "Preset",
+                type: "enum",
+                values: ["Balanced", "Rich", "Scarce", "Custom"],
+                value: "Balanced",
+                def: "Balanced",
+              },
+            ],
+          },
+        ],
+        "exact-numbers-babbage": [
+          {
+            group: "Display",
+            open: true,
+            opts: [
+              {
+                key: "decimals",
+                label: "Decimal places",
+                type: "slider",
+                min: 0,
+                max: 3,
+                step: 1,
+                value: 1,
+                def: 1,
+                unit: "",
+              },
+              {
+                key: "perMinute",
+                label: "Show per minute",
+                type: "toggle",
+                value: true,
+                def: true,
+              },
+            ],
+          },
+        ],
+      };
+
+      // ---------- State ----------
+      const state = {
+        game: "a117",
+        view: "library",
+        selected: "harbour-expansion-cassius",
+        filter: "all",
+        query: "",
+        profile: "Default",
+        tweakMod: null,
+        mock: {
+          empty: false,
+          offline: false,
+          signedOut: false,
+          running: false,
+        },
+        authStep: "idle",
+        queue: [
+          {
+            name: "Mosaic Floors",
+            size: "120 MB",
+            pct: 38,
+            status: "downloading",
+          },
+          {
+            name: "Province Rebalance",
+            size: "0.6 MB",
+            pct: 100,
+            status: "failed",
+          },
+          {
+            name: "Exact Needs Tooltip",
+            size: "0.2 MB",
+            pct: 100,
+            status: "done",
+          },
+        ],
+      };
+      const NAV = [
+        { section: "Mods" },
+        { id: "library", label: "Library", icon: "library" },
+        { id: "order", label: "Load order", icon: "order" },
+        { id: "tweaks", label: "Tweaks", icon: "tweak" },
+        { section: "mod.io" },
+        { id: "browse", label: "Browse", icon: "browse" },
+        { id: "collections", label: "Collections", icon: "collection" },
+        { id: "downloads", label: "Downloads", icon: "download" },
+        { section: "System" },
+        { id: "health", label: "Health", icon: "health" },
+        { id: "settings", label: "Settings", icon: "settings" },
+      ];
+
+      const $ = (selector, root = document) => root.querySelector(selector);
+      const icon = (name, extraClass = "") =>
+        `<svg class="i ${extraClass}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+      const escapeHtml = (value) =>
+        String(value).replace(
+          /[&<>"]/g,
+          (char) =>
+            ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char],
+        );
+      const currentGame = () => GAMES[state.game];
+      const installedMods = () => (state.mock.empty ? [] : currentGame().mods);
+      const modById = (id) => currentGame().mods.find((mod) => mod.id === id);
+      const modLabel = (id) => (modById(id) ? modById(id).name : id);
+      const initials = (name) =>
+        name
+          .split(/\s+/)
+          .map((word) => word[0])
+          .slice(0, 2)
+          .join("");
+      const isWriteLocked = () => state.mock.running;
+
+      // Mirrors the loader's own rules so the UI never disagrees with the game.
+      function issuesFor(mod) {
+        if (!mod.active) return [];
+        const issues = [];
+        const installedIds = new Set(installedMods().map((m) => m.id));
+        const activeIds = new Set(
+          installedMods()
+            .filter((m) => m.active)
+            .map((m) => m.id),
+        );
+        (mod.requires || []).forEach((dep) => {
+          if (!installedIds.has(dep))
+            issues.push({
+              level: "err",
+              kind: "missing",
+              dep,
+              text: `Requires ${dep}, which isn't installed.`,
+            });
+          else if (!activeIds.has(dep))
+            issues.push({
+              level: "err",
+              kind: "inactive",
+              dep,
+              text: `Requires ${modLabel(dep)}, which is turned off.`,
+            });
+        });
+        (mod.incompatible || []).forEach((dep) => {
+          if (activeIds.has(dep))
+            issues.push({
+              level: "err",
+              kind: "incompatible",
+              dep,
+              text: `Incompatible with ${modLabel(dep)}, and both are active.`,
+            });
+        });
+        installedMods().forEach((other) => {
+          if (!other.active) return;
+          if ((other.incompatible || []).includes(mod.id))
+            issues.push({
+              level: "err",
+              kind: "incompatible",
+              dep: other.id,
+              text: `${other.name} lists this mod as incompatible.`,
+            });
+          if ((other.deprecates || []).includes(mod.id))
+            issues.push({
+              level: "warn",
+              kind: "deprecated",
+              dep: other.id,
+              text: `Replaced by ${other.name}. It won't load while that mod is active.`,
+            });
+        });
+        if (mod.dlc)
+          issues.push({
+            level: "warn",
+            kind: "dlc",
+            text: `Needs DLC: ${mod.dlc}.`,
+          });
+        return issues;
+      }
+      const allIssues = () =>
+        installedMods().flatMap((mod) =>
+          issuesFor(mod).map((issue) => ({ ...issue, mod })),
+        );
+      const errorCount = () =>
+        allIssues().filter((issue) => issue.level === "err").length;
+
+      // Normal phase then late (`*`); LoadAfter resolved depth-first. Cycles are reported, never silently broken.
+      function computeLoadOrder() {
+        const active = installedMods().filter((mod) => mod.active);
+        const activeIds = new Set(active.map((mod) => mod.id));
+        const sortKey = (mod) => `[${mod.cat}] ${mod.name}`;
+        const phases = { normal: [], late: [] };
+        const cycles = [];
+        ["normal", "late"].forEach((phase) => {
+          const members = active
+            .filter(
+              (mod) =>
+                (phase === "late") === (mod.loadAfter || []).includes("*"),
+            )
+            .sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+          const placed = new Set();
+          const visiting = new Set();
+          const visit = (mod, path) => {
+            if (placed.has(mod.id)) return;
+            if (visiting.has(mod.id)) {
+              cycles.push([...path.slice(path.indexOf(mod.id)), mod.id]);
+              return;
+            }
+            visiting.add(mod.id);
+            const targets = (mod.loadAfter || []).filter(
+              (t) => t !== "*" && activeIds.has(t),
+            );
+            targets.forEach((targetId) => {
+              const target = members.find((m) => m.id === targetId);
+              if (target) visit(target, [...path, mod.id]);
+            });
+            visiting.delete(mod.id);
+            placed.add(mod.id);
+            phases[phase].push({
+              mod,
+              reason: targets.length
+                ? "after"
+                : phase === "late"
+                  ? "late"
+                  : "alpha",
+              after: targets,
+            });
+          };
+          members.forEach((mod) => visit(mod, []));
+        });
+        return { phases, cycles };
+      }
+
+      // ---------- Renderers ----------
+      function renderNav() {
+        const errors = errorCount();
+        const updates = installedMods().filter((mod) => mod.update).length;
+        const pendingDownloads = state.queue.filter(
+          (item) =>
+            item.status === "downloading" || item.status === "verifying",
+        ).length;
+        const counts = {
+          library: installedMods().length
+            ? `<span class="count">${installedMods().filter((mod) => mod.active).length}/${installedMods().length}</span>`
+            : "",
+          health: errors ? `<span class="count err">${errors}</span>` : "",
+          downloads: pendingDownloads
+            ? `<span class="count">${pendingDownloads}</span>`
+            : "",
+          browse: updates
+            ? `<span class="count warn">${updates} upd</span>`
+            : "",
+        };
+        $("#nav").innerHTML = NAV.map((item) =>
+          item.section
+            ? `<li class="nav-label">${item.section}</li>`
+            : `<li><button data-action="nav" data-view="${item.id}" ${state.view === item.id ? 'aria-current="page"' : ""}>${icon(item.icon)}<span>${item.label}</span>${counts[item.id] || ""}</button></li>`,
+        ).join("");
+        $("#ornament").innerHTML =
+          state.game === "a117"
+            ? `<svg viewBox="0 0 200 10" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width="1.2">${Array.from({ length: 20 }, (_, i) => `<path d="M${i * 10} 9V1h8v6h-4V4"/>`).join("")}</svg>`
+            : `<svg viewBox="0 0 200 10" preserveAspectRatio="none" fill="currentColor"><rect y="4.4" width="200" height="1.2"/>${Array.from({ length: 13 }, (_, i) => `<circle cx="${4 + i * 16}" cy="5" r="2.4"/>`).join("")}</svg>`;
+      }
+
+      function renderLaunch() {
+        const running = state.mock.running;
+        const errors = errorCount();
+        $("#launchLabel").textContent = running
+          ? `${currentGame().label} is running`
+          : `Launch ${currentGame().label}`;
+        $("#launchBtn").disabled = running;
+        const meta = $("#launchMeta");
+        meta.className = "launch-meta" + (running ? " err" : "");
+        meta.textContent = running
+          ? "Mod changes are locked until the game closes."
+          : errors
+            ? `${errors} issue${errors > 1 ? "s" : ""} will be shown before launch`
+            : `Profile: ${state.profile}`;
+      }
+
+      function stateStamps(mod) {
+        const stamps = [];
+        const issues = issuesFor(mod);
+        if (issues.some((i) => i.kind === "missing" || i.kind === "inactive"))
+          stamps.push('<span class="stamp err">Missing dep</span>');
+        if (issues.some((i) => i.kind === "incompatible"))
+          stamps.push('<span class="stamp err">Conflict</span>');
+        if (issues.some((i) => i.kind === "deprecated"))
+          stamps.push('<span class="stamp warn">Deprecated</span>');
+        if (issues.some((i) => i.kind === "dlc"))
+          stamps.push('<span class="stamp warn">DLC</span>');
+        if (mod.update)
+          stamps.push(`<span class="stamp accent">Update ${mod.update}</span>`);
+        if ((mod.loadAfter || []).includes("*"))
+          stamps.push('<span class="stamp late">Late</span>');
+        if (mod.source === "local")
+          stamps.push('<span class="stamp dim">Local</span>');
+        if (!stamps.length && mod.active)
+          stamps.push('<span class="stamp ok">OK</span>');
+        return stamps.join("");
+      }
+
+      const FILTERS = {
+        all: () => true,
+        active: (mod) => mod.active,
+        inactive: (mod) => !mod.active,
+        updates: (mod) => !!mod.update,
+        issues: (mod) => issuesFor(mod).length > 0,
+      };
+      function filteredMods() {
+        const query = state.query.trim().toLowerCase();
+        return installedMods().filter(
+          (mod) =>
+            FILTERS[state.filter](mod) &&
+            (!query ||
+              `${mod.name} ${mod.id} ${mod.cat} ${mod.author}`
+                .toLowerCase()
+                .includes(query)),
+        );
+      }
+
+      function renderLibrary() {
+        const view = $("#view-library");
+        const game = currentGame();
+        const head = `<div class="view-head"><div><h1 id="h-library">Library</h1><p>Everything installed for ${escapeHtml(game.fullName)}. Drop an archive anywhere on the window to install it.</p></div>
+          <div class="actions"><button class="btn" data-action="simulate-drop" data-kind="multi">${icon("upload")}Install from file</button><button class="btn ghost" data-action="toast" data-msg="Opened ${escapeHtml(game.modsPath)}">${icon("folder")}Open mods folder</button></div></div>`;
+        if (!installedMods().length) {
+          view.innerHTML = `${head}<div class="empty"><div class="drop-cta">${icon("upload")}<h2>No mods yet</h2><p>Drop a mod archive or folder here, or find mods on mod.io. Atelier installs them into <span class="data">${escapeHtml(game.modsPath)}</span>.</p>
+            <div class="row-actions"><button class="btn primary" data-action="nav" data-view="browse">${icon("browse")}Browse mod.io</button><button class="btn" data-action="simulate-drop" data-kind="multi">${icon("upload")}Choose a file</button></div></div></div>`;
+          return;
+        }
+        const list = filteredMods();
+        const chips = [
+          ["all", "All"],
+          ["active", "Active"],
+          ["inactive", "Inactive"],
+          ["updates", "Updates"],
+          ["issues", "Issues"],
+        ]
+          .map(
+            ([key, label]) =>
+              `<button class="chip" data-action="filter" data-filter="${key}" aria-pressed="${state.filter === key}">${label}<span class="n">${installedMods().filter(FILTERS[key]).length}</span></button>`,
+          )
+          .join("");
+        const locked = isWriteLocked();
+        const rows = list
+          .map(
+            (
+              mod,
+            ) => `<tr class="row ${mod.active ? "" : "off"}" data-action="select" data-id="${mod.id}" aria-selected="${state.selected === mod.id}" tabindex="0">
+            <td style="width:52px"><button class="toggle" role="switch" aria-checked="${mod.active}" aria-label="${mod.active ? "Deactivate" : "Activate"} ${escapeHtml(mod.name)}" data-action="toggle-mod" data-id="${mod.id}" ${locked ? "disabled" : ""}></button></td>
+            <td><span class="mod-cat">[${escapeHtml(mod.cat)}]</span><span class="mod-name">${escapeHtml(mod.name)}</span><span class="mod-id data">${mod.id}</span></td>
+            <td class="col-ver data">${mod.ver}</td>
+            <td><div class="state-cell">${stateStamps(mod)}</div></td>
+            <td class="col-size num data">${mod.size.toFixed(1)} MB</td></tr>`,
+          )
+          .join("");
+        const activeCount = installedMods().filter((mod) => mod.active).length;
+        const totalSize = installedMods().reduce(
+          (sum, mod) => sum + mod.size,
+          0,
+        );
+        view.innerHTML = `${head}
+          ${locked ? `<div class="banner-state">${icon("lock")}<span><b>${game.exe}</b> is running. Activation, installs and updates are paused so the game's files don't change underneath it.</span></div>` : ""}
+          <div class="lib"><div class="lib-list">
+            <div class="toolbar">
+              <label class="field search">${icon("search")}<span class="sr-only">Search mods</span><input id="libSearch" placeholder="Search name, ModID, author" value="${escapeHtml(state.query)}" /></label>
+              <label class="field" style="flex:0 1 240px"><span class="sr-only">Profile</span>${icon("user")}<select id="profileSel">${game.profiles.map((p) => `<option ${p === state.profile ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select></label>
+              <button class="btn" data-action="toast" data-msg="Profile “${escapeHtml(state.profile)}” saved">Save</button>
+              <button class="btn ghost" data-action="toast" data-msg="Exported ${escapeHtml(state.profile)}.atelier.json with ModIDs, versions and mod.io links">${icon("export")}Export</button>
+            </div>
+            <div class="toolbar"><div class="chips">${chips}</div></div>
+            <div class="scroll">
+              ${list.length ? `<table class="ledger"><thead><tr><th><span class="sr-only">On</span></th><th>Mod</th><th class="col-ver">Version</th><th>State</th><th class="col-size num">Size</th></tr></thead><tbody>${rows}</tbody></table>` : `<p class="muted" style="padding:24px 0">No mods match these filters. <button class="btn ghost" data-action="clear-filter">Clear filters</button></p>`}
+            </div>
+            <div class="lib-stats"><span>Active <b>${activeCount}</b> of <b>${installedMods().length}</b></span><span>On disk <b>${totalSize.toFixed(1)} MB</b></span><span>Activation file <b>${escapeHtml(game.profileFile)}</b></span></div>
+          </div>${renderDetail()}</div>`;
+      }
+
+      function renderDetail() {
+        const mod = modById(state.selected) || installedMods()[0];
+        if (!mod) return `<aside class="detail"></aside>`;
+        const issues = issuesFor(mod);
+        const locked = isWriteLocked();
+        const depRow = (id, kind) => {
+          const dep = modById(id);
+          const isOn = dep && dep.active;
+          let dotClass = isOn ? "ok" : "err";
+          if (kind === "Incompatible") dotClass = isOn ? "err" : "ok";
+          if (kind === "Optional" || kind === "Load after")
+            dotClass = isOn ? "ok" : "";
+          if (kind === "Deprecates") dotClass = "";
+          return `<li><span class="dot ${dotClass}"></span><span>${dep ? escapeHtml(dep.name) : `<span class="data">${id}</span>`}</span><span class="kind stamp dim">${kind}</span></li>`;
+        };
+        const deps = [
+          ...(mod.requires || []).map((d) => depRow(d, "Requires")),
+          ...(mod.optional || []).map((d) => depRow(d, "Optional")),
+          ...(mod.loadAfter || [])
+            .filter((d) => d !== "*")
+            .map((d) => depRow(d, "Load after")),
+          ...(mod.incompatible || []).map((d) => depRow(d, "Incompatible")),
+          ...(mod.deprecates || []).map((d) => depRow(d, "Deprecates")),
+        ];
+        const setup = mod.setup || {};
+        const callouts = issues
+          .map((issue) => {
+            let actions = "";
+            if (issue.kind === "missing")
+              actions = `<button class="btn primary" data-action="install-dep" data-dep="${issue.dep}" ${locked ? "disabled" : ""}>${icon("download")}Install from mod.io</button>`;
+            if (issue.kind === "inactive")
+              actions = `<button class="btn" data-action="activate-dep" data-dep="${issue.dep}" ${locked ? "disabled" : ""}>Turn on ${escapeHtml(modLabel(issue.dep))}</button>`;
+            if (issue.kind === "incompatible")
+              actions = `<button class="btn" data-action="deactivate" data-id="${issue.dep}" ${locked ? "disabled" : ""}>Turn off ${escapeHtml(modLabel(issue.dep))}</button><button class="btn ghost" data-action="toast" data-msg="Risk accepted for this pair. You can undo it in Health.">Keep both</button>`;
+            return `<div class="callout ${issue.level}">${icon(issue.level === "err" ? "alert" : "info")}<div>${escapeHtml(issue.text)}${actions ? `<div class="callout-actions">${actions}</div>` : ""}</div></div>`;
+          })
+          .join("");
+        const setupStamps = [
+          setup.newGame
+            ? '<span class="stamp warn">Requires new game</span>'
+            : "",
+          setup.safe === true
+            ? '<span class="stamp ok">Safe to remove</span>'
+            : setup.safe === false
+              ? '<span class="stamp warn">Not safe to remove</span>'
+              : "",
+          setup.mp === true
+            ? '<span class="stamp ok">Multiplayer</span>'
+            : setup.mp === false
+              ? '<span class="stamp dim">Single-player only</span>'
+              : "",
+          mod.difficulty && mod.difficulty !== "unchanged"
+            ? `<span class="stamp info">Difficulty: ${mod.difficulty}</span>`
+            : "",
+        ].join("");
+        return `<aside class="detail" aria-label="Mod details">
+          <div class="banner"><span class="initials">${initials(mod.name)}</span></div>
+          <div class="detail-body">
+            <h2>${escapeHtml(mod.name)}</h2>
+            <p class="byline">by ${escapeHtml(mod.author)} · <span class="data">${mod.ver}</span>${mod.update ? ` → <span class="data" style="color:var(--accent)">${mod.update}</span>` : ""} · ${mod.source === "modio" ? "mod.io" : "local install"}</p>
+            ${callouts}
+            ${mod.update ? `<div class="callout info">${icon("download")}<div>Version ${mod.update} is on mod.io. Updating keeps it ${mod.active ? "active" : "inactive"} and backs up ${mod.ver}.<div class="callout-actions"><button class="btn primary" data-action="update" data-id="${mod.id}" ${locked ? "disabled" : ""}>Update to ${mod.update}</button></div></div></div>` : ""}
+            <p>${escapeHtml(mod.desc)}</p>
+            <h3>Save safety</h3>
+            <div class="chips">${setupStamps || '<span class="muted">This mod declares no GameSetup flags.</span>'}</div>
+            ${deps.length ? `<h3>Dependencies</h3><ul class="dep-list">${deps.join("")}</ul>` : ""}
+            ${mod.issues ? `<h3>Known issues</h3>${mod.issues.map((text) => `<p class="muted">${escapeHtml(text)}</p>`).join("")}` : ""}
+            <h3>On disk</h3>
+            <dl class="kv"><dt>ModID</dt><dd class="data">${mod.id}</dd><dt>Folder</dt><dd class="data">mods\\${mod.id}</dd><dt>Size</dt><dd class="data">${mod.size.toFixed(1)} MB</dd></dl>
+            <div class="detail-actions">
+              ${mod.options ? `<button class="btn" data-action="open-tweaks" data-id="${mod.id}">${icon("tweak")}Tweak options</button>` : ""}
+              <button class="btn ghost" data-action="toast" data-msg="Opened mods\\${mod.id}">${icon("folder")}Open folder</button>
+              <button class="btn ghost danger" data-action="toast" data-kind="warn" data-msg="Uninstalled ${escapeHtml(mod.name)}. A backup is kept for 7 days." ${locked ? "disabled" : ""}>${icon("trash")}Uninstall</button>
+            </div>
+          </div></aside>`;
+      }
+
+      function renderOrder() {
+        const view = $("#view-order");
+        const { phases, cycles } = computeLoadOrder();
+        let position = 0;
+        const row = (entry) => {
+          position += 1;
+          const mod = entry.mod;
+          const why =
+            entry.reason === "after"
+              ? `Loads after <b>${entry.after.map((id) => escapeHtml(modLabel(id))).join("</b>, <b>")}</b> (LoadAfter)`
+              : entry.reason === "late"
+                ? `Late phase: <span class="data">LoadAfter: ["*"]</span>`
+                : "No rule, so it falls back to alphabetical order. Don't rely on this.";
+          return `<div class="order-row"><span class="pos">${String(position).padStart(2, "0")}</span><div><span class="mod-cat">[${escapeHtml(mod.cat)}]</span><span class="mod-name">${escapeHtml(mod.name)}</span><div class="why">${why}</div></div>${entry.reason === "late" ? '<span class="stamp late">Late</span>' : ""}</div>`;
+        };
+        const cycleHtml = cycles.length
+          ? `<div class="callout err">${icon("alert")}<div><b>LoadAfter loop.</b> ${cycles.map((cycle) => cycle.map((id) => escapeHtml(modLabel(id))).join(" → ")).join("; ")}. The game's order for these mods is undefined. Ask the author to fix it, or turn one of them off.</div></div>`
+          : "";
+        const body = installedMods().length
+          ? `<div class="phase"><div class="phase-head"><h2>Normal phase</h2><span class="muted">${phases.normal.length} mods</span></div>${phases.normal.map(row).join("")}</div>
+             <div class="phase"><div class="phase-head"><h2>Late phase</h2><span class="muted">${phases.late.length} mods · loads after everything</span></div>${phases.late.map(row).join("") || '<p class="muted">No mods use <span class="data">LoadAfter: ["*"]</span>.</p>'}</div>`
+          : '<p class="muted">Nothing to order yet.</p>';
+        view.innerHTML = `<div class="view-head"><div><h1 id="h-order">Load order</h1><p>The game decides the order. This view predicts it from each mod's rules and shows why every mod sits where it does.</p></div>
+          <div class="actions"><button class="btn ghost" data-action="nav" data-view="health">${icon("health")}Compare with mod-loader.log</button></div></div>
+          <div class="scroll">${cycleHtml}${body}</div>`;
+      }
+
+      function connectionBanner() {
+        if (state.mock.offline)
+          return `<div class="banner-state">${icon("cloud-off")}<span>You're offline. Installed mods still work. Browsing and updates come back when you reconnect.</span><button class="btn" data-action="mock-set" data-key="offline" data-val="false">${icon("refresh")}Retry</button></div>`;
+        if (state.mock.signedOut)
+          return `<div class="banner-state">${icon("user")}<span>Browsing as a guest. Sign in to subscribe, rate, and sync with mod.io.</span><button class="btn primary" data-action="start-signin">Sign in</button></div>`;
+        return "";
+      }
+
+      function renderBrowse() {
+        const view = $("#view-browse");
+        const installedIds = new Set(currentGame().mods.map((mod) => mod.id));
+        const tiles = BROWSE[state.game]
+          .map(([name, by, cat, downloads, rating, size, id]) => {
+            const installed = installedIds.has(id);
+            return `<button class="tile" data-action="open-mod" data-id="${id}" data-name="${escapeHtml(name)}" data-by="${escapeHtml(by)}" data-cat="${cat}" data-size="${size}" data-rating="${rating}" data-dl="${downloads}">
+              <div class="thumb"><span class="initials">${initials(name)}</span>${installed ? '<span class="stamp ok">Installed</span>' : ""}</div>
+              <div class="meta"><strong>${escapeHtml(name)}</strong><span class="muted" style="font-size:12px">${escapeHtml(by)} · ${cat}</span>
+              <div class="row"><span>${icon("download")}${downloads}</span><span>${icon("star")}${rating}</span><span class="data">${size}</span></div></div></button>`;
+          })
+          .join("");
+        view.innerHTML = `<div class="view-head"><div><h1 id="h-browse">Browse mod.io</h1><p>Mods for ${escapeHtml(currentGame().fullName)}. Subscribing installs the mod and its required dependencies.</p></div><div class="actions"><span class="powered">Powered by mod.io</span></div></div>
+          ${connectionBanner()}
+          <div class="toolbar">
+            <label class="field search">${icon("search")}<span class="sr-only">Search mod.io</span><input placeholder="Search mod.io" ${state.mock.offline ? "disabled" : ""} /></label>
+            <label class="field" style="flex:0 1 200px"><span class="sr-only">Sort</span><select><option>Trending</option><option>Most downloads</option><option>Highest rated</option><option>Newest</option><option>Recently updated</option><option>Most subscribers</option></select></label>
+            <label class="field" style="flex:0 1 180px"><span class="sr-only">Tag</span><select><option>All tags</option><option>Gameplay</option><option>Balance</option><option>Cosmetic</option><option>UI</option></select></label>
+            <button class="chip" aria-pressed="false" data-action="press">Subscribed only</button>
+          </div>
+          <div class="scroll">${state.mock.offline ? `<div class="empty"><div class="drop-cta">${icon("cloud-off")}<h2>mod.io is unreachable</h2><p>Check your connection. Downloads you started resume automatically.</p></div></div>` : `<div class="grid">${tiles}</div>`}</div>`;
+      }
+
+      function renderCollections() {
+        const view = $("#view-collections");
+        const followBlocked = state.mock.signedOut || state.mock.offline;
+        const installBlocked = state.mock.offline || isWriteLocked();
+        view.innerHTML = `<div class="view-head"><div><h1 id="h-collections">Collections</h1><p>Curated mod sets. Installing one creates a matching profile, so you can switch back to your own set in one click.</p></div><div class="actions"><span class="powered">Powered by mod.io</span></div></div>
+          ${connectionBanner()}
+          <div class="scroll"><table class="ledger"><thead><tr><th>Collection</th><th>Mods</th><th>Followers</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
+          ${COLLECTIONS[state.game]
+            .map(
+              (
+                c,
+              ) => `<tr><td><span class="mod-name">${escapeHtml(c.name)}</span><span class="mod-id">${escapeHtml(c.by)} · ${escapeHtml(c.desc)}</span></td><td class="data">${c.mods}</td><td class="data">${c.follows}</td>
+              <td style="text-align:right;white-space:nowrap"><button class="btn ghost" data-action="toast" data-msg="Following ${escapeHtml(c.name)}" ${followBlocked ? "disabled" : ""}>Follow</button>
+              <button class="btn" data-action="install-collection" data-name="${escapeHtml(c.name)}" data-n="${c.mods}" ${installBlocked ? "disabled" : ""}>Install all + create profile</button></td></tr>`,
+            )
+            .join("")}
+          </tbody></table></div>`;
+      }
+
+      function renderDownloads() {
+        const view = $("#view-downloads");
+        const statusLabel = {
+          downloading: (item) => `Downloading · ${item.pct}%`,
+          verifying: () => "Verifying md5",
+          done: () => "Installed · md5 verified",
+          failed: () => "Failed: md5 didn't match, so nothing was installed",
+        };
+        const rows = state.queue
+          .map((item, index) => {
+            const barClass =
+              item.status === "failed"
+                ? "err"
+                : item.status === "done"
+                  ? "ok"
+                  : "";
+            const fill =
+              item.status === "failed" || item.status === "done"
+                ? 1
+                : item.pct / 100;
+            const action =
+              item.status === "failed"
+                ? `<button class="btn" data-action="retry" data-idx="${index}">${icon("refresh")}Retry</button>`
+                : item.status === "done"
+                  ? `<button class="btn ghost" data-action="nav" data-view="library">Show</button>`
+                  : `<button class="btn ghost" data-action="cancel-dl" data-idx="${index}">Cancel</button>`;
+            return `<div class="queue-row"><div><span class="mod-name">${escapeHtml(item.name)}</span><span class="mod-id"><span class="data">${item.size}</span> · ${statusLabel[item.status](item)}</span></div><div class="bar ${barClass}" role="progressbar" aria-valuenow="${Math.round(fill * 100)}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeHtml(item.name)}"><span style="transform:scaleX(${fill})"></span></div>${action}</div>`;
+          })
+          .join("");
+        view.innerHTML = `<div class="view-head"><div><h1 id="h-downloads">Downloads</h1><p>Every download is checked against mod.io's md5 before it touches your mods folder. Failed files are never installed.</p></div>
+          <div class="actions"><button class="btn" data-action="update-all" ${isWriteLocked() || state.mock.offline ? "disabled" : ""}>${icon("refresh")}Update all</button></div></div>
+          <div class="scroll">${rows || `<p class="muted">Nothing downloading.</p>`}</div>`;
+      }
+
+      function renderTweaks() {
+        const view = $("#view-tweaks");
+        const tweakable = installedMods().filter((mod) => mod.options);
+        if (!tweakable.find((mod) => mod.id === state.tweakMod))
+          state.tweakMod = tweakable[0] && tweakable[0].id;
+        const groups = TWEAK_GROUPS[state.tweakMod] || [];
+        const control = (opt) => {
+          const id = `opt-${opt.key}`;
+          if (opt.type === "toggle")
+            return `<button class="toggle" role="switch" id="${id}" aria-checked="${opt.value}" data-action="tweak-toggle" data-key="${opt.key}"></button>`;
+          if (opt.type === "enum")
+            return `<label class="field"><select id="${id}" data-tweak="${opt.key}">${opt.values.map((v) => `<option ${v === opt.value ? "selected" : ""}>${v}</option>`).join("")}</select></label>`;
+          if (opt.type === "slider")
+            return `<div style="display:flex;gap:10px;align-items:center"><input type="range" id="${id}" min="${opt.min}" max="${opt.max}" step="${opt.step}" value="${opt.value}" data-tweak="${opt.key}" /><span class="data" style="min-width:44px;text-align:right" id="${id}-v">${opt.value}${opt.unit}</span></div>`;
+          if (opt.type === "text")
+            return `<label class="field"><input id="${id}" value="${escapeHtml(opt.value)}" data-tweak="${opt.key}" /></label>`;
+          return `<input type="color" id="${id}" value="${opt.value}" data-tweak="${opt.key}" />`;
+        };
+        const optionRow = (opt) =>
+          `<div class="opt"><label for="opt-${opt.key}">${escapeHtml(opt.label)}${opt.value !== opt.def ? '<span class="modified">modified</span>' : ""}${opt.hint ? `<span class="hint">${escapeHtml(opt.hint)}</span>` : ""}</label>${control(opt)}<button class="btn ghost" data-action="tweak-reset" data-key="${opt.key}" aria-label="Reset ${escapeHtml(opt.label)}">Reset</button></div>`;
+        const body = tweakable.length
+          ? `<div class="tweak-layout"><nav class="tweak-mods" aria-label="Mods with options">${tweakable.map((mod) => `<button data-action="tweak-mod" data-id="${mod.id}" aria-current="${state.tweakMod === mod.id}">${escapeHtml(mod.name)}</button>`).join("")}</nav>
+             <div>${groups.map((g) => `<details class="group" ${g.open ? "open" : ""}><summary>${icon("chevron")}${escapeHtml(g.group)}</summary>${g.opts.map(optionRow).join("")}</details>`).join("")}</div></div>`
+          : '<p class="muted">None of your installed mods expose options.</p>';
+        view.innerHTML = `<div class="view-head"><div><h1 id="h-tweaks">Tweaks</h1><p>Options that mod authors expose. Values are saved to <span class="data">mods\\active-options.jsonc</span> and apply the next time the game starts.</p></div>
+          <div class="actions"><button class="btn ghost" data-action="toast" data-msg="All options reset to the authors' defaults">${icon("refresh")}Reset all</button></div></div>
+          <div class="scroll">${body}</div>`;
+      }
+
+      function renderHealth() {
+        const view = $("#view-health");
+        const is1800 = state.game === "a1800";
+        const seen = new Set();
+        const uniqueIssues = allIssues().filter((issue) => {
+          const key = [issue.mod.id, issue.dep].sort().join("|") + issue.kind;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        const checks = [
+          [
+            "ok",
+            "Game found",
+            `${is1800 ? "Steam" : "Ubisoft Connect"} · <code>${is1800 ? "D:\\SteamLibrary\\steamapps\\common\\Anno 1800" : "C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\games\\Anno 117 - Pax Romana"}</code>`,
+          ],
+          [
+            "ok",
+            "Mods folder writable",
+            `<code>${escapeHtml(currentGame().modsPath)}</code>`,
+          ],
+          is1800
+            ? [
+                "warn",
+                "Old mod loader file found",
+                "<code>Bin\\Win64\\python35.dll</code> is from the pre-GU17 loader and can stop mods loading. Verify game files in your launcher to restore the original.",
+              ]
+            : [
+                "ok",
+                "Profile format",
+                "Newer <code>profile.txt</code> + <code>profiles\\</code> layout detected",
+              ],
+          is1800
+            ? [
+                "warn",
+                "Mod in two places",
+                "<code>exact-numbers-babbage</code> is also in the in-game mod.io folder <code>C:\\Users\\Public\\mod.io\\4169\\mods</code>. The game loads the newest copy. Atelier never writes there.",
+              ]
+            : ["ok", "No duplicate ModIDs", "Every ModID appears once"],
+        ];
+        const log = is1800
+          ? "[12:41:08] mod-loader: loading 10 mods\n[12:41:08] [error] skyscraper-tiers-otis: DLC dependency 'SeatOfPower' not owned\n[12:41:09] [warn] pier-lighting-telford: LoadAfter cycle with street-lamps-davy\n[12:41:09] [error] railway-overhaul-stephenson: assets.xml ModOp Path not found (line 214)\n[12:41:10] mod-loader: done in 2.1s"
+          : "[20:14:02] mod-loader: loading 11 mods (profile: Default)\n[20:14:02] [error] harbour-expansion-cassius: missing dependency aqueduct-core-felix\n[20:14:02] [warn] old-harbour-fix-cassius: deprecated by harbour-expansion-cassius, skipped\n[20:14:03] [error] legion-economy-marcus: incompatible with relaxed-economy-junia\n[20:14:04] mod-loader: done in 1.7s";
+        const parsedLog = log
+          .split("\n")
+          .filter((line) => /\[(error|warn)\]/.test(line))
+          .map((line) => {
+            const level = line.includes("[error]") ? "err" : "warn";
+            const [, id, message] =
+              line.match(/\] \[\w+\] ([a-z0-9-]+): (.*)$/) || [];
+            return `<div class="log-row">${icon(level === "err" ? "alert" : "info", "ic-" + level)}<div class="grow"><b>${escapeHtml(modLabel(id))}</b><div>${escapeHtml(message)}</div><code>${escapeHtml(line.slice(1, 9))}</code></div></div>`;
+          })
+          .join("");
+        const issueRows =
+          uniqueIssues
+            .map(
+              (issue) =>
+                `<div class="check-row">${icon(issue.level === "err" ? "alert" : "info", "ic-" + issue.level)}<div class="grow"><b>${escapeHtml(issue.mod.name)}</b><div>${escapeHtml(issue.text)}</div></div><button class="btn ghost" data-action="goto-mod" data-id="${issue.mod.id}">Fix</button></div>`,
+            )
+            .join("") ||
+          `<div class="check-row">${icon("check", "ic-ok")}<div class="grow">No conflicts or missing dependencies.</div></div>`;
+        view.innerHTML = `<div class="view-head"><div><h1 id="h-health">Health</h1><p>What will go wrong in-game, checked before you launch. Log results come from the last game start.</p></div>
+          <div class="actions"><button class="btn" data-action="toast" data-msg="Checks re-run. Nothing new.">${icon("refresh")}Re-run checks</button><button class="btn ghost" data-action="toast" data-msg="Log copied to clipboard">Copy log</button></div></div>
+          <div class="scroll"><div class="health-grid">
+            <section class="panel"><h2>${icon("alert")}Active mod set <span class="muted" style="margin-left:auto;font-weight:400">${uniqueIssues.length} issue${uniqueIssues.length === 1 ? "" : "s"}</span></h2>${issueRows}</section>
+            <section class="panel"><h2>${icon("settings")}Environment</h2>${checks.map(([level, title, body]) => `<div class="check-row">${icon(level === "ok" ? "check" : "alert", "ic-" + level)}<div class="grow"><b>${title}</b><div>${body}</div></div></div>`).join("")}</section>
+            <section class="panel"><h2>${icon("health")}mod-loader.log, parsed</h2>${parsedLog}</section>
+            <section class="panel"><h2>Raw log <span class="muted data" style="margin-left:auto;font-weight:400">${escapeHtml(currentGame().logPath)}</span></h2><pre class="raw">${escapeHtml(log)}</pre></section>
+          </div></div>`;
+      }
+
+      const AUTH_STEPS = {
+        terms:
+          () => `<div class="account"><b>Before you sign in</b><p>mod.io requires you to accept its <a href="#" data-action="noop">Terms of Use</a> and <a href="#" data-action="noop">Privacy Policy</a>. If you decline, you can still browse and install as a guest.</p>
+            <div class="btn-row"><button class="btn primary" data-action="auth" data-step="method">I agree</button><button class="btn ghost" data-action="auth" data-step="idle">Decline</button></div></div>`,
+        method:
+          () => `<div class="account"><b>Choose how to sign in</b><div class="auth-options">
+            <button class="auth-option" data-action="auth" data-step="browser">${icon("browse")}<div><strong>Sign in with mod.io</strong><span>Opens your browser. Nothing to copy. Needs mod.io OAuth approval before release.</span></div></button>
+            <button class="auth-option" data-action="auth" data-step="device">${icon("user")}<div><strong>Use a device code</strong><span>Enter a 5-character code at mod.io/connect on any device.</span></div></button>
+            <button class="auth-option" data-action="auth" data-step="token">${icon("lock")}<div><strong>Paste an access token</strong><span>Create a read+write token at mod.io/me/access. Works today.</span></div></button></div></div>`,
+        device:
+          () => `<div class="account"><b>Enter this code at <a href="#" data-action="noop">mod.io/connect</a></b><div class="code-inputs">${"K7Q2M"
+            .split("")
+            .map(
+              (c, i) =>
+                `<input value="${c}" readonly aria-label="Code character ${i + 1}" />`,
+            )
+            .join("")}</div>
+            <p>Waiting for you to approve. The code expires in 9:41.</p><div class="btn-row"><button class="btn primary" data-action="auth" data-step="done">Simulate approval</button><button class="btn ghost" data-action="auth" data-step="method">Back</button></div></div>`,
+        token:
+          () => `<div class="account"><label for="tok"><b>Access token</b></label><p>Stored in Windows Credential Manager, never in a settings file.</p>
+            <div class="path-row"><label class="field"><input id="tok" type="password" placeholder="Paste token" value="mock-token-value" /></label><button class="btn primary" data-action="auth" data-step="done">Connect</button></div></div>`,
+        browser: () =>
+          `<div class="account"><b>Finish signing in in your browser</b><p>We opened mod.io in your default browser. Come back here when it says you're done.</p><div class="btn-row"><button class="btn primary" data-action="auth" data-step="done">Simulate success</button><button class="btn ghost" data-action="auth" data-step="method">Use another method</button></div></div>`,
+        idle: () =>
+          `<div class="account"><div class="account-row">${icon("user")}<div class="grow"><b>Not signed in</b><div class="muted" style="font-size:12px">Browsing and installing work as a guest. Sign in to subscribe, rate and sync.</div></div><button class="btn primary" data-action="auth" data-step="terms">Sign in to mod.io</button></div></div>`,
+      };
+      function accountBlock() {
+        if (!state.mock.signedOut) {
+          return `<div class="account"><div class="account-row">${icon("user")}<div class="grow"><b>marcus_builds</b><div class="muted" style="font-size:12px">Signed in with mod.io · token in Windows Credential Manager · expires 18 Feb 2027</div></div>
+            <button class="btn" data-action="toast" data-msg="Synced 41 subscriptions from mod.io">${icon("refresh")}Sync subscriptions</button><button class="btn ghost danger" data-action="mock-set" data-key="signedOut" data-val="true">Sign out</button></div></div>`;
+        }
+        return AUTH_STEPS[state.authStep]();
+      }
+
+      function renderSettings() {
+        const view = $("#view-settings");
+        const pathRow = (label, value, hint, store) =>
+          `<div class="set-row"><span>${label}${hint ? `<span class="hint">${hint}</span>` : ""}</span><div class="path-row"><label class="field"><span class="sr-only">${label}</span><input class="data" value="${escapeHtml(value)}" /></label>${store ? `<span class="stamp ok">${store}</span>` : ""}<button class="btn">Browse</button></div></div>`;
+        view.innerHTML = `<div class="view-head"><div><h1 id="h-settings">Settings</h1><p>Paths are detected automatically. Change them only if Atelier picked the wrong install.</p></div><div class="actions"><button class="btn" data-action="wizard">${icon("flask")}Run setup again</button></div></div>
+          <div class="scroll"><div class="settings">
+            <section class="set-section" id="account"><h2>mod.io account</h2><p>Used for subscriptions, ratings and collections. Atelier works offline with installed mods.</p>${accountBlock()}</section>
+            <section class="set-section"><h2>Games</h2><p>Detected from Ubisoft Connect and Steam registry entries, Steam library folders and Epic manifests.</p>
+              ${pathRow("Anno 117 install", "C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\games\\Anno 117 - Pax Romana", "", "Ubisoft Connect")}
+              ${pathRow("Anno 117 mods folder", GAMES.a117.modsPath, "Documents is recommended. No admin rights needed.")}
+              ${pathRow("Anno 1800 install", "D:\\SteamLibrary\\steamapps\\common\\Anno 1800", "", "Steam")}
+              ${pathRow("Anno 1800 mods folder", GAMES.a1800.modsPath, "Atelier never writes to the in-game mod.io folder.")}</section>
+            <section class="set-section"><h2>Installing</h2><p>What happens when a new mod arrives, from mod.io or a drop.</p>
+              <div class="set-row"><span>New mods start</span><div class="radio-row"><label><input type="radio" name="nm" checked /> Active</label><label><input type="radio" name="nm" /> Inactive</label><label><input type="radio" name="nm" /> Follow the profile's EnableNewMods</label></div></div>
+              <div class="set-row"><span>Install dependencies<span class="hint">Required ones only. Optional ones are offered.</span></span><div><button class="toggle" role="switch" aria-checked="true" data-action="press-switch" aria-label="Install dependencies"></button></div></div>
+              <div class="set-row"><span>Keep backups<span class="hint">Replaced and uninstalled mods</span></span><label class="field" style="max-width:200px"><span class="sr-only">Keep backups</span><select><option>7 days</option><option>30 days</option><option>Forever</option><option>Off</option></select></label></div>
+              <div class="set-row"><span>Check for updates</span><label class="field" style="max-width:200px"><span class="sr-only">Check for updates</span><select><option>On start + hourly</option><option>On start only</option><option>Manually</option></select></label></div></section>
+            <section class="set-section"><h2>App</h2><p>Atelier updates itself from signed releases.</p>
+              <div class="set-row"><span>Language</span><label class="field" style="max-width:240px"><span class="sr-only">Language</span><select><option>English</option><option>Deutsch</option><option>Français</option><option>Polski</option><option>简体中文</option></select></label></div>
+              <div class="set-row"><span>Update channel</span><div class="radio-row"><label><input type="radio" name="ch" checked /> Stable</label><label><input type="radio" name="ch" /> Beta</label></div></div>
+              <div class="set-row"><span>Diagnostics</span><div class="btn-row"><button class="btn ghost">${icon("folder")}Open app data</button><button class="btn ghost">Export debug bundle</button></div></div></section>
+          </div></div>`;
+      }
+
+      function renderStatus() {
+        const errors = errorCount();
+        const online = !state.mock.offline;
+        $("#statusbar").innerHTML =
+          `<span class="item"><span class="dot ${online ? "ok" : "err"}"></span>mod.io ${online ? (state.mock.signedOut ? "· guest" : "· signed in") : "· offline"}</span>
+          <span class="item">${icon("user")}${escapeHtml(state.profile)}</span>
+          <span class="item">${errors ? `<button class="err-link" data-action="nav" data-view="health">${errors} issue${errors > 1 ? "s" : ""}</button>` : "No issues"}</span>
+          ${state.mock.running ? `<span class="item">${icon("lock")}${currentGame().exe} running</span>` : ""}
+          <span class="item push"><button data-action="mock-menu" aria-expanded="${$("#mockMenu").classList.contains("on")}">Mock-up states</button></span>`;
+      }
+
+      const VIEW_RENDERERS = {
+        library: renderLibrary,
+        order: renderOrder,
+        browse: renderBrowse,
+        collections: renderCollections,
+        downloads: renderDownloads,
+        tweaks: renderTweaks,
+        health: renderHealth,
+        settings: renderSettings,
+      };
+      function render() {
+        document.documentElement.dataset.game = state.game;
+        document
+          .querySelectorAll(".game-switch button")
+          .forEach((b) =>
+            b.setAttribute(
+              "aria-pressed",
+              String(b.dataset.game === state.game),
+            ),
+          );
+        document
+          .querySelectorAll(".view")
+          .forEach((v) =>
+            v.classList.toggle("on", v.id === `view-${state.view}`),
+          );
+        renderNav();
+        renderLaunch();
+        VIEW_RENDERERS[state.view]();
+        renderStatus();
+        document
+          .querySelectorAll("#mockMenu .toggle")
+          .forEach((t) =>
+            t.setAttribute("aria-checked", String(state.mock[t.dataset.key])),
+          );
+      }
+
+      // ---------- Toasts ----------
+      function toast(message, kind = "ok") {
+        const el = document.createElement("div");
+        el.className = `toast ${kind}`;
+        el.innerHTML = `${icon(kind === "ok" ? "check" : "alert")}<div>${escapeHtml(message)}</div>`;
+        $("#toasts").appendChild(el);
+        setTimeout(() => {
+          el.classList.add("leaving");
+          setTimeout(() => el.remove(), 180);
+        }, 3600);
+      }
+
+      // ---------- Drawer (mod.io detail) ----------
+      let drawerReturnFocus = null;
+      function openDrawer(data) {
+        const installed = currentGame().mods.find((mod) => mod.id === data.id);
+        const blocked = isWriteLocked() || state.mock.offline;
+        drawerReturnFocus = document.activeElement;
+        $("#drawer").innerHTML =
+          `<div class="drawer-head"><h2 id="drawerTitle">${escapeHtml(data.name)}</h2><button class="btn ghost" data-action="close-drawer" aria-label="Close">${icon("x")}</button></div>
+          <div class="drawer-body"><div class="gallery"><div></div><div></div><div></div></div>
+            <p class="byline">by ${escapeHtml(data.by)} · ${data.cat} · <span class="data">${data.size}</span> · ${data.rating} rating · ${data.dl} downloads</p>
+            <p>A ${data.cat.toLowerCase()} mod for ${escapeHtml(currentGame().fullName)}. The full mod.io description, changelog and media appear here.</p>
+            <h3 class="label-h">Dependencies</h3>
+            <ul class="dep-list"><li><span class="dot ok"></span>Shared UI Library<span class="kind stamp ok">Installed</span></li></ul>
+            <h3 class="label-h">Your rating</h3>
+            <div class="btn-row"><button class="btn" data-action="toast" data-msg="Rated up" ${state.mock.signedOut ? "disabled" : ""}>${icon("star")}Good</button><button class="btn ghost" data-action="toast" data-msg="Report sent to mod.io" data-kind="warn">Report</button></div>
+            ${state.mock.signedOut ? '<p class="muted" style="font-size:12px;margin-top:8px">Sign in to rate or subscribe. Guests can still install.</p>' : ""}
+          </div>
+          <div class="drawer-foot"><span class="powered" style="margin-right:auto;align-self:center">Powered by mod.io</span>
+            <button class="btn ghost" data-action="toast" data-msg="Opened the mod.io page">View on mod.io</button>
+            ${installed ? `<button class="btn" disabled>${icon("check")}Installed</button>` : `<button class="btn primary" data-action="subscribe" data-name="${escapeHtml(data.name)}" data-size="${data.size}" ${blocked ? "disabled" : ""}>${icon("download")}${state.mock.signedOut ? "Install" : "Subscribe & install"}</button>`}</div>`;
+        $("#drawer").classList.add("on");
+        $("#drawer").setAttribute("aria-hidden", "false");
+        $("#scrim").classList.add("on");
+        $("#drawer .drawer-head button").focus();
+      }
+      function closeDrawer() {
+        if (!$("#drawer").classList.contains("on")) return;
+        $("#drawer").classList.remove("on");
+        $("#drawer").setAttribute("aria-hidden", "true");
+        $("#scrim").classList.remove("on");
+        if (drawerReturnFocus && document.contains(drawerReturnFocus))
+          drawerReturnFocus.focus();
+      }
+
+      // ---------- Download simulation ----------
+      let downloadTimer = null;
+      function enqueue(name, size) {
+        state.queue.unshift({ name, size, pct: 0, status: "downloading" });
+        runDownloads();
+      }
+      function runDownloads() {
+        if (downloadTimer) return;
+        downloadTimer = setInterval(() => {
+          let busy = false;
+          state.queue.forEach((item) => {
+            if (item.status === "downloading") {
+              busy = true;
+              item.pct = Math.min(
+                100,
+                item.pct + 9 + Math.round(Math.random() * 8),
+              );
+              if (item.pct >= 100) item.status = "verifying";
+            } else if (item.status === "verifying") {
+              busy = true;
+              item.status = "done";
+              toast(`${item.name} installed and verified`);
+            }
+          });
+          if (state.view === "downloads") renderDownloads();
+          renderNav();
+          if (!busy) {
+            clearInterval(downloadTimer);
+            downloadTimer = null;
+          }
+        }, 450);
+      }
+
+      // ---------- Drop + install preview ----------
+      function openPreview(kind) {
+        const dialog = $("#previewDlg");
+        const game = currentGame();
+        const other = state.game === "a117" ? GAMES.a1800 : GAMES.a117;
+        const check = (level, text) =>
+          `<li>${icon(level === "ok" ? "check" : "alert", "ic-" + level)}<span>${text}</span></li>`;
+        let title;
+        let installLabel = "";
+        let items;
+        if (kind === "wrong") {
+          title = "1 mod found in exact-numbers-babbage.zip";
+          items = `<div class="preview-item"><header><div class="grow"><span class="mod-cat">[UI]</span><span class="mod-name">Exact Numbers</span><span class="mod-id data">exact-numbers-babbage · 5.0.0</span></div><span class="stamp err">Wrong game</span></header>
+            <ul class="preview-checks">${check("err", `Built for <b>${other.label}</b> (modinfo <span class="data">"Anno": ${state.game === "a117" ? 7 : 8}</span>). ${game.label} won't load it.`)}${check("ok", "Archive is valid, with no unsafe paths")}</ul>
+            <div class="callout-actions" style="margin-top:12px"><button class="btn primary" data-action="switch-install">Install for ${other.label} instead</button></div></div>`;
+        } else {
+          title = "Found 3 mods and 1 sub-mod in roman-pack-v2.zip";
+          installLabel = "Install 2 mods";
+          items = `
+            <div class="preview-item"><header><div class="grow"><span class="mod-cat">[Gameplay]</span><span class="mod-name">Aqueduct Core</span><span class="mod-id data">aqueduct-core-felix · 1.2.0</span></div><span class="stamp ok">New</span></header>
+              <ul class="preview-checks">${check("ok", `For ${GAMES.a117.label}`)}${check("ok", "Fixes a missing dependency of Harbour Expansion")}${check("ok", `Installs to <span class="data">mods\\aqueduct-core-felix</span>`)}${check("ok", "Includes sub-mod: Aqueduct Core · Visuals")}</ul></div>
+            <div class="preview-item"><header><div class="grow"><span class="mod-cat">[Gameplay]</span><span class="mod-name">Roads of Latium</span><span class="mod-id data">roads-of-latium-octavia · 1.4.2 → 1.5.0</span></div><span class="stamp accent">Update</span></header>
+              <ul class="preview-checks">${check("ok", "Same ModID, newer version")}${check("ok", "Stays active; 1.4.2 is backed up")}${check("warn", "Not safe to remove from an existing save")}</ul></div>
+            <div class="preview-item"><header><div class="grow"><span class="mod-cat">[Cosmetic]</span><span class="mod-name">Grand Forum Pack</span><span class="mod-id data">grand-forum-pack-livia · 3.0.0 → 2.6.1</span></div><span class="stamp warn">Downgrade</span></header>
+              <ul class="preview-checks">${check("warn", "Older than the installed 3.0.0, so it's skipped")}${check("ok", "Archive is valid, with no unsafe paths")}</ul>
+              <label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:13px"><input type="checkbox" style="accent-color:var(--accent)" /> Install the older version anyway</label></div>`;
+        }
+        const lockNotice = isWriteLocked()
+          ? `<div class="callout err">${icon("lock")}<div>${game.exe} is running. Close the game to install. This preview stays open.</div></div>`
+          : "";
+        dialog.innerHTML = `<div class="drawer-head"><h2 id="previewTitle">${title}</h2><button class="btn ghost" data-action="close-preview" aria-label="Close">${icon("x")}</button></div>
+          <div class="dlg-body">${lockNotice}${items}</div>
+          <div class="drawer-foot"><span class="muted" style="margin-right:auto;align-self:center;font-size:12px">Nothing has been written yet.</span><button class="btn ghost" data-action="close-preview">Cancel</button>${installLabel ? `<button class="btn primary" data-action="confirm-install" ${isWriteLocked() ? "disabled" : ""}>${icon("download")}${installLabel}</button>` : ""}</div>`;
+        dialog.showModal();
+      }
+      function showDropzone(visible) {
+        $("#dropzone").classList.toggle("on", visible);
+        $("#dropzone").setAttribute("aria-hidden", String(!visible));
+      }
+
+      // ---------- First-run wizard ----------
+      let wizardStep = 0;
+      const WIZARD_STEPS = [
+        {
+          title: "Welcome to Atelier",
+          body: () => `<p>We found these games on this PC. Pick the ones to manage. You can add more later.</p>
+            <div class="found">${icon("check", "ic-ok")}<div class="grow"><b>Anno 117: Pax Romana</b><div class="muted data">Ubisoft Connect · C:\\Program Files (x86)\\Ubisoft\\…\\Anno 117 - Pax Romana</div></div><button class="toggle" role="switch" aria-checked="true" aria-label="Manage Anno 117" data-action="press-switch"></button></div>
+            <div class="found">${icon("check", "ic-ok")}<div class="grow"><b>Anno 1800</b><div class="muted data">Steam · D:\\SteamLibrary\\steamapps\\common\\Anno 1800</div></div><button class="toggle" role="switch" aria-checked="true" aria-label="Manage Anno 1800" data-action="press-switch"></button></div>
+            <button class="btn ghost">${icon("folder")}Add a game folder manually</button>`,
+        },
+        {
+          title: "Where should mods go?",
+          body: () => `<p>Documents folders need no admin rights and survive game reinstalls. We recommend them.</p>
+            <div class="found"><div class="grow"><b>Anno 117</b><div class="muted data">${escapeHtml(GAMES.a117.modsPath)}</div></div><span class="stamp ok">Writable</span></div>
+            <div class="found"><div class="grow"><b>Anno 1800</b><div class="muted data">${escapeHtml(GAMES.a1800.modsPath)}</div></div><span class="stamp ok">Writable</span></div>
+            <div class="callout info">${icon("info")}<div>Atelier found 22 mods already installed and will keep their on/off state.</div></div>`,
+        },
+        {
+          title: "Connect mod.io",
+          body: () => `<p>Optional. Sign in to subscribe, rate and sync subscriptions across devices. You can skip this and still browse and install.</p>
+            <div class="auth-options"><button class="auth-option" data-action="wiz-next">${icon("browse")}<div><strong>Sign in with mod.io</strong><span>Opens your browser</span></div></button><button class="auth-option" data-action="wiz-next">${icon("user")}<div><strong>Use a device code</strong><span>Enter a code at mod.io/connect</span></div></button></div>`,
+        },
+        {
+          title: "You're set",
+          body: () => `<p>Drop any mod archive on the window to install it, or browse mod.io. Atelier checks every change before you launch.</p>
+            <div class="callout info">${icon("lock")}<div>While a game is running, Atelier locks the mods folder so nothing changes mid-session.</div></div>`,
+        },
+      ];
+      function renderWizard() {
+        const step = WIZARD_STEPS[wizardStep];
+        const isLast = wizardStep === WIZARD_STEPS.length - 1;
+        $("#wizardDlg").innerHTML =
+          `<ol class="steps" aria-label="Step ${wizardStep + 1} of ${WIZARD_STEPS.length}">${WIZARD_STEPS.map((_, i) => `<li class="${i <= wizardStep ? "done" : ""}"></li>`).join("")}</ol>
+          <div class="drawer-head" style="border:0"><h2 id="wizardTitle">${step.title}</h2></div><div class="dlg-body" style="padding-top:0">${step.body()}</div>
+          <div class="drawer-foot">${wizardStep > 0 ? '<button class="btn ghost" data-action="wiz-back" style="margin-right:auto">Back</button>' : ""}${wizardStep === 2 ? '<button class="btn ghost" data-action="wiz-next">Skip for now</button>' : ""}
+          <button class="btn primary" data-action="${isLast ? "wiz-done" : "wiz-next"}">${isLast ? "Open Atelier" : "Continue"}</button></div>`;
+      }
+
+      // ---------- Actions ----------
+      const findOption = (key) =>
+        (TWEAK_GROUPS[state.tweakMod] || [])
+          .flatMap((g) => g.opts)
+          .find((opt) => opt.key === key);
+      function applyUpdate(mod) {
+        enqueue(mod.name, `${mod.size} MB`);
+        mod.ver = mod.update;
+        delete mod.update;
+      }
+      const ACTIONS = {
+        nav: (d) => {
+          state.view = d.view;
+          closeDrawer();
+          render();
+        },
+        game: (d) => {
+          state.game = d.game;
+          const firstWithIssue = currentGame().mods.find(
+            (mod) => issuesFor(mod).length,
+          );
+          state.selected = (firstWithIssue || currentGame().mods[0]).id;
+          state.profile = "Default";
+          state.filter = "all";
+          render();
+        },
+        select: (d, e) => {
+          if (!e.target.closest(".toggle")) {
+            state.selected = d.id;
+            renderLibrary();
+          }
+        },
+        "toggle-mod": (d) => {
+          const mod = modById(d.id);
+          mod.active = !mod.active;
+          state.selected = mod.id;
+          toast(`${mod.name} ${mod.active ? "activated" : "deactivated"}`);
+          render();
+        },
+        filter: (d) => {
+          state.filter = d.filter;
+          renderLibrary();
+        },
+        "clear-filter": () => {
+          state.filter = "all";
+          state.query = "";
+          renderLibrary();
+        },
+        "install-dep": () => {
+          enqueue("Aqueduct Core", "31 MB");
+          toast("Installing Aqueduct Core from mod.io");
+          state.view = "downloads";
+          render();
+        },
+        "activate-dep": (d) => {
+          modById(d.dep).active = true;
+          render();
+        },
+        deactivate: (d) => {
+          modById(d.id).active = false;
+          toast(`${modById(d.id).name} turned off`);
+          render();
+        },
+        update: (d) => {
+          const mod = modById(d.id);
+          applyUpdate(mod);
+          toast(`Updating ${mod.name}`);
+          render();
+        },
+        "update-all": () => {
+          currentGame()
+            .mods.filter((mod) => mod.update)
+            .forEach(applyUpdate);
+          render();
+        },
+        "open-tweaks": (d) => {
+          state.tweakMod = d.id;
+          state.view = "tweaks";
+          render();
+        },
+        "tweak-mod": (d) => {
+          state.tweakMod = d.id;
+          renderTweaks();
+        },
+        "tweak-toggle": (d) => {
+          const opt = findOption(d.key);
+          opt.value = !opt.value;
+          renderTweaks();
+        },
+        "tweak-reset": (d) => {
+          const opt = findOption(d.key);
+          opt.value = opt.def;
+          renderTweaks();
+          toast(`${opt.label} reset`);
+        },
+        "goto-mod": (d) => {
+          state.selected = d.id;
+          state.view = "library";
+          state.filter = "all";
+          render();
+        },
+        "open-mod": (d) => openDrawer(d),
+        "close-drawer": () => closeDrawer(),
+        subscribe: (d) => {
+          enqueue(d.name, d.size);
+          closeDrawer();
+          toast(`${d.name} queued`);
+          state.view = "downloads";
+          render();
+        },
+        "install-collection": (d) => {
+          toast(
+            `Installing ${d.n} mods from ${d.name}. Profile “${d.name}” created.`,
+          );
+          if (!currentGame().profiles.includes(d.name))
+            currentGame().profiles.push(d.name);
+          state.profile = d.name;
+          render();
+        },
+        retry: (d) => {
+          Object.assign(state.queue[d.idx], { status: "downloading", pct: 0 });
+          runDownloads();
+          renderDownloads();
+        },
+        "cancel-dl": (d) => {
+          state.queue.splice(Number(d.idx), 1);
+          renderDownloads();
+          renderNav();
+        },
+        "simulate-drop": (d) => {
+          $("#mockMenu").classList.remove("on");
+          showDropzone(true);
+          setTimeout(() => {
+            showDropzone(false);
+            openPreview(d.kind);
+          }, 650);
+        },
+        "close-preview": () => $("#previewDlg").close(),
+        "confirm-install": () => {
+          $("#previewDlg").close();
+          const game = GAMES.a117;
+          if (!game.mods.find((mod) => mod.id === "aqueduct-core-felix")) {
+            game.mods.push({
+              id: "aqueduct-core-felix",
+              name: "Aqueduct Core",
+              cat: "Gameplay",
+              ver: "1.2.0",
+              author: "Felix",
+              size: 31,
+              active: true,
+              source: "local",
+              setup: { safe: false, mp: true },
+              desc: "Aqueducts, cisterns and fountains. Installed from a dropped archive.",
+            });
+          }
+          const roads = game.mods.find(
+            (mod) => mod.id === "roads-of-latium-octavia",
+          );
+          if (roads.update) {
+            roads.ver = roads.update;
+            delete roads.update;
+          }
+          Object.assign(state, {
+            game: "a117",
+            view: "library",
+            selected: "harbour-expansion-cassius",
+          });
+          state.mock.empty = false;
+          toast("Installed 2 mods. The downgrade was skipped.");
+          render();
+        },
+        "switch-install": () => {
+          $("#previewDlg").close();
+          state.game = state.game === "a117" ? "a1800" : "a117";
+          state.view = "library";
+          toast(
+            `Switched to ${currentGame().label}. Exact Numbers was already installed here, so nothing changed.`,
+          );
+          render();
+        },
+        launch: () => {
+          const errors = errorCount();
+          toast(
+            errors
+              ? `Launching with ${errors} known issue${errors > 1 ? "s" : ""}. See Health for details.`
+              : `Launching ${currentGame().label}`,
+            errors ? "warn" : "ok",
+          );
+        },
+        "mock-menu": () => {
+          $("#mockMenu").classList.toggle("on");
+          renderStatus();
+        },
+        mock: (d) => {
+          state.mock[d.key] = !state.mock[d.key];
+          if (d.key === "signedOut") state.authStep = "idle";
+          render();
+        },
+        "mock-set": (d) => {
+          state.mock[d.key] = d.val === "true";
+          state.authStep = "idle";
+          render();
+        },
+        "start-signin": () => {
+          state.view = "settings";
+          state.authStep = "terms";
+          render();
+        },
+        auth: (d) => {
+          if (d.step === "done") {
+            state.mock.signedOut = false;
+            state.authStep = "idle";
+            toast("Signed in to mod.io as marcus_builds");
+          } else state.authStep = d.step;
+          renderSettings();
+          renderStatus();
+        },
+        wizard: () => {
+          $("#mockMenu").classList.remove("on");
+          wizardStep = 0;
+          renderWizard();
+          $("#wizardDlg").showModal();
+        },
+        "wiz-next": () => {
+          wizardStep = Math.min(WIZARD_STEPS.length - 1, wizardStep + 1);
+          renderWizard();
+        },
+        "wiz-back": () => {
+          wizardStep = Math.max(0, wizardStep - 1);
+          renderWizard();
+        },
+        "wiz-done": () => {
+          $("#wizardDlg").close();
+          toast("Setup complete");
+        },
+        press: (d, e, el) =>
+          el.setAttribute(
+            "aria-pressed",
+            String(el.getAttribute("aria-pressed") !== "true"),
+          ),
+        "press-switch": (d, e, el) =>
+          el.setAttribute(
+            "aria-checked",
+            String(el.getAttribute("aria-checked") !== "true"),
+          ),
+        toast: (d) => toast(d.msg, d.kind || "ok"),
+        noop: (d, e) => e.preventDefault(),
+      };
+
+      // ---------- Events ----------
+      document.addEventListener("click", (e) => {
+        const el = e.target.closest("[data-action]");
+        if (
+          !e.target.closest("#mockMenu") &&
+          !(el && el.dataset.action === "mock-menu")
+        )
+          $("#mockMenu").classList.remove("on");
+        if (!el) return;
+        const handler = ACTIONS[el.dataset.action];
+        if (handler) handler(el.dataset, e, el);
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          closeDrawer();
+          $("#mockMenu").classList.remove("on");
+          showDropzone(false);
+        }
+        const row = e.target.closest && e.target.closest("tr.row");
+        if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          state.selected = row.dataset.id;
+          renderLibrary();
+          $(`tr.row[data-id="${row.dataset.id}"]`).focus();
+        }
+      });
+      document.addEventListener("input", (e) => {
+        if (e.target.id === "libSearch") {
+          state.query = e.target.value;
+          const caret = e.target.selectionStart;
+          renderLibrary();
+          const search = $("#libSearch");
+          search.focus();
+          search.setSelectionRange(caret, caret);
+        }
+        if (e.target.dataset.tweak) {
+          const opt = findOption(e.target.dataset.tweak);
+          opt.value =
+            opt.type === "slider" ? Number(e.target.value) : e.target.value;
+          const readout = $(`#opt-${opt.key}-v`);
+          if (readout) readout.textContent = `${opt.value}${opt.unit}`;
+        }
+      });
+      document.addEventListener("change", (e) => {
+        if (e.target.id === "profileSel") {
+          state.profile = e.target.value;
+          toast(`Switched to profile “${state.profile}”`);
+          render();
+        }
+        if (e.target.dataset.tweak) renderTweaks();
+      });
+
+      // Real drag-and-drop: any file dragged over the window opens the drop target.
+      let dragDepth = 0;
+      window.addEventListener("dragenter", (e) => {
+        e.preventDefault();
+        dragDepth += 1;
+        showDropzone(true);
+      });
+      window.addEventListener("dragover", (e) => e.preventDefault());
+      window.addEventListener("dragleave", () => {
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (!dragDepth) showDropzone(false);
+      });
+      window.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dragDepth = 0;
+        showDropzone(false);
+        const fileName =
+          e.dataTransfer && e.dataTransfer.files[0]
+            ? e.dataTransfer.files[0].name
+            : "";
+        openPreview(/1800|babbage/i.test(fileName) ? "wrong" : "multi");
+      });
+
+      render();
+    </script>
+  </body>
+</html>
