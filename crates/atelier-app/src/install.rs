@@ -72,18 +72,22 @@ impl App {
         Ok(self.0.engine.cancel(preview_id)?)
     }
 
-    /// Fresh installs are active by default; "inactive" switches them off right after install.
+    /// "Turned on" and "Turned off" override the active profile; "As the profile says" leaves
+    /// fresh installs to its EnableNewMods line.
     pub(crate) fn apply_new_mods_start(&self, game: GameId, installed: &[String]) -> Result<()> {
-        if self.settings().new_mods_start != NewModsStart::Inactive || installed.is_empty() {
+        let active = match self.settings().new_mods_start {
+            NewModsStart::Active => true,
+            NewModsStart::Inactive => false,
+            NewModsStart::Profile => return Ok(()),
+        };
+        if installed.is_empty() {
             return Ok(());
         }
         let writable = self.writable(game);
-        for item in self
-            .scan(game)?
-            .iter()
-            .filter(|item| installed.contains(&item.id) && item.parent_id.is_none())
-        {
-            activation::set_active(game, &writable, item, false, &self.0.snapshots)?;
+        for item in self.scan(game)?.iter().filter(|item| {
+            installed.contains(&item.id) && item.parent_id.is_none() && item.active != active
+        }) {
+            activation::set_active(game, &writable, item, active, &self.0.snapshots)?;
         }
         Ok(())
     }

@@ -166,3 +166,20 @@ fn expired_backups_are_pruned_without_touching_settings() {
     assert!(!expired.exists(), "older than the 30-day default");
     assert!(newest.exists());
 }
+
+#[test]
+fn turned_on_wins_over_a_profile_that_starts_new_mods_off() {
+    let harness = Harness::new();
+    let mods_dir = harness.documents_mods(GameId::Anno117);
+    fs::create_dir_all(&mods_dir).unwrap();
+    // Vanilla doesn't enable new mods, but Settings says new mods start turned on.
+    fs::write(mods_dir.join("profile.txt"), "ActiveProfile Vanilla\n").unwrap();
+    assert_eq!(
+        harness.app.settings().new_mods_start,
+        atelier_app::NewModsStart::Active
+    );
+
+    install_version(&harness, "1.0.0");
+
+    assert!(harness.app.list_mods(GameId::Anno117).unwrap()[0].active);
+}
