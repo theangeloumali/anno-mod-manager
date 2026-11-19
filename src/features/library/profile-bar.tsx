@@ -121,7 +121,7 @@ export function ProfileBar() {
                 saveProfile.mutateAsync([name]),
                 `Saved profile ${name}`,
               );
-              if (result !== undefined) {
+              if (result.ok) {
                 setSaveOpen(false);
                 setNewName("");
               }

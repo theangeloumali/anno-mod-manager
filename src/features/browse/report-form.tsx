@@ -38,7 +38,7 @@ export function ReportForm({
       report.mutateAsync([summary]),
       "Report sent to mod.io",
     );
-    if (sent !== undefined) onDone();
+    if (sent.ok) onDone();
   };
 
   return (

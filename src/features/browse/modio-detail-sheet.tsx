@@ -53,7 +53,7 @@ export function ModioDetailSheet({
       sendRating.mutateAsync([modioId, nextRating === "up"]),
       "Rating sent to mod.io",
     );
-    if (sent !== undefined) setRating(nextRating);
+    if (sent.ok) setRating(nextRating);
   };
 
   return (

@@ -352,7 +352,7 @@ export function ModDetail({
                     },
                   );
                   setConfirmOpen(false);
-                  if (result !== undefined) selectMod(null);
+                  if (result.ok) selectMod(null);
                 }}
               >
                 Uninstall
