@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAction, useGames, useSettings } from "@/data/source";
 import type { GameInfo, Settings, Store } from "@/data/types";
 import { AccountPanel } from "./account-panel";
+import { ApiKeyPanel } from "./api-key-panel";
 
 const STORE_LABEL: Record<Store, string> = {
   steam: "Steam",
@@ -111,10 +112,13 @@ export function SettingsScreen() {
       />
       <Panel title="mod.io account">
         <p className="mb-3 text-ui text-copy-muted">
-          Used for subscriptions, ratings and collections. Atelier works offline
-          with installed mods.
+          Your own API key lets Atelier browse mod.io; signing in adds
+          subscriptions, ratings and collections. Installed mods work offline.
         </p>
-        <AccountPanel />
+        <div className="flex flex-col gap-3">
+          <ApiKeyPanel />
+          <AccountPanel />
+        </div>
       </Panel>
       <Panel title="Games">
         <p className="mb-3 text-ui text-copy-muted">

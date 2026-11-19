@@ -33,6 +33,7 @@ export interface MockScenario {
   gameRunning: boolean;
   signedOut: boolean;
   offline: boolean;
+  noApiKey: boolean;
 }
 
 /** Drop sources the "Mock-up states" menu can simulate, per game. */
@@ -990,6 +991,7 @@ function createState() {
       gameRunning: false,
       signedOut: false,
       offline: false,
+      noApiKey: false,
     } as MockScenario,
     currentGame: "anno117" as GameId,
     runningGame: null as GameId | null,
@@ -1046,7 +1048,8 @@ function createState() {
       username: "aurelia_builds",
       expiresAt: "2027-02-18T00:00:00Z",
       termsAccepted: true,
-    } as Account,
+    } as Omit<Account, "hasApiKey">,
+    apiKeySet: true,
     pendingApprovalAt: null as number | null,
     settings: { ...DEFAULT_SETTINGS },
     downloads: seedDownloads(Date.now()),
@@ -1063,6 +1066,11 @@ const respond = <T>(value: T): Promise<T> =>
   new Promise((resolve) =>
     setTimeout(() => resolve(structuredClone(value)), MOCK_LATENCY_MS),
   );
+
+/** mod.io needs the user's own API key, or a signed-in token, before any read. */
+const NO_API_KEY_MESSAGE =
+  "Add your mod.io API key in Settings to browse mod.io.";
+const lacksModioAccess = () => !state.apiKeySet && !state.account.signedIn;
 
 const refuse = (message: string): Promise<never> =>
   new Promise((_resolve, reject) =>
@@ -1728,6 +1736,7 @@ export function setMockScenario(
       termsAccepted: false,
     };
   }
+  if (patch.noApiKey !== undefined) state.apiKeySet = !patch.noApiKey;
   if (patch.signedOut === false) settleApproval();
   if (patch.signedOut === false && !state.account.signedIn)
     state.account = {
@@ -1940,6 +1949,7 @@ export const mockSource: DataSource = {
   browseModio: (query) => {
     if (state.scenario.offline)
       return refuse("mod.io is unreachable. Check your connection.");
+    if (lacksModioAccess()) return refuse(NO_API_KEY_MESSAGE);
     const installedIds = new Set(state.mods[query.game].map((mod) => mod.id));
     const search = query.search.trim().toLowerCase();
     const sortValue: Record<string, (item: ModioMod) => number> = {
@@ -1981,6 +1991,7 @@ export const mockSource: DataSource = {
   listCollections: (game) => {
     if (state.scenario.offline)
       return refuse("mod.io is unreachable. Check your connection.");
+    if (lacksModioAccess()) return refuse(NO_API_KEY_MESSAGE);
     return respond(state.collections[game]);
   },
 
@@ -2095,11 +2106,30 @@ export const mockSource: DataSource = {
 
   account: () => {
     settleApproval();
-    return respond(state.account);
+    return respond({ ...state.account, hasApiKey: state.apiKeySet });
   },
 
   acceptTerms: () => {
     state.account.termsAccepted = true;
+    return respond(undefined);
+  },
+
+  setApiKey: (key) => {
+    if (state.scenario.offline)
+      return refuse("mod.io is unreachable, so the key can't be checked yet.");
+    // mod.io API keys are 32 hex characters; the real core checks them with GET /games/{id}.
+    if (!/^[0-9a-f]{32}$/i.test(key.trim()))
+      return refuse(
+        "mod.io doesn't recognise that key. Copy it again from mod.io/me/access.",
+      );
+    state.apiKeySet = true;
+    state.scenario.noApiKey = false;
+    return respond(undefined);
+  },
+
+  clearApiKey: () => {
+    state.apiKeySet = false;
+    state.scenario.noApiKey = true;
     return respond(undefined);
   },
 

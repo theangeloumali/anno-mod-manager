@@ -231,6 +231,8 @@ export interface LogEntry {
 export type AuthMethod = "browser" | "device" | "token";
 
 export interface Account {
+  /** The user's own mod.io API key is in the OS keychain; the app never ships one. */
+  hasApiKey: boolean;
   signedIn: boolean;
   username: string | null;
   expiresAt: string | null;

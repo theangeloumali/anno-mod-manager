@@ -61,6 +61,8 @@ export interface DataSource {
   loaderLog(game: GameId): Promise<LogEntry[]>;
   account(): Promise<Account>;
   acceptTerms(): Promise<void>;
+  setApiKey(key: string): Promise<void>;
+  clearApiKey(): Promise<void>;
   signIn(method: AuthMethod, token?: string): Promise<DeviceCode | null>;
   signOut(): Promise<void>;
   getSettings(): Promise<Settings>;

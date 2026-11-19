@@ -24,6 +24,7 @@ import { useGames, useMods } from "@/data/source";
 import type { GameId } from "@/data/types";
 import { cn } from "@/lib/utils";
 import { AccountPanel } from "../settings/account-panel";
+import { ApiKeyPanel } from "../settings/api-key-panel";
 
 const STEP_TITLES = [
   "Welcome to Atelier",
@@ -141,9 +142,11 @@ export function FirstRunWizard() {
     </>,
     <>
       <p className="text-ui text-copy-muted">
-        Optional. Sign in to subscribe, rate and sync subscriptions across
-        devices. You can skip this and still browse and install.
+        Add your own mod.io API key to browse mod.io. Signing in is optional: it
+        lets you subscribe, rate and sync. You can skip both and still install
+        mods you drop in.
       </p>
+      <ApiKeyPanel />
       <AccountPanel />
     </>,
     <>

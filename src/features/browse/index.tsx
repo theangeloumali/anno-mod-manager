@@ -1,6 +1,7 @@
 // Created by The Angelo Umali.
-import { CloudOffIcon, SearchIcon, StarIcon } from "lucide-react";
+import { CloudOffIcon, KeyRoundIcon, SearchIcon, StarIcon } from "lucide-react";
 import { useState } from "react";
+import { useAppStore } from "@/components/app/app-store";
 import { ChoiceSelect } from "@/components/app/choice-select";
 import { FIELD_CLASS, SWITCH_CLASS } from "@/components/app/field-class";
 import { formatCount } from "@/components/app/format";
@@ -70,6 +71,8 @@ function ModioCard({ mod, onOpen }: { mod: ModioMod; onOpen: () => void }) {
 export function BrowseScreen() {
   const { gameId, game, shortName } = useCurrentGame();
   const { data: account } = useAccount();
+  const setView = useAppStore((store) => store.setView);
+  const needsApiKey = account ? !account.hasApiKey && !account.signedIn : false;
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState(ALL_TAGS);
   const [sort, setSort] = useState<ModioSort>("trending");
@@ -115,7 +118,7 @@ export function BrowseScreen() {
           <input
             type="search"
             value={search}
-            disabled={isError}
+            disabled={isError || needsApiKey}
             onChange={(event) => resetPaging(setSearch)(event.target.value)}
             placeholder="Search mod.io"
             className={`${FIELD_CLASS} pl-9`}
@@ -124,7 +127,7 @@ export function BrowseScreen() {
         <ChoiceSelect
           label="Tag"
           value={tag}
-          isDisabled={isError}
+          isDisabled={isError || needsApiKey}
           choices={[
             { value: ALL_TAGS, label: "All tags" },
             ...tags.map((tagName) => ({ value: tagName, label: tagName })),
@@ -134,7 +137,7 @@ export function BrowseScreen() {
         <ChoiceSelect
           label="Sort"
           value={sort}
-          isDisabled={isError}
+          isDisabled={isError || needsApiKey}
           choices={SORT_CHOICES}
           onChange={resetPaging(setSort)}
         />
@@ -149,7 +152,20 @@ export function BrowseScreen() {
         </label>
       </div>
 
-      {isError ? (
+      {needsApiKey ? (
+        <EmptyState
+          icon={<KeyRoundIcon />}
+          title="Add your mod.io API key"
+          actions={
+            <Button variant="steel" onClick={() => setView("settings")}>
+              Open Settings
+            </Button>
+          }
+        >
+          Browsing mod.io needs your own free API key from mod.io/me/access.
+          Mods you drop onto the window install without one.
+        </EmptyState>
+      ) : isError ? (
         <EmptyState
           icon={<CloudOffIcon />}
           title="mod.io is unreachable"

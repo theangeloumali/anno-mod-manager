@@ -31,6 +31,7 @@ const SCENARIO_SWITCHES: { key: keyof MockScenario; label: string }[] = [
   { key: "gameRunning", label: "Game running (writes locked)" },
   { key: "signedOut", label: "Signed out of mod.io" },
   { key: "offline", label: "Offline" },
+  { key: "noApiKey", label: "No mod.io API key" },
 ];
 
 export function MockStatesMenu() {

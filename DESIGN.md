@@ -1,6 +1,6 @@
 # DESIGN
 
-**Theme: ZKidz** (Angelo, 2026-11-19). The app uses the same tokens as ZKidz Studio and ZKidz Courses on shadcn/ui. The v1 "harbour ledger" direction in `mockup/index.html` is **superseded**. That file is kept only as the reference for flows and edge states.
+**Theme: ZKidz** (Angelo, 2026-11-19). The app uses the same tokens as ZKidz Studio and ZKidz Courses on shadcn/ui. `mockup/index.html` is the clickable v2 mock-up: one self-contained file that opens from disk, rebuilt with `pnpm build:mockup`. The superseded v1 "harbour ledger" mock-up lives in `mockup/v1/` as a flow reference only.
 
 ## Source of truth
 
