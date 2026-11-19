@@ -826,3 +826,82 @@ async fn retrying_a_failed_job_never_runs_beside_an_active_one_for_that_page() {
         .count();
     assert_eq!(active, 1);
 }
+
+#[tokio::test]
+async fn a_mod_shared_by_two_pending_collections_is_on_in_both_their_profiles() {
+    let server = MockServer::start().await;
+    let info = modinfo("roman-roads", "1.0.0", GameId::Anno117);
+    let archive = zip_bytes(&[("Packed/modinfo.json", info.as_bytes())]);
+    let mut detail = fixture("mod.json");
+    detail["modfile"]["download"]["binary_url"] =
+        Value::String(format!("{}/v1/files/shared/download", server.uri()));
+    detail["modfile"]["filehash"]["md5"] = Value::String(format!("{:x}", Md5::digest(&archive)));
+    detail["modfile"]["filesize"] = Value::from(archive.len());
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(detail)
+                .set_delay(Duration::from_millis(400)),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/files/shared/download"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(archive))
+        .mount(&server)
+        .await;
+    // Two collections, 310 and 311, both holding mod 4801.
+    let mut collections = fixture("collections.json");
+    let mut second = collections["data"][0].clone();
+    second["id"] = Value::from(311);
+    second["name"] = Value::from("Second Pack");
+    collections["data"].as_array_mut().unwrap().push(second);
+    collections["result_count"] = Value::from(2);
+    collections["result_total"] = Value::from(2);
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/collections"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(collections))
+        .mount(&server)
+        .await;
+    for id in [310, 311] {
+        Mock::given(method("GET"))
+            .and(path(format!("/v1/games/11358/collections/{id}/mods")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(fixture("collection_mods.json")))
+            .mount(&server)
+            .await;
+    }
+    let harness = harness_for(&server, Some(API_KEY));
+
+    let first = harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap()
+        .unwrap();
+    let second = harness
+        .app
+        .install_collection(GameId::Anno117, 311)
+        .await
+        .unwrap()
+        .unwrap();
+    // One download serves both collections.
+    let job = wait_for_job(&harness).await;
+    assert_eq!(job.status, DownloadStatus::Done, "{:?}", job.error);
+
+    for profile in [&first, &second] {
+        harness
+            .app
+            .switch_profile(GameId::Anno117, profile)
+            .unwrap();
+        assert!(
+            installed(&harness, "roman-roads").active,
+            "off in {profile}"
+        );
+    }
+    harness
+        .app
+        .switch_profile(GameId::Anno117, "Default")
+        .unwrap();
+    assert!(!installed(&harness, "roman-roads").active);
+}

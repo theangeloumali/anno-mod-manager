@@ -10,12 +10,30 @@ use crate::{App, lock};
 
 const PROFILE_PREFIX: &str = "Collection - ";
 
-/// Where a collection's not-yet-downloaded mods go once they land: on in its own profile,
-/// off in every profile that existed before it.
+/// Where a collection's not-yet-downloaded mods go once they land: on in each collection
+/// profile waiting for them, off in every other profile that existed before.
 #[derive(Clone)]
 pub(crate) struct HeldCollection {
-    profile: String,
-    others: Vec<String>,
+    on: Vec<String>,
+    off: Vec<String>,
+}
+
+impl HeldCollection {
+    /// Two collections can wait on one mod; it ends up on in both of their profiles.
+    fn merge(&mut self, other: &HeldCollection) {
+        for name in &other.on {
+            if !self.on.contains(name) {
+                self.on.push(name.clone());
+            }
+        }
+        for name in &other.off {
+            if !self.off.contains(name) {
+                self.off.push(name.clone());
+            }
+        }
+        let on = self.on.clone();
+        self.off.retain(|name| !on.contains(name));
+    }
 }
 /// atelier-core refuses profile names over 64 bytes; this leaves room for a " 99" suffix.
 const MAX_BASE_NAME: usize = 60;
@@ -78,12 +96,14 @@ impl App {
             .filter(|name| name != collection_profile)
             .collect();
         let pending = HeldCollection {
-            profile: collection_profile.to_owned(),
-            others,
+            on: vec![collection_profile.to_owned()],
+            off: others,
         };
         let mut held = lock(&self.0.held_off);
         for &modio_id in modio_ids.difference(&installed) {
-            held.insert((game, modio_id), pending.clone());
+            held.entry((game, modio_id))
+                .and_modify(|existing| existing.merge(&pending))
+                .or_insert_with(|| pending.clone());
         }
         Ok(())
     }
@@ -94,6 +114,7 @@ impl App {
         if let Some(pending) = held.get(&(game, modio_id)).cloned() {
             for &dependency in dependencies {
                 held.entry((game, dependency))
+                    .and_modify(|existing| existing.merge(&pending))
                     .or_insert_with(|| pending.clone());
             }
         }
@@ -117,12 +138,12 @@ impl App {
             .collect();
         let writable = self.writable(game);
         let snapshots = &self.0.snapshots;
-        for name in pending.others.iter().filter(|name| existing.contains(name)) {
+        for name in pending.off.iter().filter(|name| existing.contains(name)) {
             activation::set_in_profile(&writable, name, mod_ids, false, snapshots)?;
         }
-        // On in the collection's own profile, whatever the new-mods setting did on install.
-        if existing.contains(&pending.profile) {
-            activation::set_in_profile(&writable, &pending.profile, mod_ids, true, snapshots)?;
+        // On in each waiting collection's profile, whatever the new-mods setting did on install.
+        for name in pending.on.iter().filter(|name| existing.contains(name)) {
+            activation::set_in_profile(&writable, name, mod_ids, true, snapshots)?;
         }
         lock(&self.0.held_off).remove(&(game, modio_id));
         Ok(())
