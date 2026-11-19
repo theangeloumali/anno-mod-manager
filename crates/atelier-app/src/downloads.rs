@@ -61,10 +61,24 @@ impl App {
             }
             // Checked before the job changes, so a refusal never leaves it stuck as Queued.
             self.guard_writes(entry.game)?;
+            let (game, modio_id) = (entry.game, entry.job.modio_id);
+            // Another job already fetches this page; a second would race it into the install.
+            if jobs.iter().any(|other| {
+                other.game == game
+                    && other.job.modio_id == modio_id
+                    && !is_finished(other.job.status)
+            }) {
+                jobs.retain(|other| other.job.id != job_id);
+                return Ok(());
+            }
+            let entry = jobs
+                .iter_mut()
+                .find(|entry| entry.job.id == job_id)
+                .ok_or_else(gone)?;
             entry.job.status = DownloadStatus::Queued;
             entry.job.progress = 0.0;
             entry.job.error = None;
-            (entry.game, entry.job.modio_id)
+            (game, modio_id)
         };
         self.spawn(job_id.to_owned(), game, modio_id);
         Ok(())
@@ -161,6 +175,19 @@ impl App {
         game: GameId,
         modio_ids: impl Iterator<Item = u64>,
     ) -> Result<Vec<u64>> {
+        let missing = self.missing_pages(game, modio_ids)?;
+        for &modio_id in &missing {
+            self.start_job(game, modio_id);
+        }
+        Ok(missing)
+    }
+
+    /// The pages neither installed nor already downloading.
+    fn missing_pages(
+        &self,
+        game: GameId,
+        modio_ids: impl Iterator<Item = u64>,
+    ) -> Result<Vec<u64>> {
         let installed: HashSet<u64> = self
             .list_mods(game)?
             .into_iter()
@@ -171,13 +198,9 @@ impl App {
             .filter(|entry| !is_finished(entry.job.status))
             .map(|entry| entry.job.modio_id)
             .collect();
-        let missing: Vec<u64> = modio_ids
+        Ok(modio_ids
             .filter(|modio_id| !installed.contains(modio_id) && !queued.contains(modio_id))
-            .collect();
-        for &modio_id in &missing {
-            self.start_job(game, modio_id);
-        }
-        Ok(missing)
+            .collect())
     }
 
     /// A page already downloading is not queued again; two installs of one mod would race.
@@ -222,11 +245,13 @@ impl App {
                 }
             });
         });
-        if let Some(entry) = lock(&self.0.jobs)
+        match lock(&self.0.jobs)
             .iter_mut()
             .find(|entry| entry.job.id == job_id)
         {
-            entry.abort = Some(task.abort_handle());
+            Some(entry) => entry.abort = Some(task.abort_handle()),
+            // Cancelled before its handle was stored: stop it rather than let it install.
+            None => task.abort(),
         }
     }
 
@@ -247,8 +272,12 @@ impl App {
         });
         if detail.has_dependencies && self.settings().install_dependencies {
             let dependencies = client.dependencies(game, modio_id).await?;
-            let started = self.start_missing(game, dependencies.iter().map(|item| item.id))?;
-            self.hold_dependencies(game, modio_id, &started);
+            let missing = self.missing_pages(game, dependencies.iter().map(|item| item.id))?;
+            // Held before they start, so a dependency that lands first still gets its profile rules.
+            self.hold_dependencies(game, modio_id, &missing);
+            for &dependency in &missing {
+                self.start_job(game, dependency);
+            }
         }
         let staging = self.0.data_dir.join("downloads").join(job_id);
         let archive = client

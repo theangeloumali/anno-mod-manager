@@ -797,3 +797,32 @@ async fn a_collection_mod_is_on_in_its_profile_even_when_new_mods_start_off() {
         .unwrap();
     assert!(!installed(&harness, "roman-roads").active);
 }
+
+#[tokio::test]
+async fn retrying_a_failed_job_never_runs_beside_an_active_one_for_that_page() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(fixture("mod_no_modfile.json"))
+                .set_delay(Duration::from_millis(300)),
+        )
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
+    let failed = wait_for_job(&harness).await;
+    assert_eq!(failed.status, DownloadStatus::Failed);
+    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
+
+    harness.app.retry_download(&failed.id).unwrap();
+
+    let active = harness
+        .app
+        .list_downloads()
+        .into_iter()
+        .filter(|job| !matches!(job.status, DownloadStatus::Done | DownloadStatus::Failed))
+        .count();
+    assert_eq!(active, 1);
+}
