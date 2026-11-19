@@ -96,7 +96,7 @@ fn safe_relative(raw: &str) -> Option<PathBuf> {
             "" | "." => {}
             ".." => return None,
             // A colon is a drive letter or an NTFS stream on Windows.
-            name if name.contains(':') => return None,
+            name if name.contains(':') || !crate::fsops::is_windows_safe_name(name) => return None,
             name => relative.push(name),
         }
     }
@@ -226,8 +226,17 @@ mod tests {
             "C:/x",
             "a/b:stream",
             "a\0b",
+            // Windows trims trailing dots and spaces and maps device names to devices.
+            "a/b.",
+            "a/b ",
+            "CON",
+            "x/nul.txt",
+            "x/Com1.dds",
+            "a<b",
+            "a|b",
         ] {
             assert_eq!(safe_relative(raw), None, "{raw}");
         }
+        assert!(safe_relative("console/conan.txt").is_some());
     }
 }

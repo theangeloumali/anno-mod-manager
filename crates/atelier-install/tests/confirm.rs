@@ -97,6 +97,16 @@ fn a_new_mod_lands_in_a_mod_id_folder_and_creates_the_mods_dir() {
 }
 
 #[test]
+fn a_mod_id_that_is_a_windows_device_name_gets_a_safe_folder() {
+    let sandbox = Sandbox::new();
+
+    install(&sandbox, "Console Tweaks", "con", "1.0");
+
+    assert!(sandbox.mods().join("con-mod").is_dir());
+    assert!(!sandbox.mods().join("con").exists());
+}
+
+#[test]
 fn an_update_replaces_an_installed_mod_whose_mod_id_normalises_to_empty() {
     let sandbox = Sandbox::new();
     // The scan names this one by its folder, "cool-mod"; the update must find it the same way.

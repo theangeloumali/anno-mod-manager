@@ -161,7 +161,12 @@ pub(crate) fn target_folder(target: &Path, mod_id: &str) -> Result<String> {
     Ok(candidate)
 }
 
-/// Normalised ModIDs may hold `*`, which Windows forbids in folder names.
+/// Normalised ModIDs may hold `*`, which Windows forbids, or be a device name like `con`.
 pub(crate) fn new_folder_name(mod_id: &str) -> String {
-    mod_id.replace('*', "_")
+    let name = mod_id.replace('*', "_");
+    if crate::fsops::is_windows_safe_name(&name) {
+        name
+    } else {
+        format!("{name}-mod")
+    }
 }

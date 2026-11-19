@@ -39,6 +39,20 @@ fn copy_verify_delete(from: &Path, to: &Path) -> Result<()> {
 }
 
 /// Copies a tree, leaving out what `skip` (given the relative path) rejects. Symlinks are refused.
+const DEVICE_NAMES: [&str; 22] = [
+    "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8",
+    "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+];
+
+/// Windows trims a trailing dot or space and opens a device for `CON`, `nul.txt` and the like,
+/// so such a name would collide with another file or not be a file at all.
+pub(crate) fn is_windows_safe_name(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or(name).to_ascii_lowercase();
+    !name.ends_with(['.', ' '])
+        && !name.contains(['<', '>', '"', '|', '?', '*'])
+        && !DEVICE_NAMES.contains(&stem.trim_end())
+}
+
 /// `charge` sees each file's size before it is copied and can stop the copy (a drop's budget).
 pub(crate) fn copy_tree(
     from: &Path,
