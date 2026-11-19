@@ -137,8 +137,17 @@ fn count_files(dir: &Path) -> Result<usize> {
     Ok(count)
 }
 
+/// A folder name from the archive's stem; a stem like ".." or "a/b" would escape, so it becomes "mod".
 fn archive_stem(path: &Path) -> String {
-    path.file_stem()
+    let stem = path
+        .file_stem()
         .map(|stem| stem.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "mod".into())
+        .unwrap_or_default();
+    // Windows drops trailing dots and spaces, so "..." would also resolve to "..".
+    let trimmed = stem.trim_end_matches(['.', ' ']);
+    if trimmed.is_empty() || trimmed.contains(['/', '\\', ':']) {
+        "mod".into()
+    } else {
+        trimmed.into()
+    }
 }

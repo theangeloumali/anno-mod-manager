@@ -150,6 +150,41 @@ fn downgrades_and_same_versions_are_skipped_unless_opted_in() {
 }
 
 #[test]
+fn a_folder_named_like_the_new_mod_but_holding_another_mod_is_left_alone() {
+    let sandbox = Sandbox::new();
+    seed(&sandbox, "cool-mod", "other-mod", "1.0");
+
+    install(&sandbox, "Cool", "cool-mod", "2.0");
+
+    let untouched = fs::read_to_string(sandbox.mods().join("cool-mod/modinfo.json")).unwrap();
+    assert!(untouched.contains("other-mod"));
+    assert!(sandbox.mods().join("cool-mod-2/modinfo.json").exists());
+    assert!(backup_versions(&sandbox, "other-mod").is_empty());
+}
+
+#[test]
+fn the_preview_names_the_free_folder_when_the_mod_id_folder_is_taken() {
+    let sandbox = Sandbox::new();
+    seed(&sandbox, "cool-mod", "other-mod", "1.0");
+    let info = modinfo("cool-mod", "2.0", Some(8));
+    let preview = preview_zip(
+        &sandbox,
+        "Cool.zip",
+        &[Entry::File("Cool/modinfo.json", info.as_bytes())],
+    );
+
+    let messages: Vec<_> = preview.items[0]
+        .checks
+        .iter()
+        .map(|c| c.message.as_str())
+        .collect();
+    assert!(
+        messages.contains(&"Installs to mods\\cool-mod-2"),
+        "{messages:?}"
+    );
+}
+
+#[test]
 fn a_mod_id_that_normalises_to_empty_is_invalid_and_never_touches_the_mods_folder() {
     let sandbox = Sandbox::new();
     seed(&sandbox, "keep-me", "keep-me", "1.0");

@@ -22,6 +22,26 @@ fn preview_error(sandbox: &Sandbox, entries: &[Entry]) -> Error {
 }
 
 #[test]
+fn a_nested_archive_named_dot_dot_stays_inside_its_staging_folder() {
+    let sandbox = Sandbox::new();
+    let inner = zip_bytes(&[Entry::File(
+        "Escaped/modinfo.json",
+        modinfo("escaped", "1", Some(8)).as_bytes(),
+    )]);
+    let archive = sandbox.drop_path("outer.zip");
+    write_zip(&archive, &[Entry::File("...zip", &inner)]);
+
+    // A ".." stem used to unpack beside src-N, leaving the source "empty"; now the mod is found inside it.
+    let preview = sandbox
+        .engine
+        .preview(GameId::Anno117, &[archive], &[])
+        .unwrap();
+
+    assert_eq!(preview.items.len(), 1);
+    assert_eq!(preview.items[0].mod_id, "escaped");
+}
+
+#[test]
 fn zip_slip_rejects_the_whole_archive() {
     let sandbox = Sandbox::new();
     let error = preview_error(

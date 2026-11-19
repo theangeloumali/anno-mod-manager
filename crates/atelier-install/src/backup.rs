@@ -8,7 +8,7 @@ use atelier_core::normalize_mod_id;
 
 use crate::error::io_at;
 use crate::fsops::{child_dirs, file_name, move_dir};
-use crate::install::{existing_folder, identify, new_folder_name};
+use crate::install::{identify, new_folder_name, target_folder};
 use crate::{Error, Result};
 
 const MILLIS_PER_DAY: u64 = 86_400_000;
@@ -33,8 +33,7 @@ pub(crate) fn rollback(backup_dir: &Path, target: &Path, mod_id: &str) -> Result
     let (_, newest) = list_backups(&backup_dir.join(new_folder_name(mod_id)))?
         .pop()
         .ok_or_else(|| Error::NoBackup(mod_id.to_string()))?;
-    let folder = existing_folder(target, mod_id)?.unwrap_or_else(|| new_folder_name(mod_id));
-    let dest = target.join(folder);
+    let dest = target.join(target_folder(target, mod_id)?);
     let displaced = if dest.exists() {
         let slot = backup_path(backup_dir, &dest)?;
         move_dir(&dest, &slot)?;

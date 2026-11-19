@@ -69,8 +69,7 @@ fn place(
     journal: &mut Vec<Step>,
 ) -> Result<()> {
     let mod_id = &staged.item.mod_id;
-    // An update keeps the folder name the player already has.
-    let folder = existing_folder(target, mod_id)?.unwrap_or_else(|| new_folder_name(mod_id));
+    let folder = target_folder(target, mod_id)?;
     let dest = target.join(&folder);
     // Defence in depth: never back up or replace anything but a direct child of the mods folder.
     if mod_id.is_empty()
@@ -143,6 +142,22 @@ pub(crate) fn identify(dir: &Path) -> (String, String) {
         .map(|info| info.version)
         .unwrap_or_else(|| "unknown".into());
     (id, version)
+}
+
+/// The mod's current folder (an update keeps the player's name), else the first free
+/// `<id>`, `<id>-2`, … so a folder that holds a different mod is never displaced.
+pub(crate) fn target_folder(target: &Path, mod_id: &str) -> Result<String> {
+    if let Some(existing) = existing_folder(target, mod_id)? {
+        return Ok(existing);
+    }
+    let base = new_folder_name(mod_id);
+    let mut candidate = base.clone();
+    let mut suffix = 2;
+    while target.join(&candidate).exists() {
+        candidate = format!("{base}-{suffix}");
+        suffix += 1;
+    }
+    Ok(candidate)
 }
 
 /// Normalised ModIDs may hold `*`, which Windows forbids in folder names.

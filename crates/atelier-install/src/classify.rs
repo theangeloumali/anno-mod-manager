@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::path::Path;
 
-use atelier_core::{GameId, Mod, ModInfo, Severity, normalize_mod_id};
+use atelier_core::{GameId, Mod, ModInfo, ModLocation, Severity, normalize_mod_id};
 
 use crate::fsops::file_name;
 use crate::install::new_folder_name;
@@ -88,6 +88,24 @@ impl<'a> Classifier<'a> {
         item
     }
 
+    /// Mirrors `install::target_folder` from the scan, so the preview names the folder confirm will use.
+    fn free_folder_name(&self, mod_id: &str) -> String {
+        let taken: HashSet<&str> = self
+            .installed
+            .iter()
+            .filter(|installed| installed.location == ModLocation::Documents)
+            .map(|installed| installed.folder.as_str())
+            .collect();
+        let base = new_folder_name(mod_id);
+        let mut candidate = base.clone();
+        let mut suffix = 2;
+        while taken.contains(candidate.as_str()) {
+            candidate = format!("{base}-{suffix}");
+            suffix += 1;
+        }
+        candidate
+    }
+
     fn invalid_reason(&self, root: &FoundRoot) -> Option<String> {
         // An empty ModID would name the mods folder itself as the install target.
         if root.mod_id().is_empty() {
@@ -125,7 +143,7 @@ impl<'a> Classifier<'a> {
                 && installed.parent_id.is_none()
         });
         let Some(existing) = existing else {
-            let folder = new_folder_name(&item.mod_id);
+            let folder = self.free_folder_name(&item.mod_id);
             item.checks
                 .push(check(Severity::Ok, format!("Installs to mods\\{folder}")));
             return;
