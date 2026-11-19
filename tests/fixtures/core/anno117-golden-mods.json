@@ -1,0 +1,1451 @@
+{
+ "_note": "LoadAfter edges and copy-pools metadata are inferred from the real log order; the real modinfos are not in the corpus.",
+ "mods": [
+  {
+   "folder": "[Cheat] Increased Harbour Area (Taludas)",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "taludas-increaseharbourarea",
+    "Version": "1.0.3",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Increased Harbour Area (Taludas)"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Base] Roman Life Aegyptus [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-base-aegyptus-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Base"
+    },
+    "ModName": {
+     "English": "Roman Life Aegyptus"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "taludas-increaseharbourarea"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Acacia Gum [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-acaciagum-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Acacia Gum"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Alabaster [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-alabaster-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Alabaster"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Alabaster Unguent Jars [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-alabasterunguentjars-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Alabaster Unguent Jars"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "rl-raw-acaciagum-khayi",
+      "rl-raw-alabaster-khayi"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Natron [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-natron-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Natron"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Alexandrian Mosaic Glass [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-alexandrianmosaicglass-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Alexandrian Mosaic Glass"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "rl-raw-natron-khayi"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Alum [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-alum-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Alum"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Ink [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-ink-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Ink"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Armillary Spheres [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-armillaryspheres-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Armillary Spheres"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "rl-raw-alum-khayi",
+      "rl-raw-ink-khayi"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Bed Nets [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-bednets-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Bed Nets"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Byssos [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-byssos-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Byssos"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Burial Ensemble [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-burialensemble-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Burial Ensemble"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "rl-raw-byssos-khayi"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Henna [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-henna-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Henna"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Collyria [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-collyria-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Collyria"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "rl-raw-henna-khayi"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Counting Boards [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-countingboards-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Counting Boards"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Doum Fruit [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-doumfruit-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Doum Fruit"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Egyptian Beer [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-egyptianbeer-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Egyptian Beer"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Palm Wine [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-palmwine-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Palm Wine"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Embalming Supplies [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-embalmingsupplies-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Embalming Supplies"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "rl-raw-palmwine-khayi"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Emeralds [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-emeralds-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Emeralds"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Emerald Earrings [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-emeraldearrings-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Emerald Earrings"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "rl-raw-emeralds-khayi"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Palm Fronds [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-palmfronds-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Palm Fronds"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Ephebic Dress [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-ephebicdress-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Ephebic Dress"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "rl-raw-palmfronds-khayi"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Faience Frit [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-faiencefrit-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Faience Frit"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Faience Lotus Chalices [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-faiencelotuschalices-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Faience Lotus Chalices"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "rl-raw-faiencefrit-khayi"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Himation Tailor [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-tapestrytunics-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Himation Tailor"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Horoscopes [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-horoscopes-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Horoscopes"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Sweet Rush [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-sweetrush-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Sweet Rush"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Kyphi [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-kyphi-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Kyphi"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Isiac Rite Kits [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-isiacritekits-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Isiac Rite Kits"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "rl-raw-sweetrush-khayi",
+      "rl-kyphi-khayi"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Isis-knot Mantles [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-isisknotmantles-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Isis-knot Mantles"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Kyprinon [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-kyprinon-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Kyprinon"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Latium Goods [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-latiumgoods-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Latium Goods"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Melons [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-melons-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Melons"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Palm-leaf Mats [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-palmleafmats-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Palm-leaf Mats"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Persea [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-persea-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Persea"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Plaited Sandals [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-plaitedsandals-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Plaited Sandals"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Plakous [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-plakous-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Plakous"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Red Sea Shellfish [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-redseashellfish-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Red Sea Shellfish"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Red Sea Seafood Platter [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-seafoodplatter-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Red Sea Seafood Platter"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "rl-raw-redseashellfish-khayi"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Rope-strung Beds [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-ropestrungbeds-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Rope-strung Beds"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Content] Serpent Bracelets [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-serpentbracelets-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Serpent Bracelets"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Raw] Nile Fish [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-raw-nilefish-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Raw"
+    },
+    "ModName": {
+     "English": "Nile Fish"
+    }
+   }
+  },
+  {
+   "folder": "[Cheat] All Items on Island (Taludas)",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "taludas-allitems",
+    "Version": "3.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "All Items on Island (Taludas)"
+    }
+   }
+  },
+  {
+   "folder": "[Cheat] All Items visible at Traders (Taludas)",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "taludas-3rdpartyallitemsvisible",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "All Items visible at Traders (Taludas)"
+    }
+   }
+  },
+  {
+   "folder": "[Cheat] All Techs Unlocked from Beginning (Taludas)",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "taludas-alltechsunlocked",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "All Techs Unlocked from Beginning (Taludas)"
+    }
+   }
+  },
+  {
+   "folder": "Aqueduct_Roman_Celtic_Distribution_PublicBoost_29526",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "aqueduct-roman-celtic-distribution-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Aqueduct Roman Celtic Distribution Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Aqueduct_Roman_Distribution_PublicBoost_19753",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "aqueduct-roman-distribution-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Aqueduct Roman Distribution Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "[Cheat] Cheat Menu (Eternyx)",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "cheat-menu-eternyx",
+    "Version": "3.1.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Cheat Menu"
+    }
+   }
+  },
+  {
+   "folder": "Public_Celtic_Bardic_Hall_PublicBoost_6727",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-celtic-bardic-hall-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Celtic Bardic Hall Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Celtic_Sporting_Grounds_PublicBoost_6725",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-celtic-sporting-grounds-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Celtic Sporting Grounds Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Celtic_Town_Hall_PublicBoost_6726",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-celtic-town-hall-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Celtic Town Hall Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Roman_Celtic_Fanum_PublicBoost_6728",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-roman-celtic-fanum-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Roman Celtic Fanum Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Roman_Celtic_Gambling_House_PublicBoost_37177",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-roman-celtic-gambling-house-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Roman Celtic Gambling House Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Roman_Celtic_Grammaticus_PublicBoost_6730",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-roman-celtic-grammaticus-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Roman Celtic Grammaticus Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Roman_Celtic_Market_PublicBoost_6724",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-roman-celtic-market-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Roman Celtic Market Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Roman_Celtic_Theater_PublicBoost_37178",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-roman-celtic-theater-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Roman Celtic Theater Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Roman_Gambling_House_PublicBoost_31367",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-roman-gambling-house-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Roman Gambling House Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Roman_Grammaticus_PublicBoost_3616",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-roman-grammaticus-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Roman Grammaticus Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Roman_Library_PublicBoost_31368",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-roman-library-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Roman Library Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Roman_Market_PublicBoost_3527",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-roman-market-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Roman Market Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Roman_Sanctuary_PublicBoost_3615",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-roman-sanctuary-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Roman Sanctuary Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Roman_Tavern_PublicBoost_3528",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-roman-tavern-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Roman Tavern Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Roman_Temple_PublicBoost_3619",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-roman-temple-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Roman Temple Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Public_Roman_Theater_PublicBoost_3618",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "public-roman-theater-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Public Roman Theater Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Unlock All Buildings",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "unlock-all-buildings",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Unlock All Buildings"
+    }
+   }
+  },
+  {
+   "folder": "Wonder_Celtic_Barrow_PublicBoost_55980",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "wonder-celtic-barrow-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Wonder Celtic Barrow Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Wonder_Celtic_Sacred_Grove_PublicBoost_55981",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "wonder-celtic-sacred-grove-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Wonder Celtic Sacred Grove Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Wonder_Roman_Baths_PublicBoost_3620",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "wonder-roman-baths-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Wonder Roman Baths Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Wonder_Roman_Celtic_Baths_PublicBoost_8062",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "wonder-roman-celtic-baths-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Wonder Roman Celtic Baths Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Wonder_Roman_Celtic_Temple_PublicBoost_6729",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "wonder-roman-celtic-temple-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Wonder Roman Celtic Temple Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Wonder_Roman_Colosseum_PublicBoost_3621",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "wonder-roman-colosseum-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Wonder Roman Colosseum Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "Wonder_Roman_Forum_PublicBoost_3617",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "wonder-roman-forum-public-boost-dwojt",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Wonder Roman Forum Public Boost"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Circus Minimus (Taludas)",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "taludas-circusminimus",
+    "Version": "1.0.4",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Circus Minimus (Taludas)"
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-aegyptus-khayi",
+    "Version": "1.0.3",
+    "Category": {
+     "English": "Content"
+    },
+    "ModName": {
+     "English": "Roman Life - Aegyptus"
+    }
+   }
+  },
+  {
+   "folder": "[Fix] Anno 117 Community Bug Fix Mod",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "taludas-communitybugfixmod",
+    "Version": "4.0.0",
+    "Category": {
+     "English": "Fix"
+    },
+    "ModName": {
+     "English": "Anno 117 Community Bug Fix Mod"
+    }
+   }
+  },
+  {
+   "folder": "[Gameplay] 117 - Immersive Flagship Mod",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "immersive-flagship-mod",
+    "Version": "2.2.4",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "117 Immersive Flagship Mod (AJ)"
+    }
+   }
+  },
+  {
+   "folder": "[Gameplay] 117 - Immersive Forum",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "immersive-forum-mod",
+    "Version": "1.0.1",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "117 Immersive Forum Mod (AJ)"
+    }
+   }
+  },
+  {
+   "folder": "[Gameplay] 117 - Leviathans of the Seas",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "leviathans",
+    "Version": "1.0.3",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "117 Leviathans of the Seas (AJ)"
+    }
+   }
+  },
+  {
+   "folder": "[Gameplay] More Drainage Canals",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "moredrainagecanals",
+    "Version": "1.1.0",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "More Drainage Channels"
+    }
+   }
+  },
+  {
+   "folder": "[Gameplay] More water in aqueduct",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "more-water-in-aqueduct",
+    "Version": "1.1.0",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "More Water In Aqueduct"
+    }
+   }
+  },
+  {
+   "folder": "No Road Maintenance",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "no-road-maintenance",
+    "Version": "1.2.1",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "No road maintenance cost"
+    }
+   }
+  },
+  {
+   "folder": "nox-consumption-x2",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "nox-consumption-x2",
+    "Version": "1.0.3",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "Nox – More Needs Per House"
+    }
+   }
+  },
+  {
+   "folder": "nox-consumption-x4",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "nox-consumption-x4",
+    "Version": "1.0.3",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "Nox – More Needs Per House"
+    }
+   }
+  },
+  {
+   "folder": "nox-populationdensity-x4",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "nox-populationdensity-x4",
+    "Version": "1.0.3",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "Nox – More Population Per House"
+    }
+   }
+  },
+  {
+   "folder": "nox-workforce-x4",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "nox-workforce-x4",
+    "Version": "1.0.3",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "Nox – More workforce from residences"
+    }
+   }
+  },
+  {
+   "folder": "Slot-Limits-Tuning",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "slot-limits-tuning",
+    "Version": "1.2.0",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "Slot Limits Tuning (rivers + mines)"
+    }
+   }
+  },
+  {
+   "folder": "super-specialists",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "super-specialists-mod",
+    "Version": "1.0.4",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "Super Specialists"
+    }
+   }
+  },
+  {
+   "folder": "Zoom Out-In Further (Serp)",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "zoom-out-further-serp",
+    "Version": "1.0",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "Zoom Out/In Further (Serp) (Serp)"
+    }
+   }
+  },
+  {
+   "folder": "[Graphics] Aegyptian Architecture",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "aegyptian-architecture",
+    "Version": "1.1.0",
+    "Category": {
+     "English": "Graphics"
+    },
+    "ModName": {
+     "English": "Aegyptian Architecture"
+    }
+   }
+  },
+  {
+   "folder": "[QoL] Increased Animal Pasture Range (Jtmzac)",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "increased-animal-pasture-range-jtmzac",
+    "Version": "1.0.0",
+    "Category": {
+     "English": "QoL"
+    },
+    "ModName": {
+     "English": "Increased Animal Pasture Range"
+    }
+   }
+  },
+  {
+   "folder": "Unlock All Buildings/shared_CopyPools_AP_ConstrBuild [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "copy-pools-ap-buildable-buildings-serp",
+    "Version": "1.02",
+    "Category": {
+     "English": "Cheat"
+    },
+    "ModName": {
+     "English": "Copy Pools AP Buildable Buildings"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "*"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Gameplay] AI Never Needs [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-aineverneeds-aegyptus-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "AI Never Needs"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "*"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Content] Roman Life - Aegyptus (Khayi)/[Gameplay] Upgrade Thresholds [SubMod]",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "rl-upgradethresholds-aegyptus-khayi",
+    "Version": "0.1",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "Upgrade Thresholds"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "*"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Gameplay] Public Building Effects Island Wide (Taludas)",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "taludas-publicbuildings-wholeisland",
+    "Version": "1.2.0",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "Public Building Effects Island Wide (Taludas)"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "*"
+     ]
+    }
+   }
+  },
+  {
+   "folder": "[Gameplay] Specialist Effects from Villa and Officium Island Wide (Taludas)",
+   "modinfo": {
+    "Anno": 8,
+    "ModID": "taludas-specialisteffects-wholeisland",
+    "Version": "2.0.0",
+    "Category": {
+     "English": "Gameplay"
+    },
+    "ModName": {
+     "English": "Specialist Effects Whole Island (Taludas)"
+    },
+    "Dependencies": {
+     "LoadAfter": [
+      "*"
+     ]
+    }
+   }
+  }
+ ]
+}
