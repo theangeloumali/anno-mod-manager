@@ -271,6 +271,49 @@ async fn an_update_of_the_same_linked_mod_still_goes_through() {
 }
 
 #[tokio::test]
+async fn a_new_modio_file_installs_even_when_its_version_is_unchanged() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    download(&harness, 4801).await;
+
+    // The author uploads a fixed file without bumping the manifest version.
+    server.reset().await;
+    let info = modinfo("roman-roads", "1.0.0", GameId::Anno117);
+    let archive = zip_bytes(&[
+        ("Packed/modinfo.json", info.as_bytes()),
+        ("Packed/hotfix.txt", b"fixed"),
+    ]);
+    let mut detail = fixture("mod.json");
+    let next_file = detail["modfile"]["id"].as_u64().unwrap() + 1;
+    detail["modfile"]["id"] = Value::from(next_file);
+    detail["modfile"]["download"]["binary_url"] =
+        Value::String(format!("{}/v1/files/hotfix/download", server.uri()));
+    detail["modfile"]["filehash"]["md5"] = Value::String(format!("{:x}", Md5::digest(&archive)));
+    detail["modfile"]["filesize"] = Value::from(archive.len());
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(detail))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/files/hotfix/download"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(archive))
+        .mount(&server)
+        .await;
+
+    harness
+        .app
+        .update_mod(GameId::Anno117, "roman-roads")
+        .unwrap();
+    assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Done);
+
+    let folder = installed(&harness, "roman-roads").folder;
+    let dir = harness.documents_mods(GameId::Anno117).join(folder);
+    assert!(dir.join("hotfix.txt").is_file(), "the new file was skipped");
+}
+
+#[tokio::test]
 async fn a_new_install_never_takes_over_another_pages_link() {
     let server = MockServer::start().await;
     let harness = harness_for(&server, Some(API_KEY));

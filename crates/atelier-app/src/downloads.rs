@@ -257,7 +257,8 @@ impl App {
             })
             .await?;
         self.edit_job(job_id, |job| job.status = DownloadStatus::Verifying);
-        let installed = self.install_download(game, modio_id, &archive.to_string_lossy());
+        let installed =
+            self.install_download(game, modio_id, modfile.id, &archive.to_string_lossy());
         // Staging is scratch space; a leftover copy is harmless, so cleanup errors are ignored.
         let _ = std::fs::remove_dir_all(&staging);
         let top_level = installed?;
@@ -300,7 +301,13 @@ impl App {
 
     /// Returns the top-level mod ids that landed, so sub-mods never claim the mod.io link.
     /// Only an update of this page's own mod replaces a local one; downgrades are skipped.
-    fn install_download(&self, game: GameId, modio_id: u64, archive: &str) -> Result<Vec<String>> {
+    fn install_download(
+        &self,
+        game: GameId,
+        modio_id: u64,
+        modfile_id: u64,
+        archive: &str,
+    ) -> Result<Vec<String>> {
         let preview = self.preview_install(game, &[archive.to_owned()])?;
         let links = self
             .persisted()
@@ -320,6 +327,15 @@ impl App {
             );
             self.cancel_install(&preview.id)?;
             return Err(AppError::new(ErrorCode::Install, message));
+        }
+        // A new file from this page installs even if its author kept the manifest version.
+        for item in &preview.items {
+            let newer_file = links
+                .get(&item.mod_id)
+                .is_some_and(|link| link.modio_id == modio_id && link.modfile_id != modfile_id);
+            if newer_file {
+                self.0.engine.allow_reinstall(&preview.id, &item.mod_id)?;
+            }
         }
         let result = self.confirm_install(&preview.id, false)?;
         Ok(preview

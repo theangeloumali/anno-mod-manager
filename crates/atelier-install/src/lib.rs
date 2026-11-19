@@ -159,6 +159,21 @@ impl InstallEngine {
         backup::rollback(&self.config.backup_dir, target_mods_dir, mod_id)
     }
 
+    /// Lets a same-version item install as an update, for a new mod.io file whose author
+    /// didn't bump the manifest version. Other statuses are left alone.
+    pub fn allow_reinstall(&self, preview_id: &str, mod_id: &str) -> Result<()> {
+        let mut previews = self.lock_previews();
+        let staged = previews
+            .get_mut(preview_id)
+            .ok_or_else(|| Error::PreviewNotFound(preview_id.to_string()))?;
+        for item in staged.items.iter_mut().map(|staged| &mut staged.item) {
+            if item.mod_id == mod_id && item.status == InstallItemStatus::Same {
+                item.status = InstallItemStatus::Update;
+            }
+        }
+        Ok(())
+    }
+
     /// Moves an installed mod's folder into the backups, where `rollback` can find it.
     pub fn remove_to_backup(&self, mod_dir: &Path) -> Result<()> {
         let backup = backup::backup_path(&self.config.backup_dir, mod_dir)?;
