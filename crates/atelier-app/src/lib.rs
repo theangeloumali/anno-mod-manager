@@ -68,6 +68,8 @@ struct Inner {
     updates: Mutex<HashMap<GameId, HashMap<String, ModUpdate>>>,
     /// (game, mod.io page) → profiles its mods go into off once installed, from a collection.
     held_off: Mutex<HashMap<(GameId, u64), Vec<String>>>,
+    /// Held for every write to mod and profile files; see `App::write_guard`.
+    writes: Mutex<()>,
 }
 
 impl App {
@@ -106,6 +108,7 @@ impl App {
             next_job: AtomicU64::new(1),
             updates: Mutex::new(HashMap::new()),
             held_off: Mutex::new(HashMap::new()),
+            writes: Mutex::new(()),
         })))
     }
 

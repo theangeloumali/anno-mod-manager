@@ -36,7 +36,7 @@ impl App {
             .map(|item| item.id)
             .collect();
         // The game may have started while mod.io answered; check again before the first write.
-        self.guard_writes(game)?;
+        let _writes = self.write_guard(game)?;
         let profile = if activation::detect_scheme(game, &self.documents_mods(game))
             == ActivationScheme::Profile
         {
@@ -97,6 +97,7 @@ impl App {
         let Some(profiles) = lock(&self.0.held_off).get(&(game, modio_id)).cloned() else {
             return Ok(());
         };
+        let _writes = self.write_guard(game)?;
         let existing: Vec<String> = self
             .list_profiles(game)?
             .into_iter()
@@ -130,8 +131,10 @@ impl App {
                 item.active = true;
             }
         }
-        activation::save_profile(&self.writable(game), &name, &mods, &self.0.snapshots)?;
-        self.switch_profile(game, &name)?;
+        // The caller holds the write lock, so the core is called directly, not switch_profile.
+        let writable = self.writable(game);
+        activation::save_profile(&writable, &name, &mods, &self.0.snapshots)?;
+        activation::switch_profile(&writable, &name, &self.0.snapshots)?;
         Ok(name)
     }
 }

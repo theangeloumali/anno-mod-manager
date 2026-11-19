@@ -45,7 +45,7 @@ impl App {
             .get(preview_id)
             .copied()
             .ok_or_else(|| AppError::new(ErrorCode::Install, EXPIRED_PREVIEW))?;
-        self.guard_writes(game)?;
+        let _writes = self.write_guard(game)?;
         let installed = self.scan(game)?;
         let result = self.0.engine.confirm(
             preview_id,

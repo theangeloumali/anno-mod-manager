@@ -242,3 +242,24 @@ fn launching_a_running_game_is_refused() {
     assert_eq!(error.code, ErrorCode::GameRunning);
     assert_eq!(error.message, "Anno117.exe is already running.");
 }
+
+#[test]
+fn toggles_from_many_threads_at_once_are_all_kept() {
+    let harness = Harness::new();
+    let ids: Vec<String> = (0..12).map(|n| format!("mod-{n}")).collect();
+    for id in &ids {
+        harness.add_mod(GameId::Anno117, id, id, "1.0.0");
+    }
+    std::thread::scope(|scope| {
+        for id in &ids {
+            let app = harness.app.clone();
+            scope.spawn(move || app.set_mod_active(GameId::Anno117, id, false).unwrap());
+        }
+    });
+
+    let mods = harness.app.list_mods(GameId::Anno117).unwrap();
+    assert!(
+        mods.iter().all(|item| !item.active),
+        "a read-modify-write lost a toggle"
+    );
+}

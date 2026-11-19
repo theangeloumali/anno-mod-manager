@@ -3,6 +3,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::MutexGuard;
 
 use atelier_core::health::{self, Environment};
 use atelier_core::scan::{self, ModsFolder};
@@ -81,7 +82,7 @@ impl App {
     }
 
     pub fn set_mod_active(&self, game: GameId, mod_id: &str, active: bool) -> Result<()> {
-        self.guard_writes(game)?;
+        let _writes = self.write_guard(game)?;
         let target = self.find_mod(game, mod_id)?;
         activation::set_active(
             game,
@@ -95,7 +96,7 @@ impl App {
 
     /// Only the Documents copy is removed; game and .ubi folders belong to the game.
     pub fn uninstall_mod(&self, game: GameId, mod_id: &str) -> Result<()> {
-        self.guard_writes(game)?;
+        let _writes = self.write_guard(game)?;
         let mods = self.scan(game)?;
         // A sub-mod lives inside another mod's folder, so only top-level mods are removable.
         let matches: Vec<&Mod> = mods
@@ -133,7 +134,7 @@ impl App {
     }
 
     pub fn switch_profile(&self, game: GameId, name: &str) -> Result<()> {
-        self.guard_writes(game)?;
+        let _writes = self.write_guard(game)?;
         Ok(activation::switch_profile(
             &self.writable(game),
             name,
@@ -142,7 +143,7 @@ impl App {
     }
 
     pub fn save_profile(&self, game: GameId, name: &str) -> Result<()> {
-        self.guard_writes(game)?;
+        let _writes = self.write_guard(game)?;
         let mods = self.scan(game)?;
         Ok(activation::save_profile(
             &self.writable(game),
@@ -153,7 +154,7 @@ impl App {
     }
 
     pub fn delete_profile(&self, game: GameId, name: &str) -> Result<()> {
-        self.guard_writes(game)?;
+        let _writes = self.write_guard(game)?;
         Ok(activation::delete_profile(
             &self.writable(game),
             name,
@@ -185,7 +186,7 @@ impl App {
         key: &str,
         value: Option<OptionValue>,
     ) -> Result<()> {
-        self.guard_writes(game)?;
+        let _writes = self.write_guard(game)?;
         let defaults = self.option_defaults(game, mod_id)?;
         let option = defaults
             .iter()
@@ -269,6 +270,14 @@ impl App {
             path: self.documents_mods(game),
             location: ModLocation::Documents,
         }
+    }
+
+    /// Serialises every write to mod and profile files: their edits are read-modify-write, so two
+    /// at once could lose one. Taken by public entry points only; helpers under it never re-lock.
+    pub(crate) fn write_guard(&self, game: GameId) -> Result<MutexGuard<'_, ()>> {
+        let guard = lock(&self.0.writes);
+        self.guard_writes(game)?;
+        Ok(guard)
     }
 
     pub(crate) fn guard_writes(&self, game: GameId) -> Result<()> {
