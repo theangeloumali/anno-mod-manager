@@ -97,6 +97,19 @@ fn a_new_mod_lands_in_a_mod_id_folder_and_creates_the_mods_dir() {
 }
 
 #[test]
+fn an_update_replaces_an_installed_mod_whose_mod_id_normalises_to_empty() {
+    let sandbox = Sandbox::new();
+    // The scan names this one by its folder, "cool-mod"; the update must find it the same way.
+    seed(&sandbox, "Cool Mod", "!!!", "1.0");
+
+    install(&sandbox, "Cool Mod", "cool-mod", "2.0");
+
+    assert_eq!(read_version(&sandbox.mods().join("Cool Mod")), "2.0");
+    assert!(!sandbox.mods().join("cool-mod").exists());
+    assert_eq!(backup_versions(&sandbox, "cool-mod").len(), 1);
+}
+
+#[test]
 fn an_update_backs_up_the_old_copy_and_keeps_its_folder_name() {
     let sandbox = Sandbox::new();
     seed(&sandbox, "My Layout", "Keeper", "1.0");

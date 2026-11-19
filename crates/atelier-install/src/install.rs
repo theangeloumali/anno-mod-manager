@@ -137,6 +137,7 @@ pub(crate) fn identify(dir: &Path) -> (String, String) {
     let id = info
         .as_ref()
         .and_then(|info| info.mod_id.clone())
+        .filter(|id| !id.is_empty())
         .unwrap_or_else(|| normalize_mod_id(&file_name(dir)));
     let version = info
         .map(|info| info.version)
