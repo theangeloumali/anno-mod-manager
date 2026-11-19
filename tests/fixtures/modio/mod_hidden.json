@@ -1,0 +1,118 @@
+{
+  "id": 4811,
+  "game_id": 11358,
+  "status": 1,
+  "visible": 0,
+  "submitted_by": {
+    "id": 9120,
+    "name_id": "aurelia",
+    "username": "Aurelia",
+    "display_name_portal": null,
+    "date_online": 1763500000,
+    "date_joined": 1700000000,
+    "avatar": {
+      "filename": "avatar.png",
+      "original": "https://thumb.modcdn.io/members/avatar.png",
+      "thumb_50x50": "https://thumb.modcdn.io/members/crop_50x50/avatar.png",
+      "thumb_100x100": "https://thumb.modcdn.io/members/crop_100x100/avatar.png"
+    },
+    "timezone": "",
+    "language": "",
+    "profile_url": "https://mod.io/u/aurelia"
+  },
+  "date_added": 1762000000,
+  "date_updated": 1763400000,
+  "date_live": 1762000500,
+  "maturity_option": 0,
+  "community_options": 3,
+  "monetization_options": 0,
+  "credit_options": 0,
+  "stock": 0,
+  "price": 0,
+  "tax": 0,
+  "logo": {
+    "filename": "logo.png",
+    "original": "https://thumb.modcdn.io/mods/4801/logo.png",
+    "thumb_320x180": "https://thumb.modcdn.io/mods/4801/crop_320x180/logo.png",
+    "thumb_640x360": "https://thumb.modcdn.io/mods/4801/crop_640x360/logo.png",
+    "thumb_1280x720": "https://thumb.modcdn.io/mods/4801/crop_1280x720/logo.png"
+  },
+  "homepage_url": null,
+  "name": "Secret Senate",
+  "name_id": "secret-senate",
+  "summary": "Faster roads and better paving for the provinces.",
+  "description": "<p>Faster roads and better paving for the provinces.</p>",
+  "description_plaintext": "Faster roads and better paving for the provinces.",
+  "metadata_blob": "",
+  "profile_url": "https://mod.io/g/anno-117-pax-romana/m/roman-roads-overhaul",
+  "media": {
+    "youtube": [],
+    "sketchfab": [],
+    "images": []
+  },
+  "modfile": {
+    "id": 48110,
+    "mod_id": 4811,
+    "date_added": 1763400000,
+    "date_updated": 1763400000,
+    "date_scanned": 1763400100,
+    "virus_status": 1,
+    "virus_positive": 0,
+    "virustotal_hash": "",
+    "filesize": 11,
+    "filesize_uncompressed": 2048,
+    "filehash": {
+      "md5": "5eb63bbbe01eeed093cb22bb8f5acdc3"
+    },
+    "filename": "roman-roads-overhaul.zip",
+    "version": "1.2.0",
+    "changelog": "Paving tweaks.",
+    "metadata_blob": "",
+    "download": {
+      "binary_url": "https://g-11358.modapi.io/v1/games/11358/mods/4801/files/77001/download",
+      "date_expires": 1763500000
+    },
+    "platforms": [
+      {
+        "platform": "windows",
+        "status": 1
+      }
+    ]
+  },
+  "dependencies": false,
+  "platforms": [
+    {
+      "platform": "windows",
+      "modfile_live": 77001
+    }
+  ],
+  "metadata_kvp": [],
+  "tags": [
+    {
+      "name": "Gameplay",
+      "name_localized": "Gameplay",
+      "date_added": 1762000000
+    },
+    {
+      "name": "Infrastructure",
+      "name_localized": "Infrastructure",
+      "date_added": 1762000000
+    }
+  ],
+  "stats": {
+    "mod_id": 4811,
+    "popularity_rank_position": 3,
+    "popularity_rank_total_mods": 120,
+    "downloads_today": 40,
+    "downloads_total": 15230,
+    "subscribers_total": 2210,
+    "ratings_total": 300,
+    "ratings_positive": 285,
+    "ratings_negative": 15,
+    "ratings_percentage_positive": 95,
+    "ratings_weighted_aggregate": 0.92,
+    "ratings_display_text": "Overwhelmingly Positive",
+    "date_expires": 1763500000
+  },
+  "skus": []
+}

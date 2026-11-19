@@ -1,0 +1,69 @@
+{
+  "data": [
+    {
+      "id": 311,
+      "game_id": 11358,
+      "status": 1,
+      "visible": true,
+      "submitted_by": {
+        "id": 9120,
+        "name_id": "aurelia",
+        "username": "Aurelia",
+        "display_name_portal": null,
+        "date_online": 1763500000,
+        "date_joined": 1700000000,
+        "avatar": {
+          "filename": "avatar.png",
+          "original": "https://thumb.modcdn.io/members/avatar.png",
+          "thumb_50x50": "https://thumb.modcdn.io/members/crop_50x50/avatar.png",
+          "thumb_100x100": "https://thumb.modcdn.io/members/crop_100x100/avatar.png"
+        },
+        "timezone": "",
+        "language": "",
+        "profile_url": "https://mod.io/u/aurelia"
+      },
+      "category": "Gameplay",
+      "date_added": 1762000000,
+      "date_updated": 1763000000,
+      "date_live": 1762000500,
+      "date_disabled": 0,
+      "limit_number_mods": 50,
+      "maturity_option": 0,
+      "filesize": 4096,
+      "filesize_uncompressed": 8192,
+      "platforms": [
+        "windows"
+      ],
+      "incomplete": 0,
+      "tags": [],
+      "collection_tags": [
+        "Gameplay"
+      ],
+      "stats": {
+        "collection_id": 311,
+        "downloads_today": 4,
+        "downloads_unique": 120,
+        "downloads_total": 150,
+        "followers_total": 37,
+        "ratings_positive_30days": 9,
+        "incomplete": 0,
+        "incomplete_today": 0
+      },
+      "logo": {
+        "filename": "logo.png",
+        "original": "https://thumb.modcdn.io/mods/4801/logo.png",
+        "thumb_320x180": "https://thumb.modcdn.io/mods/4801/crop_320x180/logo.png",
+        "thumb_640x360": "https://thumb.modcdn.io/mods/4801/crop_640x360/logo.png",
+        "thumb_1280x720": "https://thumb.modcdn.io/mods/4801/crop_1280x720/logo.png"
+      },
+      "name": "Legion Logistics",
+      "name_id": "legion-logistics",
+      "summary": "Everything a new governor needs.",
+      "description": "<p>Everything a new governor needs.</p>"
+    }
+  ],
+  "result_count": 1,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 1
+}
