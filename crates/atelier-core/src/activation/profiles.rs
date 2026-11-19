@@ -91,12 +91,13 @@ pub fn save_profile(
     write_with_snapshot(&path, &file.render(), snapshots)
 }
 
-/// Records `mod_ids` as off in one profile, active or not. A built-in profile's file is
+/// Records `mod_ids` as on or off in one profile, active or not. A built-in profile's file is
 /// created on first write; a saved profile that is gone is an error, never recreated.
-pub fn set_off_in_profile(
+pub fn set_in_profile(
     writable: &ModsFolder,
     name: &str,
     mod_ids: &[String],
+    active: bool,
     snapshots: &Snapshots,
 ) -> Result<()> {
     let dir = prepare(writable, name)?;
@@ -113,7 +114,7 @@ pub fn set_off_in_profile(
         enable_new,
         |file| {
             for mod_id in mod_ids {
-                file.set(mod_id, false);
+                file.set(mod_id, active);
             }
         },
         snapshots,

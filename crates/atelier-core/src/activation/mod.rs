@@ -19,7 +19,7 @@ use crate::text::{read_optional, strip_jsonc};
 use crate::{ActivationScheme, Error, GameId, Mod, ModLocation, Result, normalize_mod_id};
 use profile_file::ProfileFile;
 pub use profiles::{
-    delete_profile, export_profile, list_profiles, save_profile, set_off_in_profile, switch_profile,
+    delete_profile, export_profile, list_profiles, save_profile, set_in_profile, switch_profile,
 };
 
 const PROFILE_POINTER: &str = "profile.txt";

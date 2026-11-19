@@ -9,6 +9,14 @@ use crate::error::{AppError, ErrorCode, Result};
 use crate::{App, lock};
 
 const PROFILE_PREFIX: &str = "Collection - ";
+
+/// Where a collection's not-yet-downloaded mods go once they land: on in its own profile,
+/// off in every profile that existed before it.
+#[derive(Clone)]
+pub(crate) struct HeldCollection {
+    profile: String,
+    others: Vec<String>,
+}
 /// atelier-core refuses profile names over 64 bytes; this leaves room for a " 99" suffix.
 const MAX_BASE_NAME: usize = 60;
 
@@ -50,8 +58,8 @@ impl App {
         Ok(profile)
     }
 
-    /// Mods not installed yet are recorded off in every other profile as they land, so
-    /// switching back never turns them on. Their ModIDs only exist once the archive is read.
+    /// Mods not installed yet are set as they land, so switching back never turns them on.
+    /// Their ModIDs only exist once the archive is read.
     fn hold_off_elsewhere(
         &self,
         game: GameId,
@@ -69,9 +77,13 @@ impl App {
             .map(|profile| profile.name)
             .filter(|name| name != collection_profile)
             .collect();
+        let pending = HeldCollection {
+            profile: collection_profile.to_owned(),
+            others,
+        };
         let mut held = lock(&self.0.held_off);
         for &modio_id in modio_ids.difference(&installed) {
-            held.insert((game, modio_id), others.clone());
+            held.insert((game, modio_id), pending.clone());
         }
         Ok(())
     }
@@ -79,10 +91,10 @@ impl App {
     /// A held page's dependencies are new to the user too, so they stay off in the same profiles.
     pub(crate) fn hold_dependencies(&self, game: GameId, modio_id: u64, dependencies: &[u64]) {
         let mut held = lock(&self.0.held_off);
-        if let Some(profiles) = held.get(&(game, modio_id)).cloned() {
+        if let Some(pending) = held.get(&(game, modio_id)).cloned() {
             for &dependency in dependencies {
                 held.entry((game, dependency))
-                    .or_insert_with(|| profiles.clone());
+                    .or_insert_with(|| pending.clone());
             }
         }
     }
@@ -94,7 +106,7 @@ impl App {
         modio_id: u64,
         mod_ids: &[String],
     ) -> Result<()> {
-        let Some(profiles) = lock(&self.0.held_off).get(&(game, modio_id)).cloned() else {
+        let Some(pending) = lock(&self.0.held_off).get(&(game, modio_id)).cloned() else {
             return Ok(());
         };
         let _writes = self.write_guard(game)?;
@@ -104,8 +116,13 @@ impl App {
             .map(|profile| profile.name)
             .collect();
         let writable = self.writable(game);
-        for name in profiles.iter().filter(|name| existing.contains(name)) {
-            activation::set_off_in_profile(&writable, name, mod_ids, &self.0.snapshots)?;
+        let snapshots = &self.0.snapshots;
+        for name in pending.others.iter().filter(|name| existing.contains(name)) {
+            activation::set_in_profile(&writable, name, mod_ids, false, snapshots)?;
+        }
+        // On in the collection's own profile, whatever the new-mods setting did on install.
+        if existing.contains(&pending.profile) {
+            activation::set_in_profile(&writable, &pending.profile, mod_ids, true, snapshots)?;
         }
         lock(&self.0.held_off).remove(&(game, modio_id));
         Ok(())

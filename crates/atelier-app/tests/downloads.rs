@@ -776,3 +776,24 @@ async fn an_install_that_fails_after_its_preview_leaves_no_staging_behind() {
     let leftovers = std::fs::read_dir(&staging).map_or(0, |entries| entries.count());
     assert_eq!(leftovers, 0, "abandoned preview staging remains");
 }
+
+#[tokio::test]
+async fn a_collection_mod_is_on_in_its_profile_even_when_new_mods_start_off() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    let mut settings = harness.app.settings();
+    settings.new_mods_start = atelier_app::NewModsStart::Inactive;
+    harness.app.save_settings(settings).unwrap();
+
+    install_collection_and_download(&server, &harness).await;
+
+    assert!(
+        installed(&harness, "roman-roads").active,
+        "the collection's own profile must run its mods"
+    );
+    harness
+        .app
+        .switch_profile(GameId::Anno117, "Default")
+        .unwrap();
+    assert!(!installed(&harness, "roman-roads").active);
+}

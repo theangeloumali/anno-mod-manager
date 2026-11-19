@@ -351,7 +351,7 @@ fn profiles_can_be_listed_switched_saved_exported_and_deleted() {
 }
 
 #[test]
-fn set_off_in_profile_turns_only_the_named_mods_off() {
+fn set_in_profile_turns_only_the_named_mods_off() {
     let tmp = tempfile::tempdir().unwrap();
     let docs = documents(tmp.path());
     let snaps = snapshots(tmp.path());
@@ -362,20 +362,20 @@ fn set_off_in_profile_turns_only_the_named_mods_off() {
     activation::save_profile(&docs, "Raid", &mods, &snaps).unwrap();
 
     // Default has no file yet: the first write creates it.
-    activation::set_off_in_profile(&docs, "Default", &["b".to_string()], &snaps).unwrap();
+    activation::set_in_profile(&docs, "Default", &["b".to_string()], false, &snaps).unwrap();
     assert!(tmp.path().join("profiles/default.txt").exists());
     let default = scan_mods(GameId::Anno117, tmp.path());
     assert!(find(&default, "a").active);
     assert!(!find(&default, "b").active);
 
-    activation::set_off_in_profile(&docs, "Raid", &["a".to_string()], &snaps).unwrap();
+    activation::set_in_profile(&docs, "Raid", &["a".to_string()], false, &snaps).unwrap();
     activation::switch_profile(&docs, "Raid", &snaps).unwrap();
     let raid = scan_mods(GameId::Anno117, tmp.path());
     assert!(!find(&raid, "a").active);
     assert!(find(&raid, "b").active);
 
     assert!(matches!(
-        activation::set_off_in_profile(&docs, "ghost", &["a".to_string()], &snaps),
+        activation::set_in_profile(&docs, "ghost", &["a".to_string()], false, &snaps),
         Err(Error::ProfileNotFound(_))
     ));
 }
