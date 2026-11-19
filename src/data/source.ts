@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { mockSource } from "./mock-source.ts";
 import type {
@@ -217,11 +222,18 @@ export function useRefreshWhenDownloadsFinish(): void {
     finishedIds.current = done;
     // The first poll only records what was already done before this session saw it.
     if (previous && [...done].some((id) => !previous.has(id)))
-      void client.invalidateQueries();
+      void refreshLocalData(client);
   }, [jobs, client]);
 }
 
 const HOUR_MS = 3_600_000;
+const SCHEDULED_CHECK = "scheduled-update-check";
+
+/** Re-reads after a write, except the scheduled mod.io check: it runs on its own clock. */
+const refreshLocalData = (client: QueryClient) =>
+  client.invalidateQueries({
+    predicate: (query) => query.queryKey[0] !== SCHEDULED_CHECK,
+  });
 const GAME_IDS: GameId[] = ["anno117", "anno1800"];
 
 /** Runs the mod.io update check the Settings choice asks for: once at start, or hourly. */
@@ -229,7 +241,7 @@ export function useScheduledUpdateChecks(): void {
   const client = useQueryClient();
   const updateCheck = useSettings().data?.updateCheck;
   useQuery({
-    queryKey: ["scheduled-update-check", updateCheck],
+    queryKey: [SCHEDULED_CHECK, updateCheck],
     queryFn: async () => {
       // One game failing (no key, offline) must not stop the other's check.
       await Promise.allSettled(
@@ -252,6 +264,6 @@ export function useAction<TArgs extends unknown[], TResult>(
   const client = useQueryClient();
   return useMutation({
     mutationFn: (args: TArgs) => action(activeSource, ...args),
-    onSuccess: () => client.invalidateQueries(),
+    onSuccess: () => refreshLocalData(client),
   });
 }
