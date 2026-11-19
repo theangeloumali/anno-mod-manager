@@ -1,6 +1,6 @@
 //! Drop → preview → confirm, always into the Documents mods folder.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use atelier_core::{GameId, activation};
 use atelier_install::{InstallPreview, InstallResult};
@@ -17,6 +17,16 @@ impl App {
             return Err(AppError::new(
                 ErrorCode::InvalidInput,
                 "Drop a mod folder or archive to install.",
+            ));
+        }
+        // Paths come from the webview: only full paths to ordinary files, never a bare name
+        // that would resolve against the app's working folder, nor a \\.\ or \\?\ device path.
+        if let Some(bad) = paths.iter().find(|path| {
+            path.starts_with(r"\\.\") || path.starts_with(r"\\?\") || !Path::new(path).is_absolute()
+        }) {
+            return Err(AppError::new(
+                ErrorCode::InvalidInput,
+                format!("{bad} isn't a full path to a file or folder."),
             ));
         }
         let sources: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();

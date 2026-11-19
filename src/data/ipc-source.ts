@@ -32,6 +32,15 @@ const call = <T>(command: string, args?: InvokeArgs): Promise<T> =>
 export const pickFolder = (): Promise<string | null> =>
   call<string | null>("plugin:dialog|open", { options: { directory: true } });
 
+/** Native file picker for mod archives; full paths, so the core never guesses a folder. */
+export const pickArchives = async (): Promise<string[]> =>
+  (await call<string[] | null>("plugin:dialog|open", {
+    options: {
+      multiple: true,
+      filters: [{ name: "Mod archives", extensions: ["zip", "7z"] }],
+    },
+  })) ?? [];
+
 export const ipcSource: DataSource = {
   listGames: () => call<GameInfo[]>("list_games"),
   setGamePath: (game, path) => call("set_game_path", { game, path }),

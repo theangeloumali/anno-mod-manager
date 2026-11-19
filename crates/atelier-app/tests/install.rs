@@ -102,3 +102,15 @@ fn cancel_forgets_the_preview() {
     let error = harness.app.confirm_install(&preview.id, false).unwrap_err();
     assert_eq!(error.code, ErrorCode::Install);
 }
+
+#[test]
+fn a_relative_or_device_path_is_refused_before_anything_is_read() {
+    let harness = Harness::new();
+    for path in ["Mod.zip", r"\\.\PhysicalDrive0", r"\\?\C:\Mods\Mod.zip"] {
+        let error = harness
+            .app
+            .preview_install(GameId::Anno117, &[path.to_owned()])
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::InvalidInput, "{path}");
+    }
+}

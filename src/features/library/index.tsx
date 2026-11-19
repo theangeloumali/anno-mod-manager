@@ -5,9 +5,12 @@ import {
   SearchIcon,
   UploadIcon,
 } from "lucide-react";
+import { isTauri } from "@tauri-apps/api/core";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { useAppStore } from "@/components/app/app-store";
 import { FIELD_CLASS } from "@/components/app/field-class";
+import { errorMessage } from "@/components/app/format";
 import { useStartInstallPreview } from "@/components/app/install-preview-sheet";
 import { withToast } from "@/components/app/notify";
 import { PageHeader } from "@/components/app/page-header";
@@ -16,6 +19,7 @@ import { useCurrentGame } from "@/components/app/use-current-game";
 import { WriteLockNotice } from "@/components/app/write-lock-notice";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { pickArchives } from "@/data/ipc-source";
 import { useAction, useIssues, useMods } from "@/data/source";
 import type { Mod } from "@/data/types";
 import { issuesForMod } from "./issues-for-mod";
@@ -79,7 +83,18 @@ export function LibraryScreen() {
           event.target.value = "";
         }}
       />
-      <Button onClick={() => fileInputRef.current?.click()}>
+      <Button
+        onClick={() => {
+          // The browser input only yields file names; the core needs full paths.
+          if (!isTauri()) return fileInputRef.current?.click();
+          pickArchives().then(
+            (paths) => {
+              if (paths.length) void startPreview(paths);
+            },
+            (error: unknown) => toast.error(errorMessage(error)),
+          );
+        }}
+      >
         <UploadIcon aria-hidden="true" />
         Install from file
       </Button>
