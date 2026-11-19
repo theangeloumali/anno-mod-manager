@@ -1,0 +1,7 @@
+﻿// Written by hand, so it has comments and trailing commas.
+{
+  "Anno": 8, /* block comment */
+  "ModID": "JSONC_Mod", // trailing comment
+  "ModName": { "English": "Url // not a comment", },
+  "Version": "1.0.1",
+}
