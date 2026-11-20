@@ -1,5 +1,5 @@
 // Created by The Angelo Umali.
-import { CircleCheckIcon } from "lucide-react";
+import { CircleCheckIcon, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
 import { SWITCH_CLASS } from "@/components/app/field-class";
 import { IssueCard } from "@/components/app/issue-card";
@@ -10,9 +10,14 @@ import {
   StateIcon,
   type StateTone,
 } from "@/components/app/state-badge";
+import { withToast } from "@/components/app/notify";
 import { useCurrentGame } from "@/components/app/use-current-game";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { isLaunchBlocker } from "@/data/health";
 import {
+  useAction,
   useHealthChecks,
   useIssues,
   useLoaderLog,
@@ -36,7 +41,13 @@ export function HealthScreen() {
   const { data: log = [] } = useLoaderLog(gameId);
   const { data: mods = [] } = useMods(gameId);
   const [isShowingInfo, setShowingInfo] = useState(false);
-  const errorCount = issues.filter((issue) => issue.level === "error").length;
+  // Until the checks (which wait on mod.io) arrive, the game list's loader flag stands in.
+  const environmentErrors = checks.length
+    ? checks.filter(isLaunchBlocker).length
+    : Number(game?.legacyModLoader ?? false);
+  const errorCount =
+    issues.filter((issue) => issue.level === "error").length +
+    environmentErrors;
   const logCards = log.filter(
     (entry) => isShowingInfo || entry.level !== "info",
   );
@@ -48,12 +59,15 @@ export function HealthScreen() {
         description={`Problems Atelier can predict before ${shortName} starts, plus what the game's mod loader reported last time it ran.`}
         actions={
           errorCount ? (
-            <StateBadge tone="error">{errorCount} errors</StateBadge>
+            <StateBadge tone="error">
+              {errorCount} {errorCount === 1 ? "error" : "errors"}
+            </StateBadge>
           ) : (
             <StateBadge tone="ok">Ready to launch</StateBadge>
           )
         }
       />
+      <LegacyLoaderNotice />
       <div className="grid items-start gap-5 lg:grid-cols-2">
         <Panel title={`Issues (${issues.length})`}>
           {issues.length === 0 ? (
@@ -153,5 +167,38 @@ export function HealthScreen() {
         </pre>
       </Panel>
     </div>
+  );
+}
+
+/** Read from the game list, not the checks, so a slow mod.io never hides the fix. */
+function LegacyLoaderNotice() {
+  const { gameId, game, isWriteLocked } = useCurrentGame();
+  const remove = useAction((source) => source.removeLegacyLoader(gameId));
+  if (!game?.legacyModLoader) return null;
+  return (
+    <Alert className="rounded-field border-line-strong bg-surface text-copy">
+      <TriangleAlertIcon aria-hidden="true" />
+      <AlertTitle className="font-semibold">
+        The old Anno 1800 Mod Loader is installed
+      </AlertTitle>
+      <AlertDescription className="flex flex-col items-start gap-2 text-copy-muted">
+        It no longer matches the game and stops it at start with "not compatible
+        with your current Game Version". Removing it keeps a backup and puts the
+        game's own python35.dll back.
+        <Button
+          size="sm"
+          disabled={isWriteLocked || remove.isPending}
+          onClick={() =>
+            withToast(remove.mutateAsync([]), (backup) =>
+              backup
+                ? `Old mod loader removed. A backup is in ${backup}`
+                : "Old mod loader removed",
+            )
+          }
+        >
+          Remove old loader
+        </Button>
+      </AlertDescription>
+    </Alert>
   );
 }

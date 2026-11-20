@@ -17,6 +17,8 @@ export interface GameInfo {
   running: boolean;
   /** 117: "profile" (profile.txt + profiles/) or "legacy" (active-profile.txt); 1800: "activation-json". */
   activationScheme: "profile" | "legacy" | "activation-json";
+  /** 1800: the old community mod loader is in place of the game's python35.dll. */
+  legacyModLoader: boolean;
 }
 
 interface GameSetup {

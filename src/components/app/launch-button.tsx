@@ -7,7 +7,7 @@ import { useCurrentGame } from "./use-current-game";
 
 /** The shell's gold action. Running = locked; errors warn in the label but never block launch. */
 export function LaunchButton() {
-  const { gameId, shortName, isWriteLocked } = useCurrentGame();
+  const { gameId, game, shortName, isWriteLocked } = useCurrentGame();
   const { data: issues = [] } = useIssues(gameId);
   const launch = useAction((source) => source.launchGame(gameId));
   const errorCount = issues.filter((issue) => issue.level === "error").length;
@@ -29,9 +29,11 @@ export function LaunchButton() {
       onClick={() =>
         withToast(
           launch.mutateAsync([]),
-          errorCount
-            ? `Launching ${shortName} with ${errorCount} unresolved errors`
-            : `Launching ${shortName}`,
+          game?.legacyModLoader
+            ? `Launching ${shortName} with the old mod loader still installed. Remove it under Health`
+            : errorCount
+              ? `Launching ${shortName} with ${errorCount} unresolved errors`
+              : `Launching ${shortName}`,
         )
       }
     >

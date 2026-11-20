@@ -27,6 +27,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         library::health_checks,
         library::loader_log,
         library::launch_game,
+        library::remove_legacy_loader,
         library::get_settings,
         library::save_settings,
         install::preview_install,

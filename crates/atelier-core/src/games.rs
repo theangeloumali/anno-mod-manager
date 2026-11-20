@@ -168,6 +168,10 @@ pub fn game_info(
         GameId::Anno1800 => ActivationScheme::ActivationJson,
         GameId::Anno117 => detect_scheme(game, &mods_path),
     };
+    let legacy_mod_loader = game == GameId::Anno1800
+        && install
+            .as_ref()
+            .is_some_and(|(path, _)| crate::health::legacy_loader_removable(path));
     let (install_path, store) = match install {
         Some((path, store)) => (Some(path.to_string_lossy().into_owned()), Some(store)),
         None => (None, None),
@@ -185,6 +189,7 @@ pub fn game_info(
             .into_owned(),
         running,
         activation_scheme,
+        legacy_mod_loader,
     }
 }
 
