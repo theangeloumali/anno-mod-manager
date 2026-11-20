@@ -136,14 +136,7 @@ fn legacy_loader_check(install: Option<&Path>) -> HealthCheck {
         Some(LegacyLoader::Stranded) => {
             "It no longer matches the game, and the game's own python35.dll it replaced is gone. Verify the game files in Steam or Ubisoft Connect to put it back."
         }
-        _ => {
-            return check(
-                "legacy-mod-loader",
-                Severity::Ok,
-                "No old mod loader",
-                String::new(),
-            );
-        }
+        _ => return game_python_dll(install),
     };
     check(
         "legacy-mod-loader",
@@ -151,6 +144,30 @@ fn legacy_loader_check(install: Option<&Path>) -> HealthCheck {
         "Old Anno 1800 Mod Loader installed",
         detail.to_string(),
     )
+}
+
+/// With no loader in the way, the game still needs its own python35.dll to start.
+fn game_python_dll(install: Option<&Path>) -> HealthCheck {
+    let missing = install.is_some_and(|path| {
+        let dir = loader_dir(path);
+        dir.join(GameId::Anno1800.executable_name()).is_file()
+            && !dir.join(LEGACY_LOADER_DLL).exists()
+    });
+    if missing {
+        check(
+            "legacy-mod-loader",
+            Severity::Error,
+            "Game file python35.dll is missing",
+            "Anno 1800 can't start without it. Verify the game files in Steam or Ubisoft Connect to put it back.".to_string(),
+        )
+    } else {
+        check(
+            "legacy-mod-loader",
+            Severity::Ok,
+            "No old mod loader",
+            String::new(),
+        )
+    }
 }
 
 fn duplicate_ids(mods: &[Mod]) -> HealthCheck {
