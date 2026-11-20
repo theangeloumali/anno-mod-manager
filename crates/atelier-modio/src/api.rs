@@ -23,6 +23,14 @@ pub(crate) struct ApiUser {
     pub username: String,
 }
 
+#[derive(Deserialize)]
+pub(crate) struct ApiAccessToken {
+    pub access_token: String,
+    /// Unix seconds.
+    #[serde(default)]
+    pub date_expires: u64,
+}
+
 #[derive(Deserialize, Default)]
 pub(crate) struct ApiLogo {
     pub thumb_320x180: Option<String>,

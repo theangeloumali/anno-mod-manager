@@ -76,6 +76,8 @@ pub(crate) struct Persisted {
     /// Links of uninstalled mods, so restoring one from its backup keeps its updates.
     pub uninstalled_links: HashMap<GameId, HashMap<String, ModioLink>>,
     pub terms_accepted: bool,
+    /// When the stored mod.io token expires; mod.io's `/me` doesn't say.
+    pub token_expires_at: Option<String>,
 }
 
 impl Persisted {

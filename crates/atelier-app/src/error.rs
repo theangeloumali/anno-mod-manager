@@ -106,6 +106,17 @@ impl From<atelier_modio::Error> for AppError {
                 format!("mod.io is busy. Try again in {retry_after} seconds."),
             ),
             Modio::NotFound => Self::new(ErrorCode::NotFound, "That isn't on mod.io any more."),
+            Modio::InvalidEmail => {
+                Self::new(ErrorCode::InvalidInput, "That isn't a valid email address.")
+            }
+            Modio::InvalidSecurityCode => Self::new(
+                ErrorCode::InvalidInput,
+                "That code isn't right. Check the latest email from mod.io.",
+            ),
+            Modio::SecurityCodeExpired => Self::new(
+                ErrorCode::InvalidInput,
+                "That code has expired or was already used. Ask for a new one.",
+            ),
             other => Self::new(ErrorCode::Modio, other.to_string()),
         }
     }

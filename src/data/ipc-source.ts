@@ -93,11 +93,8 @@ export const ipcSource: DataSource = {
   acceptTerms: () => call("accept_terms"),
   setApiKey: (key) => call("set_api_key", { key }),
   clearApiKey: () => call("clear_api_key"),
-  // The core supports token sign-in only and returns no device code.
-  signIn: async (method, token) => {
-    await call("sign_in", { method, token: token ?? null });
-    return null;
-  },
+  requestSignInCode: (email) => call("request_sign_in_code", { email }),
+  signIn: (method, secret) => call("sign_in", { method, secret }),
   signOut: () => call("sign_out"),
   getSettings: () => call<Settings>("get_settings"),
   saveSettings: (settings) => call("save_settings", { settings }),

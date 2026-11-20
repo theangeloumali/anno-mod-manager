@@ -248,7 +248,7 @@ export interface LogEntry {
   source: string | null;
 }
 
-export type AuthMethod = "browser" | "device" | "token";
+export type AuthMethod = "email" | "token";
 
 export interface Account {
   /** The user's own mod.io API key is in the OS keychain; the app never ships one. */
@@ -257,12 +257,6 @@ export interface Account {
   username: string | null;
   expiresAt: string | null;
   termsAccepted: boolean;
-}
-
-export interface DeviceCode {
-  code: string;
-  verifyUrl: string;
-  expiresAt: string;
 }
 
 export type AppErrorCode =

@@ -138,12 +138,18 @@ pub async fn clear_api_key(app: State<'_, App>) -> CommandResult<()> {
 }
 
 #[tauri::command]
+pub async fn request_sign_in_code(app: State<'_, App>, email: String) -> CommandResult<()> {
+    app.request_sign_in_code(&email).await
+}
+
+/// `secret` is the emailed code or a pasted personal token, by `method`.
+#[tauri::command]
 pub async fn sign_in(
     app: State<'_, App>,
     method: AuthMethod,
-    token: Option<String>,
+    secret: Option<String>,
 ) -> CommandResult<()> {
-    app.sign_in(method, token.as_deref()).await
+    app.sign_in(method, secret.as_deref()).await
 }
 
 #[tauri::command]

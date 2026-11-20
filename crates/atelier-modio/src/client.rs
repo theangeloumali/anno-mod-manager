@@ -190,6 +190,19 @@ impl ModioClient {
         Ok(items)
     }
 
+    /// A form POST whose JSON answer is needed (the sign-in exchanges).
+    pub(crate) async fn post_form_json<T: DeserializeOwned>(
+        &self,
+        game: GameId,
+        path: &str,
+        auth: Auth<'_>,
+        form: &[(&str, String)],
+    ) -> Result<T> {
+        let builder = self.request(game, Method::POST, path, auth)?.form(form);
+        let body = read_capped(self.execute(builder).await?, MAX_JSON_BYTES).await?;
+        Ok(serde_json::from_slice(&body)?)
+    }
+
     /// A bearer-authenticated write whose response body is not needed.
     pub(crate) async fn write(
         &self,
