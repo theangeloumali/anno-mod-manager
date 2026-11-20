@@ -599,6 +599,24 @@ impl App {
                 return Err(error);
             }
         };
+        // An adopted copy is linked only if it is still the one the preview saw.
+        let adopted = if adopted.is_empty() {
+            adopted
+        } else {
+            let still_here: HashMap<String, String> = self
+                .scan(game)?
+                .into_iter()
+                .filter(|item| item.location == ModLocation::Documents && item.parent_id.is_none())
+                .map(|item| (item.id, item.version))
+                .collect();
+            preview
+                .items
+                .iter()
+                .filter(|item| adopted.contains(&item.mod_id))
+                .filter(|item| still_here.get(&item.mod_id) == item.previous_version.as_ref())
+                .map(|item| item.mod_id.clone())
+                .collect()
+        };
         let top_level = preview
             .items
             .into_iter()

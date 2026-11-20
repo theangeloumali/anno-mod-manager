@@ -1810,7 +1810,7 @@ async fn a_new_job_for_a_page_clears_its_old_failed_entry() {
 
     harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
 
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Done);
     let jobs = harness.app.list_downloads();
     assert_eq!(jobs.len(), 1, "{jobs:?}");
     assert_eq!(jobs[0].status, DownloadStatus::Done);
