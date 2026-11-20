@@ -168,6 +168,9 @@ export interface ModioMod {
   rating: number;
   sizeBytes: number;
   logoUrl: string | null;
+  /** First published and last changed on mod.io, in Unix seconds (0 when unknown). */
+  dateAdded: number;
+  dateUpdated: number;
   subscribed: boolean;
   installedModId: string | null;
 }

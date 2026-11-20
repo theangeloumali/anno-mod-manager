@@ -552,6 +552,9 @@ function seedOptions(): Record<string, ModOption[]> {
   };
 }
 
+const DAY_SECONDS = 86_400;
+const MOCK_FIRST_PUBLISHED = 1_740_000_000;
+
 const modioItem = (
   id: number,
   nameId: string,
@@ -574,6 +577,10 @@ const modioItem = (
   sizeBytes: megabytes(sizeMb),
   // Every other mock mod has a logo, so the mock-up shows both a logo and the fallback.
   logoUrl: id % 2 === 0 ? mockLogo(name, id % 360) : null,
+  // Spread over 2025 to 2026, each updated some weeks after it was published.
+  dateAdded: MOCK_FIRST_PUBLISHED + (id % 97) * 3 * DAY_SECONDS,
+  dateUpdated:
+    MOCK_FIRST_PUBLISHED + ((id % 97) * 3 + (id % 13) * 7 + 2) * DAY_SECONDS,
   subscribed: false,
   installedModId: null,
 });

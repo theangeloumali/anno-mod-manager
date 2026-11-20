@@ -49,6 +49,10 @@ async fn browse_maps_mods_and_hides_paid_ones() {
     assert_eq!(page.offset, 0);
     let first = &page.items[0];
     assert_eq!(first.author, "Aurelia");
+    assert_eq!(
+        (first.date_added, first.date_updated),
+        (1762000000, 1763400000)
+    );
     assert_eq!(first.downloads, 15230);
     assert_eq!(first.size_bytes, 11);
     assert_eq!(first.tags, vec!["Gameplay", "Infrastructure"]);
@@ -204,9 +208,11 @@ async fn subscribe_and_unsubscribe_send_bearer_writes() {
         .expect(1)
         .mount(&server)
         .await;
+    // mod.io answers 415 without a form Content-Type, even on a bodiless DELETE.
     Mock::given(method("DELETE"))
         .and(path("/v1/games/11358/mods/4801/subscribe"))
         .and(header("Authorization", auth.as_str()))
+        .and(header("Content-Type", "application/x-www-form-urlencoded"))
         .respond_with(ResponseTemplate::new(204))
         .expect(1)
         .mount(&server)

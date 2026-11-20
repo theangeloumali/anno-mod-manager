@@ -19,6 +19,16 @@ const compactNumber = new Intl.NumberFormat("en", { notation: "compact" });
 
 export const formatCount = (count: number) => compactNumber.format(count);
 
+const shortDate = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+/** mod.io's Unix-seconds dates as "18 Nov 2026"; an unknown (0) date as "—". */
+export const formatUnixDate = (seconds: number) =>
+  seconds > 0 ? shortDate.format(new Date(seconds * 1000)) : "—";
+
 export const gameShortName = (game: GameId) =>
   game === "anno117" ? "Anno 117" : "Anno 1800";
 

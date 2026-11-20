@@ -106,6 +106,11 @@ pub(crate) struct ApiMod {
     pub stats: ApiModStats,
     #[serde(default)]
     pub dependencies: bool,
+    /// Unix seconds.
+    #[serde(default)]
+    pub date_added: u64,
+    #[serde(default)]
+    pub date_updated: u64,
 }
 
 fn accepted() -> u8 {
@@ -193,6 +198,8 @@ impl ApiMod {
             rating: self.stats.ratings_weighted_aggregate,
             size_bytes: self.modfile.as_ref().map_or(0, |file| file.filesize),
             logo_url: self.logo.thumb_320x180,
+            date_added: self.date_added,
+            date_updated: self.date_updated,
             subscribed,
             installed_mod_id: None,
         }
