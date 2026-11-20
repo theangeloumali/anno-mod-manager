@@ -84,6 +84,13 @@ impl App {
             .iter()
             .position(|entry| entry.job.id == job_id)
             .ok_or_else(gone)?;
+        // The install step runs to the end once started, so a cancel would only hide it.
+        if jobs[index].job.status == DownloadStatus::Verifying {
+            return Err(AppError::new(
+                ErrorCode::InvalidInput,
+                "It's already installing, so it can't be cancelled now.",
+            ));
+        }
         if let Some(abort) = jobs.remove(index).abort {
             abort.abort();
         }
@@ -276,7 +283,11 @@ impl App {
                 self.edit_job(job_id, |job| apply_progress(job, progress));
             })
             .await?;
-        self.edit_job(job_id, |job| job.status = DownloadStatus::Verifying);
+        // Set under the jobs lock: a job cancelled before this point installs nothing.
+        if !self.edit_job(job_id, |job| job.status = DownloadStatus::Verifying) {
+            let _ = std::fs::remove_dir_all(&staging);
+            return Ok(());
+        }
         let installed =
             self.install_download(game, modio_id, modfile.id, &archive.to_string_lossy());
         // Staging is scratch space; a leftover copy is harmless, so cleanup errors are ignored.
@@ -386,13 +397,13 @@ impl App {
             .collect())
     }
 
-    fn edit_job(&self, job_id: &str, change: impl FnOnce(&mut DownloadJob)) {
-        if let Some(entry) = lock(&self.0.jobs)
+    /// False when the job is gone (cancelled).
+    fn edit_job(&self, job_id: &str, change: impl FnOnce(&mut DownloadJob)) -> bool {
+        lock(&self.0.jobs)
             .iter_mut()
             .find(|entry| entry.job.id == job_id)
-        {
-            change(&mut entry.job);
-        }
+            .map(|entry| change(&mut entry.job))
+            .is_some()
     }
 }
 

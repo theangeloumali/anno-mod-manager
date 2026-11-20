@@ -31,7 +31,11 @@ pub struct Options {
     pub api_key: Option<&'static str>,
     pub dev_api_key: Option<&'static str>,
     pub modio_base: Option<Url>,
+    /// Stands in for the running-game check, e.g. to pause a job at its install step.
+    pub is_running: Option<IsRunning>,
 }
+
+pub type IsRunning = Arc<dyn Fn(GameId) -> bool + Send + Sync>;
 
 impl Default for Options {
     fn default() -> Self {
@@ -40,6 +44,7 @@ impl Default for Options {
             api_key: Some(API_KEY),
             dev_api_key: None,
             modio_base: None,
+            is_running: None,
         }
     }
 }
@@ -76,7 +81,9 @@ impl Harness {
                     .filter(|(installed_game, _)| *installed_game == game)
                     .map(|(_, path)| (path.clone(), Store::Steam))
             }),
-            is_running: Arc::new(move |_| running_flag.load(Ordering::SeqCst)),
+            is_running: options
+                .is_running
+                .unwrap_or_else(|| Arc::new(move |_| running_flag.load(Ordering::SeqCst))),
             api_key_store: api_keys.clone(),
             token_store: tokens.clone(),
             dev_api_key: options.dev_api_key.map(str::to_owned),

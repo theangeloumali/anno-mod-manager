@@ -962,3 +962,45 @@ async fn restoring_an_older_version_offers_the_update_again() {
     assert_eq!(restored.version, "1.0.0");
     assert!(restored.update.is_some(), "1.2.0 must be offered again");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_download_that_is_already_installing_cannot_be_cancelled() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex, mpsc};
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    let (entered_tx, entered_rx) = mpsc::channel::<()>();
+    let (release_tx, release_rx) = mpsc::channel::<()>();
+    let pause = Mutex::new((entered_tx, release_rx));
+    let checks = AtomicUsize::new(0);
+    // Subscribing checks once; the next check is the install's, which holds until released.
+    let is_running: IsRunning = Arc::new(move |_| {
+        if checks.fetch_add(1, Ordering::SeqCst) == 1 {
+            let pause = pause.lock().unwrap();
+            let _ = pause.0.send(());
+            let _ = pause.1.recv();
+        }
+        false
+    });
+    let harness = Harness::with(Options {
+        modio_base: Some(base(&server)),
+        is_running: Some(is_running),
+        ..Options::default()
+    });
+    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
+    tokio::task::spawn_blocking(move || entered_rx.recv_timeout(Duration::from_secs(10)))
+        .await
+        .unwrap()
+        .expect("the job never reached its install step");
+    let job = harness.app.list_downloads().remove(0);
+    assert_eq!(job.status, DownloadStatus::Verifying);
+
+    let refused = harness.app.cancel_download(&job.id);
+    release_tx.send(()).unwrap();
+
+    assert!(
+        refused.is_err(),
+        "the install goes ahead, so it can't be cancelled"
+    );
+    assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Done);
+}

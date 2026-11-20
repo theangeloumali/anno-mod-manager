@@ -2220,6 +2220,12 @@ export const mockSource: DataSource = {
   },
 
   cancelDownload: (jobId) => {
+    const installing = state.downloads.some(
+      (candidate) =>
+        candidate.job.id === jobId && candidate.job.status === "verifying",
+    );
+    if (installing)
+      return refuse("It's already installing, so it can't be cancelled now.");
     state.downloads = state.downloads.filter(
       (candidate) => candidate.job.id !== jobId,
     );

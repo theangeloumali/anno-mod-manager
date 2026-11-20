@@ -27,10 +27,8 @@ function JobRow({ job }: { job: DownloadJob }) {
   const cancel = useAction((source) => source.cancelDownload(job.id));
   const badge = STATUS_BADGE[job.status];
   const percent = Math.round(job.progress * PERCENT);
-  const isRunning =
-    job.status === "downloading" ||
-    job.status === "queued" ||
-    job.status === "verifying";
+  // Verifying is the install step, which can't be stopped once started.
+  const isCancellable = job.status === "downloading" || job.status === "queued";
 
   return (
     <li className="flex flex-col gap-2 py-3">
@@ -55,7 +53,7 @@ function JobRow({ job }: { job: DownloadJob }) {
               Retry
             </Button>
           )}
-          {isRunning && (
+          {isCancellable && (
             <Button
               size="icon"
               variant="quiet"
