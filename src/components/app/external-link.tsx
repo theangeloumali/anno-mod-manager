@@ -4,7 +4,10 @@ import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { errorMessage } from "./format";
 
-/** The desktop webview ignores `target="_blank"`, so links open in the user's browser. */
+/**
+ * The desktop webview ignores `target="_blank"`, so links open in the user's browser.
+ * Only https://mod.io links: the app's opener permission allows no other host.
+ */
 export function ExternalLink({
   href,
   children,

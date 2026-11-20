@@ -248,3 +248,24 @@ async fn tags_come_back_flattened() {
     let tags = harness.app.modio_tags(GameId::Anno117).await.unwrap();
     assert!(tags.contains(&"Gameplay".to_owned()));
 }
+
+#[tokio::test]
+async fn a_refused_email_sign_in_never_asks_for_a_pasted_token() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/oauth/emailexchange"))
+        .respond_with(ResponseTemplate::new(401).set_body_json(fixture("error_401.json")))
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.app.accept_terms().unwrap();
+
+    let error = harness
+        .app
+        .sign_in(atelier_app::AuthMethod::Email, Some("AB12C"))
+        .await
+        .unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::Unauthorized);
+    assert!(!error.message.contains("token"), "{}", error.message);
+}

@@ -100,9 +100,12 @@ impl Slots for KeyringSlots {
     }
 }
 
-/// Windows caps one credential at 2560 bytes of UTF-16 (1280 characters), and a mod.io
-/// access token is a longer JWT, so long secrets are stored in parts.
-const PART_CHARS: usize = 1000;
+/// Windows caps one credential at 2560 bytes of UTF-16 (1280 units), and a mod.io access
+/// token is a longer JWT, so long secrets are stored in parts of at most this many units.
+const PART_UNITS: usize = 1000;
+/// A bound on parts, so a clear can sweep every slot an earlier save may have left.
+const MAX_PARTS: usize = 16;
+const PART_SETS: [&str; 2] = ["a", "b"];
 /// A header entry reads `atelier-parts:<set>:<count>`; no token or key starts with it.
 const PARTS_HEADER: &str = "atelier-parts:";
 
@@ -153,19 +156,20 @@ fn load_split(slots: &dyn Slots, user: &str) -> Result<Option<String>> {
 fn save_split(slots: &dyn Slots, user: &str, secret: &str) -> Result<()> {
     let old_head = slots.get(user)?;
     let old = old_head.as_deref().and_then(Parts::read);
-    let chars: Vec<char> = secret.chars().collect();
-    if chars.len() <= PART_CHARS {
+    if secret.encode_utf16().count() <= PART_UNITS {
         slots.set(user, secret)?;
     } else {
+        let chunks = split_by_units(secret);
+        if chunks.len() > MAX_PARTS {
+            return Err(Error::TokenStore(
+                "this sign-in is too long to store".into(),
+            ));
+        }
         let set = if old.is_some_and(|old| old.set == "a") {
             "b"
         } else {
             "a"
         };
-        let chunks: Vec<String> = chars
-            .chunks(PART_CHARS)
-            .map(|chunk| chunk.iter().collect())
-            .collect();
         let parts = Parts {
             set,
             count: chunks.len(),
@@ -183,7 +187,8 @@ fn save_split(slots: &dyn Slots, user: &str, secret: &str) -> Result<()> {
             return Err(error);
         }
     }
-    // The new secret is saved; a leftover old part is harmless, so this can't fail the save.
+    // The new secret is saved, so this can't fail the save; a part left behind here is
+    // swept by the next clear.
     if let Some(old) = old {
         for index in 0..old.count {
             let _ = slots.delete(&old.name(user, index));
@@ -192,12 +197,30 @@ fn save_split(slots: &dyn Slots, user: &str, secret: &str) -> Result<()> {
     Ok(())
 }
 
+fn split_by_units(secret: &str) -> Vec<String> {
+    let mut chunks = vec![String::new()];
+    let mut units = 0;
+    for character in secret.chars() {
+        if units + character.len_utf16() > PART_UNITS {
+            chunks.push(String::new());
+            units = 0;
+        }
+        units += character.len_utf16();
+        chunks
+            .last_mut()
+            .expect("starts with one chunk")
+            .push(character);
+    }
+    chunks
+}
+
+/// Sweeps every part slot of both sets, not just the ones the header names, so parts an
+/// earlier failed cleanup left are removed too. Parts go first and the header last, so a
+/// clear that fails partway can simply run again.
 fn clear_split(slots: &dyn Slots, user: &str) -> Result<()> {
-    // Parts first and the header last: a clear that fails partway still names what is left,
-    // so running it again finishes the job. The store lock keeps readers out meanwhile.
-    if let Some(parts) = slots.get(user)?.as_deref().and_then(Parts::read) {
-        for index in 0..parts.count {
-            slots.delete(&parts.name(user, index))?;
+    for set in PART_SETS {
+        for index in 0..MAX_PARTS {
+            slots.delete(&Parts { set, count: 0 }.name(user, index))?;
         }
     }
     slots.delete(user)
@@ -283,7 +306,7 @@ mod tests {
             {
                 return Err(Error::TokenStore("disk full".into()));
             }
-            if value.chars().count() > 1280 {
+            if value.encode_utf16().count() > 1280 {
                 return Err(Error::TokenStore("longer than platform limit".into()));
             }
             self.entries
@@ -379,6 +402,29 @@ mod tests {
         assert_eq!(load_split(&slots, "modio-token").unwrap(), None);
         clear_split(&slots, "modio-token").unwrap();
         assert_eq!(slots.len(), 0);
+    }
+
+    #[test]
+    fn sign_out_removes_old_parts_a_failed_cleanup_left_behind() {
+        let slots = WindowsLikeSlots::default();
+        save_split(&slots, "modio-token", &"o".repeat(2500)).unwrap();
+        slots.fail_next_delete.store(true, Ordering::SeqCst);
+        save_split(&slots, "modio-token", &"p".repeat(2500)).unwrap();
+
+        clear_split(&slots, "modio-token").unwrap();
+
+        assert_eq!(slots.len(), 0);
+    }
+
+    #[test]
+    fn wide_characters_are_split_by_their_size_in_windows() {
+        let slots = WindowsLikeSlots::default();
+        // Each emoji is two UTF-16 units: split by characters, a part would overflow.
+        let token = "😀".repeat(1500);
+
+        save_split(&slots, "modio-token", &token).unwrap();
+
+        assert_eq!(load_split(&slots, "modio-token").unwrap(), Some(token));
     }
 
     #[test]

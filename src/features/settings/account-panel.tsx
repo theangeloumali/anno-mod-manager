@@ -201,6 +201,7 @@ export function AccountPanel() {
         hint="The address on your mod.io account. mod.io emails you a one-time code."
         type="email"
         placeholder="you@example.com"
+        initialValue={email}
         submitLabel="Send code"
         isPending={requestCode.isPending}
         onSubmit={sendCode}
@@ -228,7 +229,8 @@ export function AccountPanel() {
           <Button
             type="button"
             variant="quiet"
-            disabled={requestCode.isPending}
+            // A new code can void the one being exchanged, so not mid sign-in.
+            disabled={requestCode.isPending || signIn.isPending}
             onClick={() =>
               withToast(
                 requestCode.mutateAsync([email]),

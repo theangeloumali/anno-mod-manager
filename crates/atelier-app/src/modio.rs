@@ -166,7 +166,14 @@ impl App {
             }
             Err(atelier_modio::Error::Unauthorized) => Err(AppError::new(
                 ErrorCode::Unauthorized,
-                "mod.io rejected that token. Create a read+write token at mod.io/me/access.",
+                match method {
+                    AuthMethod::Email => {
+                        "mod.io refused the sign-in. Check your API key in Settings, then ask for a new code."
+                    }
+                    AuthMethod::Token => {
+                        "mod.io rejected that token. Create a read+write token at mod.io/me/access."
+                    }
+                },
             )),
             Err(other) => Err(other.into()),
         }

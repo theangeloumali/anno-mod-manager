@@ -11,6 +11,7 @@ export function SecretForm({
   type,
   placeholder,
   submitLabel,
+  initialValue = "",
   fieldClassName = "",
   isPending,
   onSubmit,
@@ -24,13 +25,15 @@ export function SecretForm({
   /** Extra classes for the field, e.g. a monospace key. */
   fieldClassName?: string;
   placeholder: string;
+  /** What the field starts with, e.g. the address when coming back to fix it. */
+  initialValue?: string;
   submitLabel: string;
   isPending: boolean;
   onSubmit: (value: string) => Promise<void>;
   onBack?: () => void;
   extra?: ReactNode;
 }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(initialValue);
   const [error, setError] = useState<string | null>(null);
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
