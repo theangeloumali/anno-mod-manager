@@ -171,7 +171,7 @@ pub fn game_info(
     let legacy_mod_loader = game == GameId::Anno1800
         && install
             .as_ref()
-            .is_some_and(|(path, _)| crate::health::legacy_loader_installed(path));
+            .is_some_and(|(path, _)| crate::health::legacy_loader_removable(path));
     let (install_path, store) = match install {
         Some((path, store)) => (Some(path.to_string_lossy().into_owned()), Some(store)),
         None => (None, None),

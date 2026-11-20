@@ -21,7 +21,7 @@ pub struct Environment<'a> {
 pub fn check_environment(env: &Environment) -> Vec<HealthCheck> {
     let mut checks = vec![game_found(env), mods_writable(env.mods_dir)];
     if env.game == GameId::Anno1800 {
-        checks.push(legacy_loader(env.install_path));
+        checks.push(legacy_loader_check(env.install_path));
     }
     checks.push(duplicate_ids(env.mods));
     checks.push(activation_scheme(env.game, env.mods_dir));
@@ -88,18 +88,36 @@ pub fn loader_dir(install: &Path) -> std::path::PathBuf {
     install.join("Bin").join("Win64")
 }
 
-/// The old loader sits in place of the game's DLL with the original renamed beside it. A
-/// leftover original beside the game's own DLL (Steam restored it) is not the loader.
-pub fn legacy_loader_installed(install: &Path) -> bool {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LegacyLoader {
+    Absent,
+    /// The game's own DLL is beside it as `python35_ubi.dll`, so it can go back.
+    Removable,
+    /// The renamed original is gone; only verifying the game files restores it.
+    Stranded,
+}
+
+/// Reads python35.dll, so the cheap [`legacy_loader_removable`] serves the game list.
+/// A leftover original beside the game's own DLL (Steam restored it) is not the loader.
+pub fn legacy_loader(install: &Path) -> LegacyLoader {
     let dir = loader_dir(install);
-    if !dir.join(LEGACY_LOADER_ORIGINAL).is_file() {
-        return false;
-    }
-    match fs::read(dir.join(LEGACY_LOADER_DLL)) {
+    let has_original = dir.join(LEGACY_LOADER_ORIGINAL).is_file();
+    let is_loader = match fs::read(dir.join(LEGACY_LOADER_DLL)) {
         Ok(bytes) => contains_utf16(&bytes, LEGACY_LOADER_MARKER),
         // Deleted by hand: the game has no python35.dll until the original goes back.
-        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound && has_original,
+    };
+    match (is_loader, has_original) {
+        (true, true) => LegacyLoader::Removable,
+        (true, false) => LegacyLoader::Stranded,
+        (false, _) => LegacyLoader::Absent,
     }
+}
+
+/// Only an install with the renamed original can be removable, so most never read the DLL.
+pub fn legacy_loader_removable(install: &Path) -> bool {
+    loader_dir(install).join(LEGACY_LOADER_ORIGINAL).is_file()
+        && legacy_loader(install) == LegacyLoader::Removable
 }
 
 /// Windows version resources store their strings as UTF-16LE.
@@ -110,22 +128,29 @@ fn contains_utf16(haystack: &[u8], needle: &str) -> bool {
         .any(|window| window == needle)
 }
 
-fn legacy_loader(install: Option<&Path>) -> HealthCheck {
-    if install.is_some_and(legacy_loader_installed) {
-        check(
-            "legacy-mod-loader",
-            Severity::Error,
-            "Old Anno 1800 Mod Loader installed",
-            "It no longer matches the game and stops it at start. Removing it puts the game's own python35.dll back, and the built-in mod loader takes over.".to_string(),
-        )
-    } else {
-        check(
-            "legacy-mod-loader",
-            Severity::Ok,
-            "No old mod loader",
-            String::new(),
-        )
-    }
+fn legacy_loader_check(install: Option<&Path>) -> HealthCheck {
+    let detail = match install.map(legacy_loader) {
+        Some(LegacyLoader::Removable) => {
+            "It no longer matches the game and stops it at start. Removing it puts the game's own python35.dll back, and the built-in mod loader takes over."
+        }
+        Some(LegacyLoader::Stranded) => {
+            "It no longer matches the game, and the game's own python35.dll it replaced is gone. Verify the game files in Steam or Ubisoft Connect to put it back."
+        }
+        _ => {
+            return check(
+                "legacy-mod-loader",
+                Severity::Ok,
+                "No old mod loader",
+                String::new(),
+            );
+        }
+    };
+    check(
+        "legacy-mod-loader",
+        Severity::Error,
+        "Old Anno 1800 Mod Loader installed",
+        detail.to_string(),
+    )
 }
 
 fn duplicate_ids(mods: &[Mod]) -> HealthCheck {

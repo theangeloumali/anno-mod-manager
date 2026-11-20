@@ -332,7 +332,7 @@ impl App {
         }
         let (install, _) = self.install(game).ok_or_else(|| game_not_found(game))?;
         let _writes = self.write_guard(game)?;
-        if !health::legacy_loader_installed(&install) {
+        if !health::legacy_loader_removable(&install) {
             return Err(AppError::new(
                 ErrorCode::NotFound,
                 "No old mod loader is installed.",

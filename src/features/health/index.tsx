@@ -1,5 +1,5 @@
 // Created by The Angelo Umali.
-import { CircleCheckIcon } from "lucide-react";
+import { CircleCheckIcon, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
 import { SWITCH_CLASS } from "@/components/app/field-class";
 import { IssueCard } from "@/components/app/issue-card";
@@ -12,9 +12,10 @@ import {
 } from "@/components/app/state-badge";
 import { withToast } from "@/components/app/notify";
 import { useCurrentGame } from "@/components/app/use-current-game";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { isLaunchBlocker, LEGACY_LOADER_CHECK } from "@/data/health";
+import { isLaunchBlocker } from "@/data/health";
 import {
   useAction,
   useHealthChecks,
@@ -22,7 +23,7 @@ import {
   useLoaderLog,
   useMods,
 } from "@/data/source";
-import type { HealthCheck, LogEntry } from "@/data/types";
+import type { LogEntry } from "@/data/types";
 
 const LOG_TONE: Record<LogEntry["level"], StateTone> = {
   info: "neutral",
@@ -40,9 +41,13 @@ export function HealthScreen() {
   const { data: log = [] } = useLoaderLog(gameId);
   const { data: mods = [] } = useMods(gameId);
   const [isShowingInfo, setShowingInfo] = useState(false);
+  // Until the checks (which wait on mod.io) arrive, the game list's loader flag stands in.
+  const environmentErrors = checks.length
+    ? checks.filter(isLaunchBlocker).length
+    : Number(game?.legacyModLoader ?? false);
   const errorCount =
     issues.filter((issue) => issue.level === "error").length +
-    checks.filter(isLaunchBlocker).length;
+    environmentErrors;
   const logCards = log.filter(
     (entry) => isShowingInfo || entry.level !== "info",
   );
@@ -60,6 +65,7 @@ export function HealthScreen() {
           )
         }
       />
+      <LegacyLoaderNotice />
       <div className="grid items-start gap-5 lg:grid-cols-2">
         <Panel title={`Issues (${issues.length})`}>
           {issues.length === 0 ? (
@@ -94,13 +100,6 @@ export function HealthScreen() {
                   <p className="text-label break-words text-copy-muted">
                     {check.detail}
                   </p>
-                  {check.id === LEGACY_LOADER_CHECK &&
-                    check.level === "error" && (
-                      <RemoveLegacyLoader
-                        check={check}
-                        isWriteLocked={isWriteLocked}
-                      />
-                    )}
                 </div>
               </li>
             ))}
@@ -169,31 +168,35 @@ export function HealthScreen() {
   );
 }
 
-/** Backs up the old 1800 loader and puts the game's own python35.dll back. */
-function RemoveLegacyLoader({
-  check,
-  isWriteLocked,
-}: {
-  check: HealthCheck;
-  isWriteLocked: boolean;
-}) {
-  const { gameId } = useCurrentGame();
+/** Read from the game list, not the checks, so a slow mod.io never hides the fix. */
+function LegacyLoaderNotice() {
+  const { gameId, game, isWriteLocked } = useCurrentGame();
   const remove = useAction((source) => source.removeLegacyLoader(gameId));
+  if (!game?.legacyModLoader) return null;
   return (
-    <Button
-      size="sm"
-      className="mt-2"
-      disabled={isWriteLocked || remove.isPending}
-      aria-label={`Remove: ${check.title}`}
-      onClick={() =>
-        withToast(remove.mutateAsync([]), (backup) =>
-          backup
-            ? `Old mod loader removed. A backup is in ${backup}`
-            : "Old mod loader removed",
-        )
-      }
-    >
-      Remove old loader
-    </Button>
+    <Alert className="rounded-field border-line-strong bg-surface text-copy">
+      <TriangleAlertIcon aria-hidden="true" />
+      <AlertTitle className="font-semibold">
+        The old Anno 1800 Mod Loader is installed
+      </AlertTitle>
+      <AlertDescription className="flex flex-col items-start gap-2 text-copy-muted">
+        It no longer matches the game and stops it at start with "not compatible
+        with your current Game Version". Removing it keeps a backup and puts the
+        game's own python35.dll back.
+        <Button
+          size="sm"
+          disabled={isWriteLocked || remove.isPending}
+          onClick={() =>
+            withToast(remove.mutateAsync([]), (backup) =>
+              backup
+                ? `Old mod loader removed. A backup is in ${backup}`
+                : "Old mod loader removed",
+            )
+          }
+        >
+          Remove old loader
+        </Button>
+      </AlertDescription>
+    </Alert>
   );
 }

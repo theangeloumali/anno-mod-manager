@@ -250,5 +250,33 @@ fn a_leftover_original_beside_the_games_own_dll_is_no_old_loader() {
     fs::create_dir_all(install.join("Bin/Win64")).unwrap();
     fs::write(install.join("Bin/Win64/python35.dll"), b"Python Core").unwrap();
     touch(&install.join("Bin/Win64/python35_ubi.dll"));
-    assert!(!health::legacy_loader_installed(&install));
+    assert_eq!(
+        health::legacy_loader(&install),
+        health::LegacyLoader::Absent
+    );
+}
+
+#[test]
+fn an_old_loader_whose_original_is_gone_is_still_reported() {
+    let tmp = tempfile::tempdir().unwrap();
+    let install = tmp.path().join("Anno 1800");
+    touch(&install.join("Bin/Win64/Anno1800.exe"));
+    fs::write(install.join("Bin/Win64/python35.dll"), old_loader_bytes()).unwrap();
+    let mods_dir = tmp.path().join("mods");
+    fs::create_dir(&mods_dir).unwrap();
+
+    assert_eq!(
+        health::legacy_loader(&install),
+        health::LegacyLoader::Stranded
+    );
+    assert!(!health::legacy_loader_removable(&install));
+    let checks = health::check_environment(&Environment {
+        game: GameId::Anno1800,
+        install_path: Some(&install),
+        mods_dir: &mods_dir,
+        mods: &[],
+    });
+    let loader = checks.iter().find(|c| c.id == "legacy-mod-loader").unwrap();
+    assert_eq!(loader.level, Severity::Error);
+    assert!(loader.detail.contains("Verify the game files"));
 }
