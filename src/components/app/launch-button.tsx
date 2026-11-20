@@ -1,16 +1,14 @@
 // Created by The Angelo Umali.
 import { LockIcon, PlayIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { hasLegacyLoader } from "@/data/health";
-import { useAction, useHealthChecks, useIssues } from "@/data/source";
+import { useAction, useIssues } from "@/data/source";
 import { withToast } from "./notify";
 import { useCurrentGame } from "./use-current-game";
 
 /** The shell's gold action. Running = locked; errors warn in the label but never block launch. */
 export function LaunchButton() {
-  const { gameId, shortName, isWriteLocked } = useCurrentGame();
+  const { gameId, game, shortName, isWriteLocked } = useCurrentGame();
   const { data: issues = [] } = useIssues(gameId);
-  const { data: checks = [] } = useHealthChecks(gameId);
   const launch = useAction((source) => source.launchGame(gameId));
   const errorCount = issues.filter((issue) => issue.level === "error").length;
 
@@ -31,7 +29,7 @@ export function LaunchButton() {
       onClick={() =>
         withToast(
           launch.mutateAsync([]),
-          hasLegacyLoader(checks)
+          game?.legacyModLoader
             ? `Launching ${shortName} with the old mod loader still installed. Remove it under Health`
             : errorCount
               ? `Launching ${shortName} with ${errorCount} unresolved errors`

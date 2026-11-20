@@ -931,7 +931,7 @@ interface StoredPreview {
 
 const GAME_DETAILS: Record<
   GameId,
-  Omit<GameInfo, "running"> & { exe: string }
+  Omit<GameInfo, "running" | "legacyModLoader"> & { exe: string }
 > = {
   anno117: {
     id: "anno117",
@@ -1866,6 +1866,7 @@ export const mockSource: DataSource = {
           ...info,
           ...(chosenPath && { installPath: chosenPath, store: "manual" }),
           running: state.runningGame === game,
+          legacyModLoader: game === "anno1800" && state.legacyLoader,
         };
       }),
     ),

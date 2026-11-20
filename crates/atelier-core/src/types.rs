@@ -85,6 +85,8 @@ pub struct GameInfo {
     pub log_path: String,
     pub running: bool,
     pub activation_scheme: ActivationScheme,
+    /// The old community 1800 loader is in place of the game's python35.dll.
+    pub legacy_mod_loader: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

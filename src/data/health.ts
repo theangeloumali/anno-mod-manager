@@ -7,8 +7,3 @@ export const LEGACY_LOADER_CHECK = "legacy-mod-loader";
 /** An error that stops or breaks the game; mod.io being down or signed out never does. */
 export const isLaunchBlocker = (check: HealthCheck) =>
   check.level === "error" && !check.id.startsWith("modio-");
-
-export const hasLegacyLoader = (checks: HealthCheck[]) =>
-  checks.some(
-    (check) => check.id === LEGACY_LOADER_CHECK && check.level === "error",
-  );

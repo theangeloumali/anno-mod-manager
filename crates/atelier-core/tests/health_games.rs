@@ -87,6 +87,7 @@ fn the_old_1800_mod_loader_is_an_error_named_by_the_renamed_game_dll() {
     touch(&install.join("Bin/Win64/python35.dll"));
     // The old loader's installer renames the game's DLL to make room for its own.
     touch(&install.join("Bin/Win64/python35_ubi.dll"));
+    fs::write(install.join("Bin/Win64/python35.dll"), old_loader_bytes()).unwrap();
     let mods_dir = tmp.path().join("mods");
     fs::create_dir(&mods_dir).unwrap();
 
@@ -232,4 +233,22 @@ fn mod_serializes_to_the_ui_contract() {
     }
     assert_eq!(json["location"], "documents");
     assert_eq!(json["setup"], serde_json::json!({}));
+}
+
+/// Bytes carrying the old loader's version-info description, as Windows stores it.
+fn old_loader_bytes() -> Vec<u8> {
+    "Anno 1800 Mod Loader"
+        .encode_utf16()
+        .flat_map(u16::to_le_bytes)
+        .collect()
+}
+
+#[test]
+fn a_leftover_original_beside_the_games_own_dll_is_no_old_loader() {
+    let tmp = tempfile::tempdir().unwrap();
+    let install = tmp.path().join("Anno 1800");
+    fs::create_dir_all(install.join("Bin/Win64")).unwrap();
+    fs::write(install.join("Bin/Win64/python35.dll"), b"Python Core").unwrap();
+    touch(&install.join("Bin/Win64/python35_ubi.dll"));
+    assert!(!health::legacy_loader_installed(&install));
 }

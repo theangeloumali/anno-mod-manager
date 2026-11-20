@@ -80,18 +80,38 @@ fn mods_writable(mods_dir: &Path) -> HealthCheck {
 /// and puts itself in its place.
 pub const LEGACY_LOADER_ORIGINAL: &str = "python35_ubi.dll";
 pub const LEGACY_LOADER_DLL: &str = "python35.dll";
+/// The loader's version-info FileDescription; the game's own DLL says "Python Core".
+const LEGACY_LOADER_MARKER: &str = "Anno 1800 Mod Loader";
 
 /// The game's Python DLL folder, where the old 1800 loader installs.
 pub fn loader_dir(install: &Path) -> std::path::PathBuf {
     install.join("Bin").join("Win64")
 }
 
-/// `python35.dll` alone is the game's own DLL; only the renamed original marks the old
-/// loader, which stops a newer game at start with "not compatible with your Game Version".
+/// The old loader sits in place of the game's DLL with the original renamed beside it. A
+/// leftover original beside the game's own DLL (Steam restored it) is not the loader.
+pub fn legacy_loader_installed(install: &Path) -> bool {
+    let dir = loader_dir(install);
+    if !dir.join(LEGACY_LOADER_ORIGINAL).is_file() {
+        return false;
+    }
+    match fs::read(dir.join(LEGACY_LOADER_DLL)) {
+        Ok(bytes) => contains_utf16(&bytes, LEGACY_LOADER_MARKER),
+        // Deleted by hand: the game has no python35.dll until the original goes back.
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+    }
+}
+
+/// Windows version resources store their strings as UTF-16LE.
+fn contains_utf16(haystack: &[u8], needle: &str) -> bool {
+    let needle: Vec<u8> = needle.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
+}
+
 fn legacy_loader(install: Option<&Path>) -> HealthCheck {
-    let installed =
-        install.is_some_and(|path| loader_dir(path).join(LEGACY_LOADER_ORIGINAL).is_file());
-    if installed {
+    if install.is_some_and(legacy_loader_installed) {
         check(
             "legacy-mod-loader",
             Severity::Error,

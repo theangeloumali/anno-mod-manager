@@ -323,7 +323,6 @@ impl App {
 
     /// Takes the old community 1800 loader out and puts the game's own python35.dll back,
     /// returning the loader's backup (none when it was already deleted by hand).
-    /// A copy, not a move, keeps the loader: the game and the backups can be on different drives.
     pub fn remove_legacy_loader(&self, game: GameId) -> Result<Option<PathBuf>> {
         if game != GameId::Anno1800 {
             return Err(AppError::new(
@@ -333,30 +332,27 @@ impl App {
         }
         let (install, _) = self.install(game).ok_or_else(|| game_not_found(game))?;
         let _writes = self.write_guard(game)?;
-        let dir = health::loader_dir(&install);
-        let original = dir.join(health::LEGACY_LOADER_ORIGINAL);
-        let loader = dir.join(health::LEGACY_LOADER_DLL);
-        if !original.is_file() {
+        if !health::legacy_loader_installed(&install) {
             return Err(AppError::new(
                 ErrorCode::NotFound,
                 "No old mod loader is installed.",
             ));
         }
+        let dir = health::loader_dir(&install);
+        let loader = dir.join(health::LEGACY_LOADER_DLL);
+        let original = dir.join(health::LEGACY_LOADER_ORIGINAL);
         let backup = if loader.is_file() {
             Some(self.back_up_loader(&loader)?)
         } else {
             None
         };
-        if let Err(error) = fs::rename(&original, &loader) {
-            // Put the loader back, so a failed removal leaves the folder as it was.
-            if let Some(backup) = &backup {
-                let _ = fs::copy(backup, &loader);
-            }
-            return Err(AppError::io(&error, &original));
-        }
+        // A rename over the loader replaces it in one step, so python35.dll is never missing;
+        // if it fails, the loader is still in place.
+        fs::rename(&original, &loader).map_err(|error| AppError::io(&error, &original))?;
         Ok(backup)
     }
 
+    /// A copy, not a move: the game and the backups can be on different drives.
     fn back_up_loader(&self, loader: &Path) -> Result<PathBuf> {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -370,7 +366,6 @@ impl App {
         fs::create_dir_all(&dir).map_err(|error| AppError::io(&error, &dir))?;
         let backup = dir.join(health::LEGACY_LOADER_DLL);
         fs::copy(loader, &backup).map_err(|error| AppError::io(&error, loader))?;
-        fs::remove_file(loader).map_err(|error| AppError::io(&error, loader))?;
         Ok(backup)
     }
 
