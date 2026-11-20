@@ -308,6 +308,17 @@ impl App {
                 format!("{} is already running.", game.executable_name()),
             ));
         }
+        // A picked folder is the Steam copy only when Steam's own detection finds it there.
+        let store = match store {
+            Store::Manual
+                if (self.0.locate)(game).is_some_and(|(steam_copy, detected)| {
+                    detected == Store::Steam && games::same_path(&steam_copy, &install)
+                }) =>
+            {
+                Store::Steam
+            }
+            other => other,
+        };
         let target = games::launch_target(game, &install, store);
         // A write in progress finishes first, so the game never reads a half-written mods folder.
         let _writes = lock(&self.0.writes);

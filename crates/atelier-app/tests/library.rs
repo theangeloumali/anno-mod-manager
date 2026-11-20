@@ -499,21 +499,15 @@ fn launching_a_ubisoft_copy_runs_its_executable() {
 }
 
 #[test]
-fn a_game_folder_picked_inside_a_steam_library_launches_through_steam() {
-    let harness = Harness::new();
-    let steamapps = harness.root.path().join("SteamLibrary").join("steamapps");
-    let install = steamapps.join("common").join("Anno 117 - Pax Romana");
-    let exe = install.join(GameId::Anno117.executable());
-    fs::create_dir_all(exe.parent().unwrap()).unwrap();
-    fs::write(&exe, b"").unwrap();
-    fs::write(
-        steamapps.join("appmanifest_3274580.acf"),
-        r#""AppState" { "appid" "3274580" "installdir" "Anno 117 - Pax Romana" }"#,
-    )
-    .unwrap();
+fn a_picked_folder_that_is_the_steam_install_launches_through_steam() {
+    let harness = Harness::with(Options {
+        install: Some(GameId::Anno117),
+        ..Options::default()
+    });
+    let steam_copy = harness.install_dir();
     harness
         .app
-        .set_game_path(GameId::Anno117, Some(install.to_str().unwrap()))
+        .set_game_path(GameId::Anno117, Some(steam_copy.to_str().unwrap()))
         .unwrap();
 
     harness.app.launch_game(GameId::Anno117).unwrap();
@@ -522,4 +516,28 @@ fn a_game_folder_picked_inside_a_steam_library_launches_through_steam() {
         *harness.launches.lock().unwrap(),
         vec![LaunchTarget::Url("steam://rungameid/3274580".into())]
     );
+}
+
+#[test]
+fn a_picked_copy_steam_does_not_run_starts_its_own_executable() {
+    // Steam would start its own install, not the copy picked here.
+    let harness = Harness::with(Options {
+        install: Some(GameId::Anno117),
+        ..Options::default()
+    });
+    let other = harness.root.path().join("Old Copy").join("Anno 117");
+    let exe = other.join(GameId::Anno117.executable());
+    fs::create_dir_all(exe.parent().unwrap()).unwrap();
+    fs::write(&exe, b"").unwrap();
+    harness
+        .app
+        .set_game_path(GameId::Anno117, Some(other.to_str().unwrap()))
+        .unwrap();
+
+    harness.app.launch_game(GameId::Anno117).unwrap();
+
+    assert!(matches!(
+        harness.launches.lock().unwrap().as_slice(),
+        [LaunchTarget::Exe { exe: launched, .. }] if *launched == exe
+    ));
 }
