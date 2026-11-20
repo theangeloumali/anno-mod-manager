@@ -76,10 +76,9 @@ impl App {
         })
     }
 
-    /// Uninstalls every installed mod linked to this mod.io page.
-    fn remove_page_mods(&self, game: GameId, modio_id: u64) -> Result<()> {
-        let linked: Vec<String> = self
-            .persisted()
+    /// The installed mods whose mod.io link points at this page.
+    fn linked_mod_ids(&self, game: GameId, modio_id: u64) -> Vec<String> {
+        self.persisted()
             .modio_links
             .get(&game)
             .map(|links| {
@@ -89,7 +88,12 @@ impl App {
                     .map(|(mod_id, _)| mod_id.clone())
                     .collect()
             })
-            .unwrap_or_default();
+            .unwrap_or_default()
+    }
+
+    /// Uninstalls every installed mod linked to this mod.io page.
+    fn remove_page_mods(&self, game: GameId, modio_id: u64) -> Result<()> {
+        let linked = self.linked_mod_ids(game, modio_id);
         for mod_id in linked {
             match self.uninstall_mod(game, &mod_id) {
                 // Already gone by hand: nothing left to remove.
@@ -381,18 +385,7 @@ impl App {
             }
         }
         // A retry skips the already-installed mod, so the page's links name it, not this run.
-        let linked: Vec<String> = self
-            .persisted()
-            .modio_links
-            .get(&game)
-            .map(|links| {
-                links
-                    .iter()
-                    .filter(|(_, link)| link.modio_id == modio_id)
-                    .map(|(mod_id, _)| mod_id.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
+        let linked = self.linked_mod_ids(game, modio_id);
         // Like the new-mods rule: the files landed, so a failed profile write only warns. The
         // hold goes too, so a later update of this page never applies stale rules.
         let held = self
