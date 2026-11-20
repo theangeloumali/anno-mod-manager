@@ -316,3 +316,35 @@ mod platform {
         std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Documents"))
     }
 }
+
+/// How Launch starts a game.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LaunchTarget {
+    /// A store URL, opened by the OS.
+    Url(String),
+    Exe {
+        exe: PathBuf,
+        work_dir: PathBuf,
+    },
+}
+
+/// A Steam copy run as a bare exe hands itself to Ubisoft Connect and never starts, so
+/// Steam copies, and folders picked inside a Steam library, launch through Steam.
+pub fn launch_target(game: GameId, install: &Path, store: Store) -> LaunchTarget {
+    if store == Store::Steam || (store == Store::Manual && inside_steam_library(install)) {
+        return LaunchTarget::Url(format!("steam://rungameid/{}", game.steam_app_id()));
+    }
+    let exe = install.join(game.executable());
+    let work_dir = exe.parent().unwrap_or(install).to_path_buf();
+    LaunchTarget::Exe { exe, work_dir }
+}
+
+fn inside_steam_library(path: &Path) -> bool {
+    let parts: Vec<String> = path
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy().to_ascii_lowercase())
+        .collect();
+    parts
+        .windows(2)
+        .any(|pair| pair[0] == "steamapps" && pair[1] == "common")
+}

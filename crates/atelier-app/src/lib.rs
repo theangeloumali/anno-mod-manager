@@ -16,6 +16,7 @@ use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 use std::time::Instant;
 
 use atelier_core::activation::Snapshots;
+use atelier_core::games::LaunchTarget;
 use atelier_core::{GameId, ModUpdate, Store};
 use atelier_install::{EngineConfig, InstallEngine};
 use atelier_modio::{ModioClient, TokenStore};
@@ -32,6 +33,7 @@ const SNAPSHOTS_KEPT: usize = 20;
 
 pub type Locate = Arc<dyn Fn(GameId) -> Option<(PathBuf, Store)> + Send + Sync>;
 pub type IsRunning = Arc<dyn Fn(GameId) -> bool + Send + Sync>;
+pub type Launch = Arc<dyn Fn(&LaunchTarget) -> std::io::Result<()> + Send + Sync>;
 
 pub struct AppConfig {
     pub data_dir: PathBuf,
@@ -44,6 +46,8 @@ pub struct AppConfig {
     /// Debug builds only: stands in when the user has saved no key.
     pub dev_api_key: Option<String>,
     pub modio_base: Option<Url>,
+    /// Starts the game; tests record instead.
+    pub launch: Launch,
 }
 
 #[derive(Clone)]
@@ -54,6 +58,7 @@ struct Inner {
     documents: PathBuf,
     locate: Locate,
     is_running: IsRunning,
+    launch: Launch,
     api_key_store: Arc<dyn TokenStore>,
     token_store: Arc<dyn TokenStore>,
     dev_api_key: Option<String>,
@@ -104,6 +109,7 @@ impl App {
             documents,
             locate: config.locate,
             is_running: config.is_running,
+            launch: config.launch,
             api_key_store: config.api_key_store,
             token_store: config.token_store,
             dev_api_key: config.dev_api_key,

@@ -1104,6 +1104,8 @@ function createState() {
 
 let state = createState();
 
+const MOCK_SESSION_MS = 4000;
+
 const respond = <T>(value: T): Promise<T> =>
   new Promise((resolve) =>
     setTimeout(() => resolve(structuredClone(value)), MOCK_LATENCY_MS),
@@ -2451,6 +2453,10 @@ export const mockSource: DataSource = {
     if (state.runningGame === game)
       return refuse(`${exeName(game)} is already running.`, "game-running");
     state.runningGame = game;
+    // The pretend session closes on its own, as a real game does, so the polling has something to see.
+    setTimeout(() => {
+      if (state.runningGame === game) state.runningGame = null;
+    }, MOCK_SESSION_MS);
     return respond(undefined);
   },
 

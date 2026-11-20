@@ -17,6 +17,7 @@ pub fn manage_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>
         token_store: Arc::new(KeyringTokenStore::default()),
         dev_api_key: dev_api_key(),
         modio_base: None,
+        launch: Arc::new(process::launch),
     })?;
     app.manage(state);
     Ok(())

@@ -2,7 +2,6 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::MutexGuard;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -302,21 +301,17 @@ impl App {
     }
 
     pub fn launch_game(&self, game: GameId) -> Result<()> {
-        let (install, _) = self.install(game).ok_or_else(|| game_not_found(game))?;
+        let (install, store) = self.install(game).ok_or_else(|| game_not_found(game))?;
         if (self.0.is_running)(game) {
             return Err(AppError::new(
                 ErrorCode::GameRunning,
                 format!("{} is already running.", game.executable_name()),
             ));
         }
-        let exe = install.join(game.executable());
-        let work_dir = exe.parent().unwrap_or(&install);
+        let target = games::launch_target(game, &install, store);
         // A write in progress finishes first, so the game never reads a half-written mods folder.
         let _writes = lock(&self.0.writes);
-        Command::new(&exe)
-            .current_dir(work_dir)
-            .spawn()
-            .map_err(|error| AppError::io(&error, &exe))?;
+        (self.0.launch)(&target).map_err(|error| AppError::io(&error, &install))?;
         lock(&self.0.launched).insert(game, Instant::now());
         Ok(())
     }

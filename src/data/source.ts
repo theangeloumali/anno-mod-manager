@@ -133,8 +133,15 @@ const keys = {
   settings: ["settings"] as const,
 };
 
+/** How often the game list is re-read, so "running" follows the game without an app action. */
+const GAMES_POLL_MS = 5000;
+
 export const useGames = () =>
-  useQuery({ queryKey: keys.games, queryFn: () => activeSource.listGames() });
+  useQuery({
+    queryKey: keys.games,
+    queryFn: () => activeSource.listGames(),
+    refetchInterval: GAMES_POLL_MS,
+  });
 export const useMods = (game: GameId) =>
   useQuery({
     queryKey: keys.mods(game),

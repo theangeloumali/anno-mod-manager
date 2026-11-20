@@ -3,7 +3,7 @@ mod common;
 use std::fs;
 use std::path::Path;
 
-use atelier_core::games::{self, Probe};
+use atelier_core::games::{self, LaunchTarget, Probe};
 use atelier_core::health::{self, Environment, log};
 use atelier_core::{ActivationScheme, GameId, LogLevel, ModLocation, Severity, Store};
 use common::*;
@@ -298,4 +298,33 @@ fn a_missing_game_python_dll_is_reported_even_without_any_loader() {
     let loader = checks.iter().find(|c| c.id == "legacy-mod-loader").unwrap();
     assert_eq!(loader.level, Severity::Error);
     assert!(loader.title.contains("python35.dll is missing"));
+}
+
+#[test]
+fn a_steam_copy_launches_through_steam() {
+    let target = games::launch_target(GameId::Anno117, Path::new("D:/Anno 117"), Store::Steam);
+    assert_eq!(
+        target,
+        LaunchTarget::Url("steam://rungameid/3274580".into())
+    );
+}
+
+#[test]
+fn a_manual_folder_inside_a_steam_library_launches_through_steam() {
+    let install = Path::new("D:/SteamLibrary/steamapps/common/Anno 1800");
+    let target = games::launch_target(GameId::Anno1800, install, Store::Manual);
+    assert_eq!(target, LaunchTarget::Url("steam://rungameid/916440".into()));
+}
+
+#[test]
+fn a_ubisoft_copy_runs_its_executable() {
+    let install = Path::new("C:/Ubisoft/Anno 1800");
+    let target = games::launch_target(GameId::Anno1800, install, Store::Ubisoft);
+    assert_eq!(
+        target,
+        LaunchTarget::Exe {
+            exe: install.join("Bin").join("Win64").join("Anno1800.exe"),
+            work_dir: install.join("Bin").join("Win64"),
+        }
+    );
 }

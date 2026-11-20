@@ -3,6 +3,7 @@ mod common;
 use std::fs;
 
 use atelier_app::{ErrorCode, Settings};
+use atelier_core::games::LaunchTarget;
 use atelier_core::{GameId, ModLocation, Store};
 use common::*;
 
@@ -327,17 +328,12 @@ fn restore_never_brings_back_the_other_games_backup() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn writes_wait_out_a_just_launched_game_before_it_shows_as_running() {
-    use std::os::unix::fs::PermissionsExt;
     let harness = Harness::with(Options {
         install: Some(GameId::Anno117),
         ..Options::default()
     });
-    let exe = harness.install_dir().join(GameId::Anno117.executable());
-    std::fs::write(&exe, "#!/bin/sh\nexit 0\n").unwrap();
-    std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
     harness.add_mod(GameId::Anno117, "Roman Roads", "roman-roads", "1.0.0");
 
     harness.app.launch_game(GameId::Anno117).unwrap();
@@ -469,4 +465,61 @@ fn a_leftover_original_never_replaces_the_games_current_dll() {
         b"current game python"
     );
     assert!(!shows_legacy_loader(&harness));
+}
+
+#[test]
+fn launching_a_steam_copy_goes_through_steam() {
+    let harness = Harness::with(Options {
+        install: Some(GameId::Anno117),
+        ..Options::default()
+    });
+    harness.app.launch_game(GameId::Anno117).unwrap();
+    assert_eq!(
+        *harness.launches.lock().unwrap(),
+        vec![LaunchTarget::Url("steam://rungameid/3274580".into())]
+    );
+}
+
+#[test]
+fn launching_a_ubisoft_copy_runs_its_executable() {
+    let harness = Harness::with(Options {
+        install: Some(GameId::Anno1800),
+        store: Store::Ubisoft,
+        ..Options::default()
+    });
+    harness.app.launch_game(GameId::Anno1800).unwrap();
+    let bin = harness.install_dir().join("Bin").join("Win64");
+    assert_eq!(
+        *harness.launches.lock().unwrap(),
+        vec![LaunchTarget::Exe {
+            exe: bin.join("Anno1800.exe"),
+            work_dir: bin,
+        }]
+    );
+}
+
+#[test]
+fn a_game_folder_picked_inside_a_steam_library_launches_through_steam() {
+    let harness = Harness::new();
+    let install = harness
+        .root
+        .path()
+        .join("SteamLibrary")
+        .join("steamapps")
+        .join("common")
+        .join("Anno 117 - Pax Romana");
+    let exe = install.join(GameId::Anno117.executable());
+    fs::create_dir_all(exe.parent().unwrap()).unwrap();
+    fs::write(&exe, b"").unwrap();
+    harness
+        .app
+        .set_game_path(GameId::Anno117, Some(install.to_str().unwrap()))
+        .unwrap();
+
+    harness.app.launch_game(GameId::Anno117).unwrap();
+
+    assert_eq!(
+        *harness.launches.lock().unwrap(),
+        vec![LaunchTarget::Url("steam://rungameid/3274580".into())]
+    );
 }
