@@ -185,11 +185,15 @@ impl<'a> Classifier<'a> {
     }
 }
 
-/// The copy an item is compared with, at preview and again at confirm.
+/// The copy an item is compared with, at preview and again at confirm: the Documents copy an
+/// install replaces, else a shipped one.
 fn installed_copy<'m>(game: GameId, installed: &'m [Mod], mod_id: &str) -> Option<&'m Mod> {
-    installed.iter().find(|installed| {
-        installed.id == mod_id && installed.game == game && installed.parent_id.is_none()
-    })
+    installed
+        .iter()
+        .filter(|installed| {
+            installed.id == mod_id && installed.game == game && installed.parent_id.is_none()
+        })
+        .min_by_key(|installed| installed.location != ModLocation::Documents)
 }
 
 /// Where, which version and how big: a copy swapped for another with the same version still

@@ -376,3 +376,41 @@ fn cancel_deletes_the_staging() {
     assert!(!sandbox.staging().join(&preview.id).exists());
     assert!(fs::read_dir(sandbox.staging()).unwrap().next().is_none());
 }
+
+#[test]
+fn a_drop_is_compared_with_the_documents_copy_it_would_replace() {
+    let sandbox = Sandbox::new();
+    let game_mods = sandbox.root.path().join("game-mods");
+    write_tree(
+        &game_mods,
+        &[("Pack/modinfo.json", &modinfo("Pack", "2.0", Some(8)))],
+    );
+    write_tree(
+        &sandbox.mods(),
+        &[("Pack/modinfo.json", &modinfo("Pack", "3.0", Some(8)))],
+    );
+    // The game folder's older copy comes first, as a full scan lists it.
+    let shipped = atelier_core::scan::ModsFolder {
+        path: game_mods,
+        location: atelier_core::ModLocation::Game,
+    };
+    let mut installed = atelier_core::scan::scan(GameId::Anno117, &[shipped])
+        .unwrap()
+        .mods;
+    installed.extend(sandbox.installed(GameId::Anno117));
+    let archive = sandbox.drop_path("Pack.zip");
+    let info = modinfo("Pack", "2.5", Some(8));
+    write_zip(
+        &archive,
+        &[Entry::File("Pack/modinfo.json", info.as_bytes())],
+    );
+
+    let preview = sandbox
+        .engine
+        .preview(GameId::Anno117, &[archive], &installed)
+        .unwrap();
+
+    let item = only_item(&preview.items);
+    assert_eq!(item.status, InstallItemStatus::Downgrade);
+    assert_eq!(item.previous_version.as_deref(), Some("3.0"));
+}
