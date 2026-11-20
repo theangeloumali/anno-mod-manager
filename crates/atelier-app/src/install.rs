@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use atelier_core::{GameId, activation};
+use atelier_core::{GameId, ModLocation, activation, scan};
 use atelier_install::{InstallPreview, InstallResult};
 
 use crate::error::{AppError, ErrorCode, Result};
@@ -61,7 +61,19 @@ impl App {
             .filter(|id| !installed.iter().any(|item| &item.id == *id))
             .cloned()
             .collect();
-        self.apply_new_mods_start(game, &fresh)?;
+        // The new mods and their on/off rule land together, or the mods go to backups.
+        if let Err(error) = self.apply_new_mods_start(game, &fresh) {
+            return Err(match self.withdraw(game, &fresh) {
+                Ok(()) => error,
+                Err(_) => AppError::new(
+                    ErrorCode::Install,
+                    format!(
+                        "{} The mod is installed, but its on/off setting wasn't applied.",
+                        error.message
+                    ),
+                ),
+            });
+        }
         // Each install adds a backup, so expired ones go now; a failure here loses nothing.
         let _ = self.prune_backups();
         Ok(result)
@@ -88,6 +100,21 @@ impl App {
             installed.contains(&item.id) && item.parent_id.is_none() && item.active != active
         }) {
             activation::set_active(game, &writable, item, active, &self.0.snapshots)?;
+        }
+        Ok(())
+    }
+
+    /// Moves just-installed mods out of the Documents mods folder into the backups.
+    fn withdraw(&self, game: GameId, mod_ids: &[String]) -> Result<()> {
+        let writable = [self.writable(game)];
+        for item in self.scan(game)?.iter().filter(|item| {
+            item.location == ModLocation::Documents
+                && item.parent_id.is_none()
+                && mod_ids.contains(&item.id)
+        }) {
+            if let Some(dir) = scan::mod_dir(&writable, item) {
+                self.0.engine.remove_to_backup(game, &dir)?;
+            }
         }
         Ok(())
     }
