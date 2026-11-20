@@ -10,6 +10,7 @@ import { Toaster } from "@/components/ui/sonner";
 import {
   useRefreshWhenDownloadsFinish,
   useScheduledUpdateChecks,
+  useSubscriptionSync,
 } from "@/data/source";
 import { BrowseScreen } from "@/features/browse";
 import { CollectionsScreen } from "@/features/collections";
@@ -45,6 +46,7 @@ export function App() {
   const Screen = SCREENS[view];
   useScheduledUpdateChecks();
   useRefreshWhenDownloadsFinish();
+  useSubscriptionSync(view);
 
   // shadcn's dark: variant keys off data-theme, so the default ground must set it explicitly.
   useEffect(() => {

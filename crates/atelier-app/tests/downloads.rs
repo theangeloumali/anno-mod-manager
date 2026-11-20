@@ -1167,3 +1167,162 @@ async fn a_modio_update_of_a_game_folder_mod_installs() {
     assert_eq!(linked(atelier_core::ModLocation::Documents), Some(4801));
     assert_eq!(linked(atelier_core::ModLocation::Game), None);
 }
+
+/// Answers `/me/subscribed` with `fixture`, alongside what `server` already serves.
+async fn serve_subscriptions(server: &MockServer, fixture_name: &str) {
+    Mock::given(method("GET"))
+        .and(path("/v1/me/subscribed"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture(fixture_name)))
+        .mount(server)
+        .await;
+}
+
+fn sign_in(harness: &Harness) {
+    use atelier_modio::TokenStore;
+    harness.tokens.save("signed-in-token").unwrap();
+}
+
+fn is_installed(harness: &Harness, mod_id: &str) -> bool {
+    harness
+        .app
+        .list_mods(GameId::Anno117)
+        .unwrap()
+        .iter()
+        .any(|item| item.id == mod_id)
+}
+
+#[tokio::test]
+async fn a_sync_installs_a_new_subscription() {
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    serve_subscriptions(&server, "subscriptions.json").await;
+    let harness = harness_for(&server, Some(API_KEY));
+    sign_in(&harness);
+
+    harness
+        .app
+        .sync_subscriptions(GameId::Anno117)
+        .await
+        .unwrap();
+
+    assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Done);
+    assert!(is_installed(&harness, "roman-roads"));
+}
+
+#[tokio::test]
+async fn a_mod_unsubscribed_on_modio_is_removed_with_a_backup() {
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    serve_subscriptions(&server, "subscriptions.json").await;
+    let harness = harness_for(&server, Some(API_KEY));
+    sign_in(&harness);
+    harness
+        .app
+        .sync_subscriptions(GameId::Anno117)
+        .await
+        .unwrap();
+    let job = wait_for_job(&harness).await;
+    harness.app.cancel_download(&job.id).unwrap();
+
+    server.reset().await;
+    serve_subscriptions(&server, "subscriptions_empty.json").await;
+    harness
+        .app
+        .sync_subscriptions(GameId::Anno117)
+        .await
+        .unwrap();
+
+    assert!(!is_installed(&harness, "roman-roads"));
+    harness
+        .app
+        .restore_mod(GameId::Anno117, "roman-roads")
+        .unwrap();
+    assert!(
+        is_installed(&harness, "roman-roads"),
+        "the backup brings it back"
+    );
+}
+
+#[tokio::test]
+async fn a_sync_never_removes_a_mod_that_was_not_a_subscription() {
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    let harness = harness_for(&server, Some(API_KEY));
+    download(&harness, 4801).await;
+    harness.add_mod(GameId::Anno117, "Hand", "hand-installed", "1.0.0");
+    serve_subscriptions(&server, "subscriptions_empty.json").await;
+    sign_in(&harness);
+
+    harness
+        .app
+        .sync_subscriptions(GameId::Anno117)
+        .await
+        .unwrap();
+
+    assert!(
+        is_installed(&harness, "roman-roads"),
+        "a guest install stays"
+    );
+    assert!(is_installed(&harness, "hand-installed"));
+}
+
+#[tokio::test]
+async fn unsubscribing_removes_the_installed_mod() {
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    Mock::given(path("/v1/games/11358/mods/4801/subscribe"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(fixture("message_201.json")))
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    sign_in(&harness);
+    download(&harness, 4801).await;
+
+    harness
+        .app
+        .unsubscribe(GameId::Anno117, 4801)
+        .await
+        .unwrap();
+
+    assert!(!is_installed(&harness, "roman-roads"));
+}
+
+#[tokio::test]
+async fn browse_marks_the_mods_you_subscribed_to() {
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    serve_subscriptions(&server, "subscriptions.json").await;
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("mods_page.json")))
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    sign_in(&harness);
+    harness
+        .app
+        .sync_subscriptions(GameId::Anno117)
+        .await
+        .unwrap();
+
+    let page = harness
+        .app
+        .browse(&atelier_modio::ModioQuery {
+            game: GameId::Anno117,
+            search: String::new(),
+            tags: Vec::new(),
+            sort: atelier_modio::ModioSort::Trending,
+            subscribed_only: false,
+            offset: 0,
+        })
+        .await
+        .unwrap();
+
+    let subscribed: Vec<u64> = page
+        .items
+        .iter()
+        .filter(|item| item.subscribed)
+        .map(|item| item.id)
+        .collect();
+    assert_eq!(subscribed, [4801]);
+}

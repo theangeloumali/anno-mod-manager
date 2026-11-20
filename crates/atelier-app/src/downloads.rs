@@ -1,6 +1,6 @@
 //! Download jobs: fetch a mod.io file, then install it through the same preview/confirm path as a drop.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::atomic::Ordering;
 
 use atelier_core::{GameId, ModLocation, ModUpdate};
@@ -23,12 +23,28 @@ impl App {
         self.guard_writes(game)?;
         if self.has_token()? {
             self.client().subscribe(game, modio_id).await?;
+            self.update_persisted(|state| {
+                state.subscribed.entry(game).or_default().insert(modio_id);
+            })?;
         }
         self.start_job(game, modio_id);
         Ok(())
     }
 
-    /// Installs every subscription that isn't installed here yet.
+    /// Unsubscribes on mod.io and uninstalls the page's mods, which keeps a backup.
+    pub async fn unsubscribe(&self, game: GameId, modio_id: u64) -> Result<()> {
+        self.guard_writes(game)?;
+        self.client().unsubscribe(game, modio_id).await?;
+        self.update_persisted(|state| {
+            if let Some(subscribed) = state.subscribed.get_mut(&game) {
+                subscribed.remove(&modio_id);
+            }
+        })?;
+        self.remove_page_mods(game, modio_id)
+    }
+
+    /// Installs every subscription that isn't installed here yet, and uninstalls the mods
+    /// of subscriptions dropped since the last sync.
     pub async fn sync_subscriptions(&self, game: GameId) -> Result<()> {
         if !self.has_token()? {
             return Err(AppError::new(
@@ -37,8 +53,50 @@ impl App {
             ));
         }
         self.guard_writes(game)?;
-        let subscriptions = self.client().subscriptions(game).await?;
-        self.start_missing(game, subscriptions.iter().map(|item| item.id))?;
+        let current: BTreeSet<u64> = self
+            .client()
+            .subscriptions(game)
+            .await?
+            .iter()
+            .map(|item| item.id)
+            .collect();
+        self.start_missing(game, current.iter().copied())?;
+        let previous = self
+            .persisted()
+            .subscribed
+            .get(&game)
+            .cloned()
+            .unwrap_or_default();
+        for &dropped in previous.difference(&current) {
+            self.remove_page_mods(game, dropped)?;
+        }
+        // Saved last, so a removal that failed is tried again by the next sync.
+        self.update_persisted(|state| {
+            state.subscribed.insert(game, current);
+        })
+    }
+
+    /// Uninstalls every installed mod linked to this mod.io page.
+    fn remove_page_mods(&self, game: GameId, modio_id: u64) -> Result<()> {
+        let linked: Vec<String> = self
+            .persisted()
+            .modio_links
+            .get(&game)
+            .map(|links| {
+                links
+                    .iter()
+                    .filter(|(_, link)| link.modio_id == modio_id)
+                    .map(|(mod_id, _)| mod_id.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        for mod_id in linked {
+            match self.uninstall_mod(game, &mod_id) {
+                // Already gone by hand: nothing left to remove.
+                Err(error) if error.code == ErrorCode::NotFound => {}
+                other => other?,
+            }
+        }
         Ok(())
     }
 

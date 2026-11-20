@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAccount, useModioBrowse, useModioTags } from "@/data/source";
 import type { ModioMod, ModioSort } from "@/data/types";
 import { ModioDetailSheet } from "./modio-detail-sheet";
+import { SubscribeButton } from "./subscribe-button";
 
 const PAGE_SIZE = 12;
 const ALL_TAGS = "all";
@@ -31,14 +32,18 @@ const SORT_CHOICES: { value: ModioSort; label: string }[] = [
 
 function ModioCard({ mod, onOpen }: { mod: ModioMod; onOpen: () => void }) {
   return (
-    <li>
+    <li className="flex h-full flex-col overflow-hidden rounded-card border border-line bg-bg-elevated transition-colors duration-(--dur-hover) hover:border-line-strong">
       <button
         type="button"
         onClick={onOpen}
-        className="group flex h-full w-full flex-col overflow-hidden rounded-card border border-line bg-bg-elevated text-left transition-colors duration-(--dur-hover) hover:border-line-strong"
+        className="group flex flex-1 flex-col text-left"
       >
-        <ModBanner name={mod.name} className="h-24 w-full text-h3" />
-        <div className="flex flex-1 flex-col gap-2 p-4">
+        <ModBanner
+          name={mod.name}
+          logoUrl={mod.logoUrl}
+          className="aspect-video h-auto w-full text-h3"
+        />
+        <div className="flex flex-1 flex-col gap-2 p-4 pb-2">
           <div>
             <p className="text-ui font-semibold group-hover:text-accent">
               {mod.name}
@@ -48,22 +53,21 @@ function ModioCard({ mod, onOpen }: { mod: ModioMod; onOpen: () => void }) {
           <p className="line-clamp-2 text-label text-copy-muted">
             {mod.summary}
           </p>
-          <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-1 text-label text-copy-dim">
-            <span className="font-mono tabular-nums">
-              {formatCount(mod.downloads)} downloads
-            </span>
-            <span className="inline-flex items-center gap-1 font-mono tabular-nums">
-              <StarIcon aria-hidden="true" className="size-3" />
-              {mod.rating}%
-            </span>
-            {mod.installedModId ? (
-              <StateBadge tone="ok">Installed</StateBadge>
-            ) : mod.subscribed ? (
-              <StateBadge tone="info">Subscribed</StateBadge>
-            ) : null}
-          </div>
         </div>
       </button>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-label text-copy-dim">
+          <span className="font-mono tabular-nums">
+            {formatCount(mod.downloads)} downloads
+          </span>
+          <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+            <StarIcon aria-hidden="true" className="size-3" />
+            {mod.rating}%
+          </span>
+          {mod.subscribed && <StateBadge tone="info">Subscribed</StateBadge>}
+        </div>
+        <SubscribeButton mod={mod} compact />
+      </div>
     </li>
   );
 }
