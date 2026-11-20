@@ -51,4 +51,6 @@ pub struct InstallPreview {
 pub struct InstallResult {
     pub installed: Vec<String>,
     pub skipped: Vec<String>,
+    /// Something that went wrong after the files landed, so the install still counts.
+    pub warning: Option<String>,
 }

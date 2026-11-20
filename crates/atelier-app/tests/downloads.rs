@@ -1004,3 +1004,51 @@ async fn a_download_that_is_already_installing_cannot_be_cancelled() {
     );
     assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Done);
 }
+
+#[tokio::test]
+async fn a_download_whose_on_off_write_fails_is_done_linked_and_warns() {
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.break_on_off_writes();
+
+    let job = download(&harness, 4801).await;
+
+    assert_eq!(job.status, DownloadStatus::Done, "{:?}", job.error);
+    assert!(job.error.unwrap().contains("wasn't applied"));
+    assert!(installed(&harness, "roman-roads").modio_id.is_some());
+}
+
+#[tokio::test]
+async fn a_cancelled_collection_download_drops_its_profile_rules() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    // A slow page, so its job is still cancellable when the cancel comes.
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(fixture("mod_no_modfile.json"))
+                .set_delay(Duration::from_secs(2)),
+        )
+        .mount(&server)
+        .await;
+    serve_collection(&server, 11358).await;
+    harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap();
+    let job = harness.app.list_downloads().remove(0);
+    harness.app.cancel_download(&job.id).unwrap();
+    harness
+        .app
+        .switch_profile(GameId::Anno117, "Default")
+        .unwrap();
+
+    // Installed by hand later, it follows the normal new-mod rules, not the collection's.
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    download(&harness, 4801).await;
+
+    assert!(installed(&harness, "roman-roads").active);
+}

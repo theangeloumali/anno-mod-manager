@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use atelier_core::{GameId, ModLocation, activation, scan};
+use atelier_core::{GameId, activation};
 use atelier_install::{InstallPreview, InstallResult};
 
 use crate::error::{AppError, ErrorCode, Result};
@@ -47,7 +47,7 @@ impl App {
             .ok_or_else(|| AppError::new(ErrorCode::Install, EXPIRED_PREVIEW))?;
         let _writes = self.write_guard(game)?;
         let installed = self.scan(game)?;
-        let result = self.0.engine.confirm(
+        let mut result = self.0.engine.confirm(
             preview_id,
             &self.documents_mods(game),
             &installed,
@@ -61,18 +61,13 @@ impl App {
             .filter(|id| !installed.iter().any(|item| &item.id == *id))
             .cloned()
             .collect();
-        // The new mods and their on/off rule land together, or the mods go to backups.
+        // The files are in place, so this is a warning: an error would hide a real install.
         if let Err(error) = self.apply_new_mods_start(game, &fresh) {
-            return Err(match self.withdraw(game, &fresh) {
-                Ok(()) => error,
-                Err(_) => AppError::new(
-                    ErrorCode::Install,
-                    format!(
-                        "{} The mod is installed, but its on/off setting wasn't applied.",
-                        error.message
-                    ),
-                ),
-            });
+            result.warning = Some(format!(
+                "Installed, but the new-mods on/off setting wasn't applied ({}). \
+                 Check them in the Library.",
+                error.message
+            ));
         }
         // Each install adds a backup, so expired ones go now; a failure here loses nothing.
         let _ = self.prune_backups();
@@ -100,21 +95,6 @@ impl App {
             installed.contains(&item.id) && item.parent_id.is_none() && item.active != active
         }) {
             activation::set_active(game, &writable, item, active, &self.0.snapshots)?;
-        }
-        Ok(())
-    }
-
-    /// Moves just-installed mods out of the Documents mods folder into the backups.
-    fn withdraw(&self, game: GameId, mod_ids: &[String]) -> Result<()> {
-        let writable = [self.writable(game)];
-        for item in self.scan(game)?.iter().filter(|item| {
-            item.location == ModLocation::Documents
-                && item.parent_id.is_none()
-                && mod_ids.contains(&item.id)
-        }) {
-            if let Some(dir) = scan::mod_dir(&writable, item) {
-                self.0.engine.remove_to_backup(game, &dir)?;
-            }
         }
         Ok(())
     }

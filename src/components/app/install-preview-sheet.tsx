@@ -157,6 +157,7 @@ export function InstallPreviewSheet() {
           : ""),
     );
     if (!result.ok) return;
+    if (result.value.warning) toast.warning(result.value.warning);
     close(false);
   };
 

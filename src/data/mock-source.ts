@@ -2041,6 +2041,7 @@ export const mockSource: DataSource = {
       skipped: stored.preview.items
         .filter((item) => !installedIds.has(item.modId))
         .map((item) => item.modId),
+      warning: null,
     });
   },
 
@@ -2220,6 +2221,8 @@ export const mockSource: DataSource = {
   },
 
   cancelDownload: (jobId) => {
+    // Statuses move only when advanced, so catch up before judging this one.
+    advanceDownloads();
     const installing = state.downloads.some(
       (candidate) =>
         candidate.job.id === jobId && candidate.job.status === "verifying",

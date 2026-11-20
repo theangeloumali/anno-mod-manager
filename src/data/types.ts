@@ -141,6 +141,8 @@ export interface InstallPreview {
 export interface InstallResult {
   installed: string[];
   skipped: string[];
+  /** Something that went wrong after the files landed, so the install still counts. */
+  warning: string | null;
 }
 
 export type ModioSort =

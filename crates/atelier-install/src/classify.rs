@@ -146,10 +146,16 @@ impl<'a> Classifier<'a> {
         };
         let previous = existing.version.clone();
         let (status, level, message) = match compare_versions(&item.version, &previous) {
-            Ordering::Greater => (
+            // Only a Documents copy is replaced; a shipped one stays where it is.
+            Ordering::Greater if existing.location == ModLocation::Documents => (
                 InstallItemStatus::Update,
                 Severity::Ok,
                 format!("Same ModID, newer version; {previous} is backed up"),
+            ),
+            Ordering::Greater => (
+                InstallItemStatus::Update,
+                Severity::Ok,
+                format!("Same ModID, newer than the {previous} in the game folder"),
             ),
             Ordering::Less => (
                 InstallItemStatus::Downgrade,

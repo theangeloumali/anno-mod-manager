@@ -123,6 +123,19 @@ impl Harness {
         dir
     }
 
+    /// New mods start off, and the snapshot a profile write takes first can't be made.
+    pub fn break_on_off_writes(&self) {
+        let mut settings = self.app.settings();
+        settings.new_mods_start = atelier_app::NewModsStart::Inactive;
+        self.app.save_settings(settings).unwrap();
+        let mods_dir = self.documents_mods(GameId::Anno117);
+        fs::create_dir_all(&mods_dir).unwrap();
+        fs::write(mods_dir.join("active-profile.txt"), "").unwrap();
+        let data = self.root.path().join("data");
+        fs::create_dir_all(&data).unwrap();
+        fs::write(data.join("snapshots"), "").unwrap();
+    }
+
     pub fn drop_path(&self, name: &str) -> PathBuf {
         let dir = self.root.path().join("Drops With Spaces");
         fs::create_dir_all(&dir).unwrap();

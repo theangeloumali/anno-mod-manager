@@ -185,18 +185,9 @@ fn turned_on_wins_over_a_profile_that_starts_new_mods_off() {
 }
 
 #[test]
-fn an_install_whose_on_off_write_fails_leaves_the_mod_out() {
+fn an_install_whose_on_off_write_fails_still_counts_and_warns() {
     let harness = Harness::new();
-    let mut settings = harness.app.settings();
-    settings.new_mods_start = atelier_app::NewModsStart::Inactive;
-    harness.app.save_settings(settings).unwrap();
-    let mods_dir = harness.documents_mods(GameId::Anno117);
-    fs::create_dir_all(&mods_dir).unwrap();
-    fs::write(mods_dir.join("active-profile.txt"), "").unwrap();
-    // A file where the snapshots folder goes makes the on/off write fail.
-    let data = harness.root.path().join("data");
-    fs::create_dir_all(&data).unwrap();
-    fs::write(data.join("snapshots"), "").unwrap();
+    harness.break_on_off_writes();
     let archive = harness.drop_path("Roman Roads.zip");
     let info = modinfo("roman-roads", "1.0.0", GameId::Anno117);
     write_zip(&archive, &[("Roman Roads/modinfo.json", info.as_bytes())]);
@@ -205,7 +196,9 @@ fn an_install_whose_on_off_write_fails_leaves_the_mod_out() {
         .preview_install(GameId::Anno117, &[archive.to_string_lossy().into_owned()])
         .unwrap();
 
-    assert!(harness.app.confirm_install(&preview.id, false).is_err());
+    let result = harness.app.confirm_install(&preview.id, false).unwrap();
 
-    assert!(harness.app.list_mods(GameId::Anno117).unwrap().is_empty());
+    assert_eq!(result.installed, ["roman-roads"]);
+    assert!(result.warning.unwrap().contains("wasn't applied"));
+    assert_eq!(harness.app.list_mods(GameId::Anno117).unwrap().len(), 1);
 }

@@ -91,9 +91,13 @@ impl App {
                 "It's already installing, so it can't be cancelled now.",
             ));
         }
-        if let Some(abort) = jobs.remove(index).abort {
+        let entry = jobs.remove(index);
+        drop(jobs);
+        if let Some(abort) = entry.abort {
             abort.abort();
         }
+        // A page installed by hand later follows the normal rules, not a collection's.
+        lock(&self.0.held_off).remove(&(entry.game, entry.job.modio_id));
         // Scratch space like run_job's staging: a leftover after a failed delete is harmless.
         let _ = std::fs::remove_dir_all(self.0.data_dir.join("downloads").join(job_id));
         Ok(())
@@ -292,7 +296,7 @@ impl App {
             self.install_download(game, modio_id, modfile.id, &archive.to_string_lossy());
         // Staging is scratch space; a leftover copy is harmless, so cleanup errors are ignored.
         let _ = std::fs::remove_dir_all(&staging);
-        let top_level = installed?;
+        let (top_level, warning) = installed?;
         let link = ModioLink {
             modio_id,
             modfile_id: modfile.id,
@@ -328,6 +332,9 @@ impl App {
             })
             .unwrap_or_default();
         self.apply_held_off(game, modio_id, &linked)?;
+        if warning.is_some() {
+            self.edit_job(job_id, |job| job.error = warning);
+        }
         // Same or older than what's installed: say so rather than report a download as done.
         if top_level.is_empty() {
             return Err(AppError::new(
@@ -340,7 +347,8 @@ impl App {
         Ok(())
     }
 
-    /// Returns the top-level mod ids that landed, so sub-mods never claim the mod.io link.
+    /// The top-level mod ids that landed, so sub-mods never claim the mod.io link, and the
+    /// install's warning.
     /// Only an update of this page's own mod replaces a local one; downgrades are skipped.
     fn install_download(
         &self,
@@ -348,7 +356,7 @@ impl App {
         modio_id: u64,
         modfile_id: u64,
         archive: &str,
-    ) -> Result<Vec<String>> {
+    ) -> Result<(Vec<String>, Option<String>)> {
         let preview = self.preview_install(game, &[archive.to_owned()])?;
         let links = self
             .persisted()
@@ -389,12 +397,13 @@ impl App {
                 return Err(error);
             }
         };
-        Ok(preview
+        let top_level = preview
             .items
             .into_iter()
             .map(|item| item.mod_id)
             .filter(|mod_id| result.installed.contains(mod_id))
-            .collect())
+            .collect();
+        Ok((top_level, result.warning))
     }
 
     /// False when the job is gone (cancelled).
