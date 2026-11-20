@@ -52,6 +52,9 @@ pub struct ModioMod {
     pub rating: f64,
     pub size_bytes: u64,
     pub logo_url: Option<String>,
+    /// When the mod was first published and last changed on mod.io, in Unix seconds.
+    pub date_added: u64,
+    pub date_updated: u64,
     pub subscribed: bool,
     /// Filled by the install layer; mod.io does not know it.
     pub installed_mod_id: Option<String>,

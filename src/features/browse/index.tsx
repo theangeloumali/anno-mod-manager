@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useAppStore } from "@/components/app/app-store";
 import { ChoiceSelect } from "@/components/app/choice-select";
 import { FIELD_CLASS, SWITCH_CLASS } from "@/components/app/field-class";
-import { formatCount } from "@/components/app/format";
+import { formatCount, formatUnixDate } from "@/components/app/format";
 import { ModBanner, PoweredByModio } from "@/components/app/mod-badges";
 import { PageHeader } from "@/components/app/page-header";
 import { EmptyState } from "@/components/app/panel";
@@ -63,6 +63,9 @@ function ModioCard({ mod, onOpen }: { mod: ModioMod; onOpen: () => void }) {
           <span className="inline-flex items-center gap-1 font-mono tabular-nums">
             <StarIcon aria-hidden="true" className="size-3" />
             {mod.rating}%
+          </span>
+          <span className="font-mono tabular-nums">
+            Updated {formatUnixDate(mod.dateUpdated)}
           </span>
           {mod.installedModId && <StateBadge tone="ok">Installed</StateBadge>}
           {mod.subscribed && <StateBadge tone="info">Subscribed</StateBadge>}

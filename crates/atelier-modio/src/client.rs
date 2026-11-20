@@ -238,10 +238,9 @@ impl ModioClient {
         auth: Auth<'_>,
         form: &[(&str, String)],
     ) -> Result<()> {
-        let mut builder = self.request(game, method, path, auth)?;
-        if !form.is_empty() {
-            builder = builder.form(form);
-        }
+        // Always a form, even an empty one: mod.io answers 415 to a write without its
+        // Content-Type, a bodiless DELETE included.
+        let builder = self.request(game, method, path, auth)?.form(form);
         self.execute(builder).await.map(drop)
     }
 }

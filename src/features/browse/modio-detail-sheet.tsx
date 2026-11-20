@@ -6,7 +6,11 @@ import {
   ThumbsUpIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { formatBytes, formatCount } from "@/components/app/format";
+import {
+  formatBytes,
+  formatCount,
+  formatUnixDate,
+} from "@/components/app/format";
 import { ModBanner, PoweredByModio } from "@/components/app/mod-badges";
 import { withToast } from "@/components/app/notify";
 import { StateBadge } from "@/components/app/state-badge";
@@ -105,6 +109,8 @@ export function ModioDetailSheet({
                   ["Downloads", formatCount(mod.downloads)],
                   ["Rating", `${mod.rating}%`],
                   ["Size", formatBytes(mod.sizeBytes)],
+                  ["Created", formatUnixDate(mod.dateAdded)],
+                  ["Updated", formatUnixDate(mod.dateUpdated)],
                 ].map(([term, value]) => (
                   <div key={term}>
                     <dt className="text-label text-copy-dim">{term}</dt>
