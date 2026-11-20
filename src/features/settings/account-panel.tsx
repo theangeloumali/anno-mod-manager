@@ -7,7 +7,7 @@ import {
   RefreshCwIcon,
   UserIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ExternalLink } from "@/components/app/external-link";
 import { withToast } from "@/components/app/notify";
@@ -53,6 +53,8 @@ export function AccountPanel() {
   const { data: account, refetch } = useAccount();
   const [step, setStep] = useState<AuthStep>("idle");
   const [email, setEmail] = useState("");
+  // Bumped on every send and every Back, so only the latest open form's request counts.
+  const codeRequest = useRef(0);
   const acceptTerms = useAction((source) => source.acceptTerms());
   const requestCode = useAction((source, address: string) =>
     source.requestSignInCode(address),
@@ -71,10 +73,11 @@ export function AccountPanel() {
   }, [account?.signedIn, account?.username, step, queryClient]);
 
   const sendCode = async (address: string) => {
+    const request = ++codeRequest.current;
     await requestCode.mutateAsync([address]);
+    if (request !== codeRequest.current) return;
     setEmail(address);
-    // Moves on only if the player is still on this step, not after pressing Back.
-    setStep((current) => (current === "email" ? "code" : current));
+    setStep("code");
   };
 
   const finishSignIn = async (method: AuthMethod, secret: string) => {
@@ -201,7 +204,10 @@ export function AccountPanel() {
         submitLabel="Send code"
         isPending={requestCode.isPending}
         onSubmit={sendCode}
-        onBack={() => setStep("method")}
+        onBack={() => {
+          codeRequest.current += 1;
+          setStep("method");
+        }}
       />
     );
 

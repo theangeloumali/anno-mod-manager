@@ -158,9 +158,11 @@ impl App {
             AuthMethod::Token => client.sign_in_with_token(secret).await,
         };
         match signed_in {
-            // A pasted personal token's expiry is unknown, so it clears any earlier one.
+            // A pasted personal token's expiry is unknown, so it clears any earlier one. The
+            // sign-in already succeeded; only the shown expiry rides on this write.
             Ok(account) => {
-                self.update_persisted(|state| state.token_expires_at = account.expires_at)
+                let _ = self.update_persisted(|state| state.token_expires_at = account.expires_at);
+                Ok(())
             }
             Err(atelier_modio::Error::Unauthorized) => Err(AppError::new(
                 ErrorCode::Unauthorized,
@@ -183,7 +185,9 @@ impl App {
 
     pub fn sign_out(&self) -> Result<()> {
         self.client().sign_out()?;
-        self.update_persisted(|state| state.token_expires_at = None)
+        // The token is gone; an expiry left behind is never shown while signed out.
+        let _ = self.update_persisted(|state| state.token_expires_at = None);
+        Ok(())
     }
 
     pub async fn browse(&self, query: &ModioQuery) -> Result<ModioPage> {

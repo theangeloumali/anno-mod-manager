@@ -183,15 +183,14 @@ fn save_split(slots: &dyn Slots, user: &str, secret: &str) -> Result<()> {
 }
 
 fn clear_split(slots: &dyn Slots, user: &str) -> Result<()> {
-    let head = slots.get(user)?;
-    // The header goes first, so a half-finished clear reads as signed out, not as broken.
-    slots.delete(user)?;
-    if let Some(parts) = head.as_deref().and_then(Parts::read) {
+    // Parts first and the header last: a clear that fails partway still names what is left,
+    // so running it again finishes the job. The store lock keeps readers out meanwhile.
+    if let Some(parts) = slots.get(user)?.as_deref().and_then(Parts::read) {
         for index in 0..parts.count {
             slots.delete(&parts.name(user, index))?;
         }
     }
-    Ok(())
+    slots.delete(user)
 }
 
 /// Process-local store for tests and headless runs.
@@ -247,6 +246,9 @@ mod tests {
     #[derive(Default)]
     struct WindowsLikeSlots(
         Mutex<HashMap<String, String>>,
+        /// Fails every write, like a full or locked store.
+        std::sync::atomic::AtomicBool,
+        /// Fails the next delete, like a credential Windows briefly holds open.
         std::sync::atomic::AtomicBool,
     );
 
@@ -265,6 +267,9 @@ mod tests {
             Ok(())
         }
         fn delete(&self, name: &str) -> Result<()> {
+            if self.2.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                return Err(Error::TokenStore("in use".into()));
+            }
             self.0.lock().unwrap().remove(name);
             Ok(())
         }
@@ -315,6 +320,18 @@ mod tests {
         assert!(save_split(&slots, "modio-token", &"n".repeat(2500)).is_err());
 
         assert_eq!(load_split(&slots, "modio-token").unwrap(), Some(working));
+    }
+
+    #[test]
+    fn a_clear_that_fails_partway_finishes_when_run_again() {
+        let slots = WindowsLikeSlots::default();
+        save_split(&slots, "modio-token", &"c".repeat(2500)).unwrap();
+        slots.2.store(true, std::sync::atomic::Ordering::SeqCst);
+
+        assert!(clear_split(&slots, "modio-token").is_err());
+        clear_split(&slots, "modio-token").unwrap();
+
+        assert!(slots.0.lock().unwrap().is_empty());
     }
 
     #[test]
