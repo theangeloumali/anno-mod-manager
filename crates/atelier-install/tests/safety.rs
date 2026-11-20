@@ -220,3 +220,53 @@ fn a_rar_is_unsupported_with_a_user_facing_message() {
         "{message}"
     );
 }
+
+#[test]
+fn a_download_cap_follows_its_declared_size_within_its_archive_ratio() {
+    const GIB: u64 = 1024 * 1024 * 1024;
+    let archive = 3_296_175_833; // New Horizons, as downloaded
+    assert_eq!(Limits::for_download(0, archive), Limits::default());
+    assert_eq!(Limits::for_download(GIB, archive).max_total_bytes, 4 * GIB);
+    let new_horizons = 6_822_935_680;
+    let limits = Limits::for_download(new_horizons, archive);
+    assert_eq!(limits.max_total_bytes, new_horizons + new_horizons / 10);
+    assert_eq!(limits.max_entries, Limits::default().max_entries);
+    // A zip bomb's real unpacked size is huge next to its archive, so the ratio holds it down.
+    let bomb = Limits::for_download(60 * GIB, 10 * 1024 * 1024);
+    assert_eq!(bomb.max_total_bytes, 4 * GIB);
+    assert_eq!(
+        Limits::for_download(100 * GIB, 50 * GIB).max_total_bytes,
+        64 * GIB
+    );
+}
+
+#[test]
+fn a_preview_can_use_larger_limits_than_the_engines_own() {
+    let sandbox = Sandbox::with(
+        Some(30),
+        Limits {
+            max_total_bytes: 1024 * 1024,
+            ..Limits::default()
+        },
+    );
+    let archive = sandbox.drop_path("big.zip");
+    let filler = vec![0u8; 2 * 1024 * 1024];
+    write_zip(
+        &archive,
+        &[
+            Entry::File("Big/modinfo.json", modinfo("big", "1", Some(8)).as_bytes()),
+            Entry::File("Big/data.bin", &filler),
+        ],
+    );
+    let roomy = Limits {
+        max_total_bytes: 4 * 1024 * 1024,
+        ..Limits::default()
+    };
+
+    let preview = sandbox
+        .engine
+        .preview_with_limits(GameId::Anno117, &[archive], &[], roomy)
+        .unwrap();
+
+    assert_eq!(preview.items.len(), 1);
+}

@@ -5,8 +5,8 @@ use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 use atelier_core::{GameId, ModLocation, ModUpdate};
-use atelier_install::InstallItemStatus;
-use atelier_modio::{DownloadJob, DownloadProgress, DownloadStatus, UpdateCheck};
+use atelier_install::{InstallItemStatus, Limits};
+use atelier_modio::{DownloadJob, DownloadProgress, DownloadStatus, Modfile, UpdateCheck};
 use tokio::task::AbortHandle;
 
 use crate::error::{AppError, ErrorCode, Result};
@@ -20,6 +20,17 @@ pub(crate) struct JobEntry {
     job: DownloadJob,
     game: GameId,
     abort: Option<AbortHandle>,
+}
+
+/// Shown on a Done download whose file mod.io was too large to virus-scan.
+const UNSCANNED_WARNING: &str =
+    "mod.io couldn't virus-scan this file (too large), so it was installed unscanned.";
+
+fn join_warnings(first: Option<String>, second: Option<String>) -> Option<String> {
+    match (first, second) {
+        (Some(first), Some(second)) => Some(format!("{first} {second}")),
+        (first, second) => first.or(second),
+    }
 }
 
 impl App {
@@ -461,8 +472,7 @@ impl App {
             let _ = std::fs::remove_dir_all(&staging);
             return Ok(());
         }
-        let installed =
-            self.install_download(game, modio_id, modfile.id, &archive.to_string_lossy());
+        let installed = self.install_download(game, modio_id, &modfile, &archive.to_string_lossy());
         // Staging is scratch space; a leftover copy is harmless, so cleanup errors are ignored.
         let _ = std::fs::remove_dir_all(&staging);
         let (top_level, warning) = installed?;
@@ -501,10 +511,7 @@ impl App {
                     error.message
                 )
             });
-        let warning = match (warning, held) {
-            (Some(first), Some(second)) => Some(format!("{first} {second}")),
-            (first, second) => first.or(second),
-        };
+        let warning = join_warnings(warning, held);
         if warning.is_some() {
             self.edit_job(job_id, |job| job.error = warning);
         }
@@ -527,9 +534,10 @@ impl App {
         &self,
         game: GameId,
         modio_id: u64,
-        modfile_id: u64,
+        modfile: &Modfile,
         archive: &str,
     ) -> Result<(Vec<String>, Option<String>)> {
+        let modfile_id = modfile.id;
         // Only a Documents copy is replaced; a game-folder copy stays beside the new one.
         // Read before the preview, so a failed scan leaves no staging behind.
         let replaceable: HashSet<String> = self
@@ -538,7 +546,11 @@ impl App {
             .filter(|item| item.location == ModLocation::Documents && item.parent_id.is_none())
             .map(|item| item.id)
             .collect();
-        let preview = self.preview_install(game, &[archive.to_owned()])?;
+        // mod.io measures the unpacked size, so a large mod gets the room it needs; the
+        // archive's real size bounds that, so the figure can't open the door to a zip bomb.
+        let archive_bytes = std::fs::metadata(archive).map_or(0, |meta| meta.len());
+        let limits = Limits::for_download(modfile.filesize_uncompressed, archive_bytes);
+        let preview = self.preview_install_with(game, &[archive.to_owned()], Some(limits))?;
         let links = self
             .persisted()
             .modio_links
@@ -628,7 +640,10 @@ impl App {
             .map(|item| item.mod_id)
             .filter(|mod_id| result.installed.contains(mod_id) || adopted.contains(mod_id))
             .collect();
-        Ok((top_level, result.warning))
+        // Only files actually installed from the download were unscanned; an adopted copy wasn't.
+        let unscanned = (modfile.scan_skipped() && !result.installed.is_empty())
+            .then(|| UNSCANNED_WARNING.to_owned());
+        Ok((top_level, join_warnings(unscanned, result.warning)))
     }
 
     /// False when the job is gone (cancelled).

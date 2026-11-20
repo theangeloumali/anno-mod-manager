@@ -77,6 +77,8 @@ pub(crate) struct ApiModfile {
     #[serde(default)]
     pub virus_positive: u8,
     #[serde(default)]
+    pub filesize_uncompressed: u64,
+    #[serde(default)]
     pub download: ApiDownload,
 }
 
@@ -248,6 +250,7 @@ impl From<ApiModfile> for Modfile {
             binary_url: file.download.binary_url,
             virus_status: file.virus_status,
             virus_positive: file.virus_positive,
+            filesize_uncompressed: file.filesize_uncompressed,
         }
     }
 }
