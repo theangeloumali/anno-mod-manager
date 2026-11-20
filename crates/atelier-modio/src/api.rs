@@ -99,6 +99,7 @@ pub(crate) struct ApiMod {
     #[serde(default)]
     pub summary: String,
     pub description_plaintext: Option<String>,
+    #[serde(default, deserialize_with = "empty_as_none")]
     pub modfile: Option<ApiModfile>,
     #[serde(default)]
     pub tags: Vec<ApiTag>,
@@ -111,6 +112,21 @@ pub(crate) struct ApiMod {
     pub date_added: u64,
     #[serde(default)]
     pub date_updated: u64,
+}
+
+/// With the platform header, mod.io lists a file-less dependency as `"modfile":{}`, which
+/// would otherwise fail the whole response on the missing `id`.
+fn empty_as_none<'de, D>(deserializer: D) -> Result<Option<ApiModfile>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    match Option::<serde_json::Value>::deserialize(deserializer)? {
+        Some(serde_json::Value::Object(fields)) if fields.is_empty() => Ok(None),
+        Some(value) => serde_json::from_value(value)
+            .map(Some)
+            .map_err(serde::de::Error::custom),
+        None => Ok(None),
+    }
 }
 
 fn accepted() -> u8 {
