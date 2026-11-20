@@ -28,6 +28,8 @@ pub enum Error {
     },
     #[error("download checksum mismatch: expected {expected}, got {actual}")]
     ChecksumMismatch { expected: String, actual: String },
+    #[error("download incomplete: mod.io lists {expected} bytes, got {actual}")]
+    SizeMismatch { expected: u64, actual: u64 },
     #[error("mod.io flagged modfile {modfile_id} as malware")]
     VirusDetected { modfile_id: u64 },
     #[error("mod.io has not finished a virus scan of modfile {modfile_id} (status {virus_status})")]

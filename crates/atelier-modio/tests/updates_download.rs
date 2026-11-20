@@ -167,6 +167,42 @@ async fn an_md5_mismatch_deletes_the_file() {
     assert_eq!(std::fs::read_dir(dest.path()).unwrap().count(), 0);
 }
 
+/// mod.io leaves `filehash.md5` empty on some large files; the listed size stands in for it.
+async fn download_without_md5(
+    body: &[u8],
+) -> (tempfile::TempDir, Result<std::path::PathBuf, Error>) {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/files/77001/download"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(body.to_vec()))
+        .mount(&server)
+        .await;
+    let dest = tempfile::tempdir().unwrap();
+    let saved = anonymous_client(&server)
+        .download(&modfile(&server, "", 0), dest.path(), |_| {})
+        .await;
+    (dest, saved)
+}
+
+#[tokio::test]
+async fn a_modfile_listed_without_an_md5_downloads_when_its_size_matches() {
+    let (_dest, saved) = download_without_md5(b"hello world").await;
+    assert_eq!(std::fs::read(saved.unwrap()).unwrap(), b"hello world");
+}
+
+#[tokio::test]
+async fn a_modfile_listed_without_an_md5_is_refused_when_it_arrives_short() {
+    let (dest, saved) = download_without_md5(b"hello").await;
+    assert!(matches!(
+        saved.unwrap_err(),
+        Error::SizeMismatch {
+            expected: 11,
+            actual: 5
+        }
+    ));
+    assert_eq!(std::fs::read_dir(dest.path()).unwrap().count(), 0);
+}
+
 #[tokio::test]
 async fn a_virus_positive_modfile_is_refused_before_downloading() {
     let server = MockServer::start().await;
