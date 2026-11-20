@@ -66,6 +66,9 @@ struct Inner {
     client: RwLock<Arc<ModioClient>>,
     jobs: Mutex<Vec<JobEntry>>,
     next_job: AtomicU64,
+    /// When each page was last unsubscribed here, so a sync whose mod.io answer is older
+    /// doesn't reinstall it.
+    unsubscribed_at: Mutex<HashMap<(GameId, u64), Instant>>,
     updates: Mutex<HashMap<GameId, HashMap<String, ModUpdate>>>,
     /// (game, mod.io page) → profiles its mods go into off once installed, from a collection.
     held_off: Mutex<HashMap<(GameId, u64), collections::HeldCollection>>,
@@ -111,6 +114,7 @@ impl App {
             next_job: AtomicU64::new(1),
             updates: Mutex::new(HashMap::new()),
             held_off: Mutex::new(HashMap::new()),
+            unsubscribed_at: Mutex::new(HashMap::new()),
             writes: Mutex::new(()),
             launched: Mutex::new(HashMap::new()),
         }));

@@ -81,6 +81,9 @@ pub(crate) struct Persisted {
     /// mod.io subscriptions seen at the last sync: only these are removed when they go,
     /// so a guest or hand install never is.
     pub subscribed: HashMap<GameId, BTreeSet<u64>>,
+    /// Subscribed pages the player uninstalled from the Library: the sync leaves them out
+    /// until they subscribe again.
+    pub declined: HashMap<GameId, BTreeSet<u64>>,
 }
 
 impl Persisted {

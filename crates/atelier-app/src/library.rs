@@ -110,8 +110,32 @@ impl App {
         Ok(())
     }
 
-    /// Only the Documents copy is removed; game and .ubi folders belong to the game.
+    /// Only the Documents copy is removed; game and .ubi folders belong to the game. A
+    /// subscribed mod uninstalled here is left out of later syncs until subscribed again.
     pub fn uninstall_mod(&self, game: GameId, mod_id: &str) -> Result<()> {
+        let page = self
+            .persisted()
+            .modio_links
+            .get(&game)
+            .and_then(|links| links.get(mod_id))
+            .map(|link| link.modio_id);
+        self.uninstall_to_backup(game, mod_id)?;
+        let subscribed = page.filter(|page| {
+            self.persisted()
+                .subscribed
+                .get(&game)
+                .is_some_and(|subscribed| subscribed.contains(page))
+        });
+        if let Some(page) = subscribed {
+            self.update_persisted(|state| {
+                state.declined.entry(game).or_default().insert(page);
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Moves the Documents copy into the backups; a sync's removal, which declines nothing.
+    pub(crate) fn uninstall_to_backup(&self, game: GameId, mod_id: &str) -> Result<()> {
         let _writes = self.write_guard(game)?;
         let mods = self.scan(game)?;
         // A sub-mod lives inside another mod's folder, so only top-level mods are removable.

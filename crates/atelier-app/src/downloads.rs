@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::atomic::Ordering;
+use std::time::Instant;
 
 use atelier_core::{GameId, ModLocation, ModUpdate};
 use atelier_modio::{DownloadJob, DownloadProgress, DownloadStatus, UpdateCheck};
@@ -23,8 +24,12 @@ impl App {
         self.guard_writes(game)?;
         if self.has_token()? {
             self.client().subscribe(game, modio_id).await?;
+            // Subscribing again is the player asking for it back after a Library uninstall.
             self.update_persisted(|state| {
                 state.subscribed.entry(game).or_default().insert(modio_id);
+                if let Some(declined) = state.declined.get_mut(&game) {
+                    declined.remove(&modio_id);
+                }
             })?;
         }
         self.start_job(game, modio_id);
@@ -35,12 +40,16 @@ impl App {
     pub async fn unsubscribe(&self, game: GameId, modio_id: u64) -> Result<()> {
         self.guard_writes(game)?;
         self.client().unsubscribe(game, modio_id).await?;
+        lock(&self.0.unsubscribed_at).insert((game, modio_id), Instant::now());
         // Forgotten only once removed: if removal fails, the next sync sees the page gone
         // from mod.io and tries again.
         self.remove_page_mods(game, modio_id)?;
         self.update_persisted(|state| {
             if let Some(subscribed) = state.subscribed.get_mut(&game) {
                 subscribed.remove(&modio_id);
+            }
+            if let Some(declined) = state.declined.get_mut(&game) {
+                declined.remove(&modio_id);
             }
         })
     }
@@ -55,6 +64,8 @@ impl App {
             ));
         }
         self.guard_writes(game)?;
+        let account = self.0.token_store.load()?;
+        let started = Instant::now();
         let before = self.subscribed_set(game);
         let fetched: BTreeSet<u64> = self
             .client()
@@ -63,16 +74,36 @@ impl App {
             .iter()
             .map(|item| item.id)
             .collect();
+        // Signed out or into another account meanwhile: this answer belongs to nobody now.
+        if self.0.token_store.load()? != account {
+            return Ok(());
+        }
         // A subscribe or unsubscribe made while mod.io answered is newer than its answer.
         let now = self.subscribed_set(game);
         let added: BTreeSet<u64> = now.difference(&before).copied().collect();
-        let removed: BTreeSet<u64> = before.difference(&now).copied().collect();
+        let unsubscribed_at = lock(&self.0.unsubscribed_at).clone();
+        let removed: BTreeSet<u64> = fetched
+            .iter()
+            .copied()
+            .filter(|id| {
+                unsubscribed_at
+                    .get(&(game, *id))
+                    .is_some_and(|at| *at >= started)
+            })
+            .chain(before.difference(&now).copied())
+            .collect();
         let current: BTreeSet<u64> = fetched
             .difference(&removed)
             .copied()
             .chain(added.iter().copied())
             .collect();
-        self.start_missing(game, current.iter().copied())?;
+        let declined = self
+            .persisted()
+            .declined
+            .get(&game)
+            .cloned()
+            .unwrap_or_default();
+        self.start_missing(game, current.difference(&declined).copied())?;
         for &dropped in before.difference(&current) {
             // An unsubscribe in the app already removed its own page.
             if !removed.contains(&dropped) {
@@ -120,12 +151,18 @@ impl App {
             .map(|entry| entry.job.id.clone())
             .collect();
         for job_id in pending {
-            // One already installing can't be stopped; the next sync removes what it installs.
-            let _ = self.cancel_download(&job_id);
+            // One already installing can't be stopped: fail, so the page stays on the list and
+            // the next sync removes what it installed.
+            if self.cancel_download(&job_id).is_err() {
+                return Err(AppError::new(
+                    ErrorCode::Install,
+                    "It's still installing, so it can't be removed yet. The next sync removes it.",
+                ));
+            }
         }
         let linked = self.linked_mod_ids(game, modio_id);
         for mod_id in linked {
-            match self.uninstall_mod(game, &mod_id) {
+            match self.uninstall_to_backup(game, &mod_id) {
                 // Already gone by hand: nothing left to remove.
                 Err(error) if error.code == ErrorCode::NotFound => {}
                 other => other?,

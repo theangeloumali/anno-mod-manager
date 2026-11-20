@@ -108,7 +108,10 @@ impl App {
             Ok(account) => account,
             Err(atelier_modio::Error::Unauthorized) => {
                 self.0.token_store.clear()?;
-                let _ = self.update_persisted(|state| state.subscribed.clear());
+                let _ = self.update_persisted(|state| {
+                    state.subscribed.clear();
+                    state.declined.clear();
+                });
                 self.client().account().await?
             }
             Err(atelier_modio::Error::Offline) => atelier_modio::Account {
@@ -198,6 +201,7 @@ impl App {
         let _ = self.update_persisted(|state| {
             state.token_expires_at = None;
             state.subscribed.clear();
+            state.declined.clear();
         });
         Ok(())
     }
