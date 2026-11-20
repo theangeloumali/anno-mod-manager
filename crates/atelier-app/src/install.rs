@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use atelier_core::{GameId, activation};
-use atelier_install::{InstallPreview, InstallResult};
+use atelier_install::{InstallPreview, InstallResult, Limits};
 
 use crate::error::{AppError, ErrorCode, Result};
 use crate::state::NewModsStart;
@@ -13,6 +13,16 @@ const EXPIRED_PREVIEW: &str = "That preview has expired. Drop the file again.";
 
 impl App {
     pub fn preview_install(&self, game: GameId, paths: &[String]) -> Result<InstallPreview> {
+        self.preview_install_with(game, paths, None)
+    }
+
+    /// `limits` overrides the engine's caps, e.g. from a download's declared unpacked size.
+    pub(crate) fn preview_install_with(
+        &self,
+        game: GameId,
+        paths: &[String],
+        limits: Option<Limits>,
+    ) -> Result<InstallPreview> {
         if paths.is_empty() {
             return Err(AppError::new(
                 ErrorCode::InvalidInput,
@@ -31,7 +41,13 @@ impl App {
         }
         let sources: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
         let installed = self.scan(game)?;
-        let preview = self.0.engine.preview(game, &sources, &installed)?;
+        let preview = match limits {
+            Some(limits) => self
+                .0
+                .engine
+                .preview_with_limits(game, &sources, &installed, limits)?,
+            None => self.0.engine.preview(game, &sources, &installed)?,
+        };
         lock(&self.0.previews).insert(preview.id.clone(), game);
         Ok(preview)
     }

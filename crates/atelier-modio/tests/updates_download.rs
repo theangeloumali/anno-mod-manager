@@ -110,6 +110,7 @@ fn modfile(server: &MockServer, md5: &str, virus_positive: u8) -> Modfile {
         binary_url: format!("{}/v1/files/77001/download", server.uri()),
         virus_status: 1,
         virus_positive,
+        filesize_uncompressed: 0,
     }
 }
 
@@ -304,4 +305,47 @@ async fn the_bearer_is_not_sent_to_another_port_on_the_same_host() {
         .unwrap();
     let received = elsewhere.received_requests().await.unwrap();
     assert!(!received[0].headers.contains_key("authorization"));
+}
+
+#[tokio::test]
+async fn a_file_too_large_for_modios_virus_scan_still_downloads() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/files/77001/download"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(b"hello world".to_vec()))
+        .mount(&server)
+        .await;
+    let dest = tempfile::tempdir().unwrap();
+    let mut too_large = modfile(&server, HELLO_MD5, 0);
+    too_large.virus_status = 3;
+
+    let saved = anonymous_client(&server)
+        .download(&too_large, dest.path(), |_| {})
+        .await
+        .unwrap();
+
+    assert!(too_large.scan_skipped());
+    assert_eq!(std::fs::read(saved).unwrap(), b"hello world");
+}
+
+#[tokio::test]
+async fn a_file_still_being_scanned_is_refused_before_downloading() {
+    let server = MockServer::start().await;
+    let dest = tempfile::tempdir().unwrap();
+    let mut scanning = modfile(&server, HELLO_MD5, 0);
+    scanning.virus_status = 2;
+
+    let error = anonymous_client(&server)
+        .download(&scanning, dest.path(), |_| {})
+        .await
+        .unwrap_err();
+
+    assert!(matches!(
+        error,
+        Error::NotScanned {
+            virus_status: 2,
+            ..
+        }
+    ));
+    assert!(server.received_requests().await.unwrap().is_empty());
 }

@@ -1006,6 +1006,20 @@ function seedDownloads(now: number): StoredJob[] {
       30500,
       0.42,
     ),
+    // A mod over mod.io's virus-scan size limit installs with the core's warning.
+    stored(
+      {
+        id: "job-horizons",
+        modioId: 4762489,
+        name: "New Horizons",
+        sizeBytes: megabytes(3143.5),
+        status: "done",
+        error:
+          "mod.io couldn't virus-scan this file (too large), so it was installed unscanned.",
+      },
+      900000,
+      240000,
+    ),
     stored(
       {
         id: "job-roads",

@@ -1815,3 +1815,36 @@ async fn a_new_job_for_a_page_clears_its_old_failed_entry() {
     assert_eq!(jobs.len(), 1, "{jobs:?}");
     assert_eq!(jobs[0].status, DownloadStatus::Done);
 }
+
+#[tokio::test]
+async fn a_file_too_large_for_modios_virus_scan_installs_with_a_warning() {
+    let server = MockServer::start().await;
+    let info = modinfo("roman-roads", "1.2.0", GameId::Anno117);
+    let archive = zip_bytes(&[("Roman Roads/modinfo.json", info.as_bytes())]);
+    let digest = format!("{:x}", Md5::digest(&archive));
+    let mut detail = fixture("mod.json");
+    detail["modfile"]["download"]["binary_url"] =
+        Value::String(format!("{}/v1/files/77001/download", server.uri()));
+    detail["modfile"]["filehash"]["md5"] = Value::String(digest);
+    detail["modfile"]["filesize"] = Value::from(archive.len());
+    detail["modfile"]["virus_status"] = Value::from(3);
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(detail))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/files/77001/download"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(archive))
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+
+    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
+    let job = wait_for_job(&harness).await;
+
+    assert_eq!(job.status, DownloadStatus::Done, "{:?}", job.error);
+    let warning = job.error.unwrap_or_default();
+    assert!(warning.contains("couldn't virus-scan"), "{warning}");
+    assert!(is_installed(&harness, "roman-roads"));
+}

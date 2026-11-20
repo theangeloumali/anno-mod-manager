@@ -40,6 +40,22 @@ pub struct Limits {
     pub max_entries: usize,
 }
 
+/// The most a declared unpacked size can raise the cap to.
+const DECLARED_SIZE_CEILING: u64 = 64 * GIB;
+
+impl Limits {
+    /// For a download whose unpacked size the host has measured (mod.io's
+    /// `filesize_uncompressed`): that size plus 10%, never below the default or above 64 GiB.
+    pub fn for_declared_size(unpacked: u64) -> Self {
+        let default = Self::default();
+        let wanted = unpacked.saturating_add(unpacked / 10);
+        Self {
+            max_total_bytes: wanted.clamp(default.max_total_bytes, DECLARED_SIZE_CEILING),
+            ..default
+        }
+    }
+}
+
 impl Default for Limits {
     fn default() -> Self {
         Self {
@@ -81,9 +97,20 @@ impl InstallEngine {
         sources: &[PathBuf],
         installed: &[Mod],
     ) -> Result<InstallPreview> {
+        self.preview_with_limits(game, sources, installed, self.limits)
+    }
+
+    /// [`Self::preview`] with caps chosen per call, e.g. from a download's declared size.
+    pub fn preview_with_limits(
+        &self,
+        game: GameId,
+        sources: &[PathBuf],
+        installed: &[Mod],
+        limits: Limits,
+    ) -> Result<InstallPreview> {
         let id = uuid::Uuid::new_v4().to_string();
         let dir = self.config.staging_dir.join(&id);
-        let items = match self.stage_and_classify(&dir, game, sources, installed) {
+        let items = match self.stage_and_classify(&dir, game, sources, installed, limits) {
             Ok(items) => items,
             Err(error) => {
                 let _ = fs::remove_dir_all(&dir);
@@ -202,11 +229,12 @@ impl InstallEngine {
         game: GameId,
         sources: &[PathBuf],
         installed: &[Mod],
+        limits: Limits,
     ) -> Result<Vec<StagedItem>> {
         let mut found = Vec::new();
         for (index, source) in sources.iter().enumerate() {
             let staged = dir.join(format!("src-{index}"));
-            stage::stage_source(source, &staged, self.limits)?;
+            stage::stage_source(source, &staged, limits)?;
             let mut roots = roots::find_roots(&staged)?;
             roots.sort_by_key(roots::FoundRoot::mod_id);
             found.extend(roots.into_iter().map(|root| (staged.clone(), root)));

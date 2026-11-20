@@ -8,11 +8,11 @@ use url::Url;
 
 use crate::client::{ModioClient, PLATFORM, PLATFORM_HEADER};
 use crate::error::{Error, Result};
-use crate::types::{DownloadProgress, DownloadStatus, Modfile};
+use crate::types::{
+    DownloadProgress, DownloadStatus, Modfile, VIRUS_SCAN_COMPLETE, VIRUS_SCAN_TOO_LARGE,
+};
 
 const VIRUS_POSITIVE_REFUSE: u8 = 1;
-/// mod.io's "scan complete"; pending, too large, missing and errored scans all fail closed.
-const VIRUS_SCAN_COMPLETE: u8 = 1;
 
 impl ModioClient {
     /// Streams `modfile` into `dest_dir`, verifying its md5. A failed or
@@ -23,7 +23,12 @@ impl ModioClient {
         dest_dir: &Path,
         mut on_progress: impl FnMut(DownloadProgress),
     ) -> Result<PathBuf> {
-        if modfile.virus_status != VIRUS_SCAN_COMPLETE {
+        // Too large to scan is allowed (the player chose this; the game's own browser does too);
+        // pending, missing and errored scans still fail closed.
+        if !matches!(
+            modfile.virus_status,
+            VIRUS_SCAN_COMPLETE | VIRUS_SCAN_TOO_LARGE
+        ) {
             return Err(Error::NotScanned {
                 modfile_id: modfile.id,
                 virus_status: modfile.virus_status,
@@ -212,6 +217,7 @@ mod tests {
             binary_url: "http://g-11358.modapi.io/v1/files/1/download".into(),
             virus_status: 1,
             virus_positive: 0,
+            filesize_uncompressed: 0,
         };
         let dest = tempfile::tempdir().unwrap();
         let error = production_client()

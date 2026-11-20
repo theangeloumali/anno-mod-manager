@@ -220,3 +220,49 @@ fn a_rar_is_unsupported_with_a_user_facing_message() {
         "{message}"
     );
 }
+
+#[test]
+fn a_declared_unpacked_size_raises_the_cap_with_headroom_and_a_ceiling() {
+    const GIB: u64 = 1024 * 1024 * 1024;
+    assert_eq!(Limits::for_declared_size(0), Limits::default());
+    assert_eq!(Limits::for_declared_size(GIB).max_total_bytes, 4 * GIB);
+    let new_horizons = 6_822_935_680;
+    let limits = Limits::for_declared_size(new_horizons);
+    assert_eq!(limits.max_total_bytes, new_horizons + new_horizons / 10);
+    assert_eq!(limits.max_entries, Limits::default().max_entries);
+    assert_eq!(
+        Limits::for_declared_size(100 * GIB).max_total_bytes,
+        64 * GIB
+    );
+}
+
+#[test]
+fn a_preview_can_use_larger_limits_than_the_engines_own() {
+    let sandbox = Sandbox::with(
+        Some(30),
+        Limits {
+            max_total_bytes: 1024 * 1024,
+            ..Limits::default()
+        },
+    );
+    let archive = sandbox.drop_path("big.zip");
+    let filler = vec![0u8; 2 * 1024 * 1024];
+    write_zip(
+        &archive,
+        &[
+            Entry::File("Big/modinfo.json", modinfo("big", "1", Some(8)).as_bytes()),
+            Entry::File("Big/data.bin", &filler),
+        ],
+    );
+    let roomy = Limits {
+        max_total_bytes: 4 * 1024 * 1024,
+        ..Limits::default()
+    };
+
+    let preview = sandbox
+        .engine
+        .preview_with_limits(GameId::Anno117, &[archive], &[], roomy)
+        .unwrap();
+
+    assert_eq!(preview.items.len(), 1);
+}

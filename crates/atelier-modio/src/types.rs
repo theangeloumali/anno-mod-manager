@@ -81,6 +81,19 @@ pub struct Modfile {
     pub virus_status: u8,
     /// 1 = malware found (refused), 2 = flagged but allowed.
     pub virus_positive: u8,
+    /// mod.io's own count of the unpacked bytes; 0 when it doesn't say.
+    pub filesize_uncompressed: u64,
+}
+
+/// mod.io's virus scan states: complete, and too large to scan.
+pub(crate) const VIRUS_SCAN_COMPLETE: u8 = 1;
+pub(crate) const VIRUS_SCAN_TOO_LARGE: u8 = 3;
+
+impl Modfile {
+    /// mod.io skipped its virus scan because the file is over its scan size limit.
+    pub fn scan_skipped(&self) -> bool {
+        self.virus_status == VIRUS_SCAN_TOO_LARGE
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
