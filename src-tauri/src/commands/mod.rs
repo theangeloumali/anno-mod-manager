@@ -53,6 +53,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         modio::accept_terms,
         modio::set_api_key,
         modio::clear_api_key,
+        modio::request_sign_in_code,
         modio::sign_in,
         modio::sign_out,
     ]

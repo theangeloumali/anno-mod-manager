@@ -47,3 +47,23 @@ async fn live_games_and_browse() {
         );
     }
 }
+
+/// mod.io checks the key before the address, so a validation error proves a personal key may
+/// request sign-in codes. The address is invalid, so no email is sent.
+#[tokio::test]
+#[ignore = "hits the live mod.io API; needs MODIO_API_KEY"]
+async fn live_email_sign_in_accepts_a_personal_key() {
+    let api_key = std::env::var("MODIO_API_KEY").expect("MODIO_API_KEY is set");
+    let client = ModioClient::new(ClientConfig {
+        api_key: Some(api_key),
+        base_override: None,
+    })
+    .expect("client builds");
+
+    let error = client.request_email_code("not-an-email").await.unwrap_err();
+
+    assert!(
+        matches!(error, atelier_modio::Error::InvalidEmail),
+        "{error:?}"
+    );
+}

@@ -1,5 +1,6 @@
 import { KeyRoundIcon, TrashIcon } from "lucide-react";
 import { useState } from "react";
+import { ExternalLink } from "@/components/app/external-link";
 import { FIELD_CLASS } from "@/components/app/field-class";
 import { errorMessage } from "@/components/app/format";
 import { withToast } from "@/components/app/notify";
@@ -62,14 +63,7 @@ export function ApiKeyPanel() {
       </label>
       <p id="modio-api-key-hint" className="text-label text-copy-muted">
         Browsing mod.io needs your own key. Get it free at{" "}
-        <a
-          className="text-accent underline underline-offset-4"
-          href={MODIO_ACCESS_URL}
-          target="_blank"
-          rel="noreferrer"
-        >
-          mod.io/me/access
-        </a>{" "}
+        <ExternalLink href={MODIO_ACCESS_URL}>mod.io/me/access</ExternalLink>{" "}
         under "API Access". It's stored in Windows Credential Manager, never in
         a file.
       </p>

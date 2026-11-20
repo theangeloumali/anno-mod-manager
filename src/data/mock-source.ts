@@ -26,8 +26,6 @@ import type {
 
 const MOCK_LATENCY_MS = 140;
 const MODIO_PAGE_SIZE = 12;
-const DEVICE_APPROVAL_MS = 6000;
-const BROWSER_APPROVAL_MS = 3000;
 const VERIFY_STEP_MS = 700;
 const BYTES_PER_MB = 1024 * 1024;
 
@@ -1070,7 +1068,7 @@ function createState() {
       termsAccepted: true,
     } as Omit<Account, "hasApiKey">,
     apiKeySet: true,
-    pendingApprovalAt: null as number | null,
+    signInCodeSentTo: null as string | null,
     settings: { ...DEFAULT_SETTINGS },
     downloads: seedDownloads(Date.now()),
     previews: new Map<string, StoredPreview>(),
@@ -1767,21 +1765,6 @@ function buildHealthChecks(game: GameId): HealthCheck[] {
   ];
 }
 
-function settleApproval(): void {
-  if (
-    state.pendingApprovalAt !== null &&
-    Date.now() >= state.pendingApprovalAt
-  ) {
-    state.pendingApprovalAt = null;
-    state.account = {
-      signedIn: true,
-      username: "aurelia_builds",
-      expiresAt: "2027-02-18T00:00:00Z",
-      termsAccepted: true,
-    };
-  }
-}
-
 export function mockScenario(): MockScenario {
   return { ...state.scenario, gameRunning: state.runningGame !== null };
 }
@@ -1795,7 +1778,7 @@ export function setMockScenario(
   if (patch.gameRunning !== undefined)
     state.runningGame = patch.gameRunning ? game : null;
   if (patch.signedOut === true) {
-    state.pendingApprovalAt = null;
+    state.signInCodeSentTo = null;
     state.account = {
       signedIn: false,
       username: null,
@@ -1804,7 +1787,6 @@ export function setMockScenario(
     };
   }
   if (patch.noApiKey !== undefined) state.apiKeySet = !patch.noApiKey;
-  if (patch.signedOut === false) settleApproval();
   if (patch.signedOut === false && !state.account.signedIn)
     state.account = {
       signedIn: true,
@@ -2306,17 +2288,11 @@ export const mockSource: DataSource = {
 
   connectivity: () => respond(!state.scenario.offline),
 
-  healthChecks: (game) => {
-    settleApproval();
-    return respond(buildHealthChecks(game));
-  },
+  healthChecks: (game) => respond(buildHealthChecks(game)),
 
   loaderLog: (game) => respond(buildLog(game)),
 
-  account: () => {
-    settleApproval();
-    return respond({ ...state.account, hasApiKey: state.apiKeySet });
-  },
+  account: () => respond({ ...state.account, hasApiKey: state.apiKeySet }),
 
   acceptTerms: () => {
     state.account.termsAccepted = true;
@@ -2346,37 +2322,45 @@ export const mockSource: DataSource = {
     return respond(undefined);
   },
 
-  signIn: (method, token) => {
+  requestSignInCode: (email) => {
     if (state.scenario.offline) return refuseOffline();
     if (!state.account.termsAccepted)
       return refuse("Accept mod.io's terms first.", "terms-required");
-    if (method === "token") {
-      if (!token || token.trim().length < 12)
-        return refuse(
-          "mod.io rejected that token (401). Create a read+write token at mod.io/me/access.",
-          "unauthorized",
-        );
-      state.account = {
-        signedIn: true,
-        username: "aurelia_builds",
-        expiresAt: "2027-02-18T00:00:00Z",
-        termsAccepted: true,
-      };
-      return respond(null);
-    }
-    state.pendingApprovalAt =
-      Date.now() +
-      (method === "device" ? DEVICE_APPROVAL_MS : BROWSER_APPROVAL_MS);
-    if (method === "browser") return respond(null);
-    return respond({
-      code: "K7Q2M",
-      verifyUrl: "https://mod.io/connect",
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-    });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+      return refuse("That isn't a valid email address.");
+    state.signInCodeSentTo = email.trim();
+    return respond(undefined);
+  },
+
+  signIn: (method, secret) => {
+    if (state.scenario.offline) return refuseOffline();
+    if (!state.account.termsAccepted)
+      return refuse("Accept mod.io's terms first.", "terms-required");
+    // Any 5-character code works in the mock-up once one was "emailed".
+    const accepted =
+      method === "email"
+        ? state.signInCodeSentTo !== null &&
+          /^[A-Z0-9]{5}$/i.test(secret.trim())
+        : secret.trim().length >= 12;
+    if (!accepted)
+      return refuse(
+        method === "email"
+          ? "That code isn't right. Check the latest email from mod.io."
+          : "mod.io rejected that token. Create a read+write token at mod.io/me/access.",
+        method === "email" ? "invalid-input" : "unauthorized",
+      );
+    state.signInCodeSentTo = null;
+    state.account = {
+      signedIn: true,
+      username: "aurelia_builds",
+      expiresAt: "2027-02-18T00:00:00Z",
+      termsAccepted: true,
+    };
+    return respond(undefined);
   },
 
   signOut: () => {
-    state.pendingApprovalAt = null;
+    state.signInCodeSentTo = null;
     state.account = {
       ...state.account,
       signedIn: false,

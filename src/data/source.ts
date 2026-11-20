@@ -9,7 +9,6 @@ import { mockSource } from "./mock-source.ts";
 import type {
   Account,
   AuthMethod,
-  DeviceCode,
   DownloadJob,
   GameId,
   GameInfo,
@@ -93,8 +92,10 @@ export interface DataSource {
   acceptTerms(): Promise<void>;
   setApiKey(key: string): Promise<void>;
   clearApiKey(): Promise<void>;
-  /** The core only supports token sign-in; the mock still demos browser and device codes. */
-  signIn(method: AuthMethod, token?: string): Promise<DeviceCode | null>;
+  /** mod.io emails a one-time code to this address. */
+  requestSignInCode(email: string): Promise<void>;
+  /** `secret` is the emailed code or a pasted personal token, by `method`. */
+  signIn(method: AuthMethod, secret: string): Promise<void>;
   signOut(): Promise<void>;
   getSettings(): Promise<Settings>;
   saveSettings(settings: Settings): Promise<void>;

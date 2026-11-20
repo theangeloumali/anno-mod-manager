@@ -142,15 +142,84 @@ async fn browse_reports_rating_as_a_whole_percentage() {
 }
 
 #[tokio::test]
-async fn token_sign_in_is_the_only_supported_method() {
-    let harness = Harness::new();
-    for method in [
-        atelier_app::AuthMethod::Browser,
-        atelier_app::AuthMethod::Device,
-    ] {
-        let error = harness.app.sign_in(method, None).await.unwrap_err();
-        assert_eq!(error.code, ErrorCode::NotSupported);
-    }
+async fn no_sign_in_code_is_requested_before_the_terms_are_accepted() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+
+    let error = harness
+        .app
+        .request_sign_in_code("player@example.com")
+        .await
+        .unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::TermsRequired);
+    assert!(server.received_requests().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn an_emailed_code_signs_in_and_the_account_shows_the_username() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/oauth/emailrequest"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("email_request.json")))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/v1/oauth/emailexchange"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("access_token.json")))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/me"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("me.json")))
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.app.accept_terms().unwrap();
+
+    harness
+        .app
+        .request_sign_in_code("player@example.com")
+        .await
+        .unwrap();
+    harness
+        .app
+        .sign_in(atelier_app::AuthMethod::Email, Some("AB12C"))
+        .await
+        .unwrap();
+
+    let account = harness.app.account().await.unwrap();
+    assert!(account.signed_in);
+    assert_eq!(account.username.as_deref(), Some("Aurelia"));
+}
+
+#[tokio::test]
+async fn a_wrong_code_leaves_you_signed_out_with_a_readable_reason() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/oauth/emailexchange"))
+        .respond_with(ResponseTemplate::new(403).set_body_json(serde_json::json!({
+            "error": { "code": 403, "error_ref": 11014, "message": "invalid" }
+        })))
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.app.accept_terms().unwrap();
+
+    let error = harness
+        .app
+        .sign_in(atelier_app::AuthMethod::Email, Some("ZZZZZ"))
+        .await
+        .unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert!(
+        error.message.contains("code isn't right"),
+        "{}",
+        error.message
+    );
+    assert_eq!(harness.tokens.load().unwrap(), None);
 }
 
 #[tokio::test]

@@ -1,8 +1,8 @@
-//! Token sign-in. Email-code, device and OAuth flows await mod.io approval.
+//! Sign-in: a code mod.io emails (with the user's own key), or a pasted personal token.
 
 use atelier_core::GameId;
 
-use crate::api::{ApiTerms, ApiUser};
+use crate::api::{ApiAccessToken, ApiTerms, ApiUser};
 use crate::client::{Auth, ModioClient};
 use crate::error::{Error, Result};
 use crate::types::{Account, Terms};
@@ -30,6 +30,37 @@ impl ModioClient {
         Ok(account)
     }
 
+    /// Asks mod.io to email a one-time security code.
+    pub async fn request_email_code(&self, email: &str) -> Result<()> {
+        let form = [("email", email.trim().to_owned())];
+        self.post_form_json::<serde_json::Value>(AUTH_GAME, "oauth/emailrequest", Auth::Key, &form)
+            .await
+            .map(drop)
+            .map_err(|error| match error {
+                Error::Api {
+                    error_ref: INVALID_INPUT_REF,
+                    ..
+                } => Error::InvalidEmail,
+                other => other,
+            })
+    }
+
+    /// Trades the emailed code for an access token, checks it with `GET /me`, then stores it.
+    pub async fn sign_in_with_email_code(&self, code: &str) -> Result<Account> {
+        let form = [
+            ("security_code", code.trim().to_uppercase()),
+            // The caller has the user accept mod.io's terms before asking for a code.
+            ("terms_agreed", "true".to_owned()),
+        ];
+        let token: ApiAccessToken = self
+            .post_form_json(AUTH_GAME, "oauth/emailexchange", Auth::Key, &form)
+            .await
+            .map_err(code_error)?;
+        let account = self.fetch_account(Auth::Token(&token.access_token)).await?;
+        self.tokens.save(&token.access_token)?;
+        Ok(account)
+    }
+
     /// Forgets the token locally. `/oauth/logout` is not called: it would revoke
     /// the user's personal token on mod.io itself.
     pub fn sign_out(&self) -> Result<()> {
@@ -53,5 +84,22 @@ impl ModioClient {
             // A personal token is only issued after accepting the terms on mod.io.
             terms_accepted: true,
         })
+    }
+}
+
+const INVALID_INPUT_REF: u32 = 13009;
+
+/// mod.io's refs for a security code: 11011 used, 11012 expired, 11013 another key's, 11014 wrong.
+fn code_error(error: Error) -> Error {
+    match error {
+        Error::Api {
+            error_ref: 11011 | 11012,
+            ..
+        } => Error::SecurityCodeExpired,
+        Error::Api {
+            error_ref: 11013 | 11014 | INVALID_INPUT_REF,
+            ..
+        } => Error::InvalidSecurityCode,
+        other => other,
     }
 }

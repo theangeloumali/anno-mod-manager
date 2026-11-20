@@ -50,6 +50,12 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("token store error: {0}")]
     TokenStore(String),
+    #[error("that isn't a valid email address")]
+    InvalidEmail,
+    #[error("that code isn't right; check the latest email from mod.io")]
+    InvalidSecurityCode,
+    #[error("that code has expired or was already used; ask for a new one")]
+    SecurityCodeExpired,
 }
 
 const TERMS_REQUIRED_REF: u32 = 11074;

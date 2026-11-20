@@ -17,8 +17,8 @@ const RATING_SCALE: f64 = 100.0;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AuthMethod {
-    Browser,
-    Device,
+    /// A one-time code mod.io emails, asked for with `request_sign_in_code`.
+    Email,
     Token,
 }
 
@@ -131,36 +131,45 @@ impl App {
         self.update_persisted(|state| state.terms_accepted = true)
     }
 
-    /// Email, device and browser sign-in need an app mod.io has approved; Atelier has none yet.
-    pub async fn sign_in(&self, method: AuthMethod, token: Option<&str>) -> Result<()> {
-        let token = match (method, token) {
-            (AuthMethod::Token, Some(token)) => token,
-            (AuthMethod::Token, None) => {
-                return Err(AppError::new(
-                    ErrorCode::InvalidInput,
-                    "Paste a mod.io access token to sign in.",
-                ));
-            }
-            (AuthMethod::Browser | AuthMethod::Device, _) => {
-                return Err(AppError::new(
-                    ErrorCode::NotSupported,
-                    "Browser and device sign-in aren't available yet. Sign in with an access token from mod.io/me/access.",
-                ));
-            }
+    /// Has mod.io email a sign-in code; uses the user's own key.
+    pub async fn request_sign_in_code(&self, email: &str) -> Result<()> {
+        self.require_terms()?;
+        Ok(self.client().request_email_code(email).await?)
+    }
+
+    /// `secret` is the emailed code for `Email`, or a pasted personal token for `Token`.
+    pub async fn sign_in(&self, method: AuthMethod, secret: Option<&str>) -> Result<()> {
+        let Some(secret) = secret.filter(|secret| !secret.trim().is_empty()) else {
+            let ask = match method {
+                AuthMethod::Email => "Enter the code mod.io emailed you.",
+                AuthMethod::Token => "Paste a mod.io access token to sign in.",
+            };
+            return Err(AppError::new(ErrorCode::InvalidInput, ask));
         };
-        if !self.persisted().terms_accepted {
-            return Err(AppError::new(
-                ErrorCode::TermsRequired,
-                "Accept mod.io's terms first.",
-            ));
-        }
-        match self.client().sign_in_with_token(token).await {
+        self.require_terms()?;
+        let client = self.client();
+        let signed_in = match method {
+            AuthMethod::Email => client.sign_in_with_email_code(secret).await,
+            AuthMethod::Token => client.sign_in_with_token(secret).await,
+        };
+        match signed_in {
             Ok(_) => Ok(()),
             Err(atelier_modio::Error::Unauthorized) => Err(AppError::new(
                 ErrorCode::Unauthorized,
                 "mod.io rejected that token. Create a read+write token at mod.io/me/access.",
             )),
             Err(other) => Err(other.into()),
+        }
+    }
+
+    fn require_terms(&self) -> Result<()> {
+        if self.persisted().terms_accepted {
+            Ok(())
+        } else {
+            Err(AppError::new(
+                ErrorCode::TermsRequired,
+                "Accept mod.io's terms first.",
+            ))
         }
     }
 
