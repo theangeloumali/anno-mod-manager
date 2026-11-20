@@ -58,11 +58,14 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm tauri build --debug --no-bundle
-      # A runnable test build, so the app can be tried without a local Rust toolchain.
+      - if: runner.os == 'Linux'
+        run: pnpm tauri build --debug --no-bundle
+      # Windows builds the real installer, so the app installs like any other.
+      - if: runner.os == 'Windows'
+        run: pnpm tauri build --bundles nsis
       - if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: anno-mod-manager-windows
-          path: target/debug/anno-mod-manager-desktop.exe
+          name: anno-mod-manager-windows-installer
+          path: target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
