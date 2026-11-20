@@ -281,7 +281,11 @@ export function useSubscriptionSync(view: string): void {
   }, [client]);
 
   useEffect(() => {
-    if (!isSignedIn) return;
+    // A new sign-in syncs straight away, however recently the last account did.
+    if (!isSignedIn) {
+      lastRun.current = 0;
+      return;
+    }
     void run();
     const timer = window.setInterval(() => void run(), HOUR_MS);
     return () => window.clearInterval(timer);

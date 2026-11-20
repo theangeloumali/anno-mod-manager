@@ -23,8 +23,8 @@ export function SubscribeButton({
   const unsubscribe = useAction((source) => source.unsubscribe(gameId, mod.id));
   const size = compact ? "sm" : "default";
 
-  if (isSignedIn && mod.subscribed)
-    return (
+  if (isSignedIn && mod.subscribed) {
+    const unsubscribeButton = (
       <Button
         size={size}
         variant="quiet"
@@ -33,7 +33,9 @@ export function SubscribeButton({
         onClick={() =>
           withToast(
             unsubscribe.mutateAsync([]),
-            `Unsubscribed from ${mod.name}. A backup of it is kept.`,
+            mod.installedModId
+              ? `Unsubscribed from ${mod.name}. A backup of it is kept.`
+              : `Unsubscribed from ${mod.name}`,
           )
         }
       >
@@ -41,6 +43,29 @@ export function SubscribeButton({
         Unsubscribe
       </Button>
     );
+    if (mod.installedModId) return unsubscribeButton;
+    // Subscribed but not here, e.g. uninstalled from the Library: Install brings it back.
+    return (
+      <span className="flex flex-wrap gap-2">
+        <Button
+          size={size}
+          variant="primary"
+          disabled={isWriteLocked || subscribe.isPending}
+          aria-label={`Install ${mod.name}`}
+          onClick={() =>
+            withToast(
+              subscribe.mutateAsync([]),
+              `Downloading ${mod.name} for ${shortName}`,
+            )
+          }
+        >
+          <DownloadIcon aria-hidden="true" />
+          Install
+        </Button>
+        {unsubscribeButton}
+      </span>
+    );
+  }
 
   // Signed in, a mod installed as a guest can still be subscribed to, for updates and sync.
   if (mod.installedModId && !isSignedIn)

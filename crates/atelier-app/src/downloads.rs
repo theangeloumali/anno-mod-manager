@@ -12,6 +12,9 @@ use crate::error::{AppError, ErrorCode, Result};
 use crate::state::ModioLink;
 use crate::{App, lock};
 
+/// How long an in-app subscribe or unsubscribe beats mod.io's subscription list.
+const CHANGE_GRACE: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+
 pub(crate) struct JobEntry {
     job: DownloadJob,
     game: GameId,
@@ -23,7 +26,9 @@ impl App {
     pub async fn subscribe(&self, game: GameId, modio_id: u64) -> Result<()> {
         self.guard_writes(game)?;
         if self.has_token()? {
+            let _apply = self.0.sync_lock.lock().await;
             self.client().subscribe(game, modio_id).await?;
+            self.note_change(game, modio_id, true);
             // Subscribing again is the player asking for it back after a Library uninstall.
             self.update_persisted(|state| {
                 state.subscribed.entry(game).or_default().insert(modio_id);
@@ -45,8 +50,9 @@ impl App {
     /// Unsubscribes on mod.io and uninstalls the page's mods, which keeps a backup.
     pub async fn unsubscribe(&self, game: GameId, modio_id: u64) -> Result<()> {
         self.guard_writes(game)?;
+        let _apply = self.0.sync_lock.lock().await;
         self.client().unsubscribe(game, modio_id).await?;
-        lock(&self.0.unsubscribed_at).insert((game, modio_id), Instant::now());
+        self.note_change(game, modio_id, false);
         // Forgotten only once removed: if removal fails, the next sync sees the page gone
         // from mod.io and tries again.
         self.remove_page_mods(game, modio_id)?;
@@ -70,10 +76,7 @@ impl App {
             ));
         }
         self.guard_writes(game)?;
-        let _one_at_a_time = self.0.sync_lock.lock().await;
         let account = self.0.token_store.load()?;
-        let started = Instant::now();
-        let before = self.subscribed_set(game);
         let fetched: BTreeSet<u64> = self
             .client()
             .subscriptions(game)
@@ -81,29 +84,20 @@ impl App {
             .iter()
             .map(|item| item.id)
             .collect();
+        // The apply step, subscribe and unsubscribe take turns, so none overwrites another.
+        let _apply = self.0.sync_lock.lock().await;
         // Signed out or into another account meanwhile: this answer belongs to nobody now.
         if self.0.token_store.load()? != account {
             return Ok(());
         }
-        // A subscribe or unsubscribe made while mod.io answered is newer than its answer.
-        let now = self.subscribed_set(game);
-        let added: BTreeSet<u64> = now.difference(&before).copied().collect();
-        let unsubscribed_at = lock(&self.0.unsubscribed_at).clone();
-        let removed: BTreeSet<u64> = fetched
+        let recent = self.recent_changes(game);
+        let current: BTreeSet<u64> = fetched
             .iter()
             .copied()
-            .filter(|id| {
-                unsubscribed_at
-                    .get(&(game, *id))
-                    .is_some_and(|at| *at >= started)
-            })
-            .chain(before.difference(&now).copied())
+            .filter(|id| recent.get(id) != Some(&false))
+            .chain(recent.iter().filter(|(_, on)| **on).map(|(id, _)| *id))
             .collect();
-        let current: BTreeSet<u64> = fetched
-            .difference(&removed)
-            .copied()
-            .chain(added.iter().copied())
-            .collect();
+        let before = self.subscribed_set(game);
         let declined = self
             .persisted()
             .declined
@@ -112,10 +106,7 @@ impl App {
             .unwrap_or_default();
         self.start_missing(game, current.difference(&declined).copied())?;
         for &dropped in before.difference(&current) {
-            // An unsubscribe in the app already removed its own page.
-            if !removed.contains(&dropped) {
-                self.remove_page_mods(game, dropped)?;
-            }
+            self.remove_page_mods(game, dropped)?;
         }
         // Saved last, so a removal that failed is tried again by the next sync. A page no
         // longer subscribed forgets its Library uninstall, so subscribing again brings it back.
@@ -125,6 +116,23 @@ impl App {
             }
             state.subscribed.insert(game, current);
         })
+    }
+
+    /// Remembers an in-app subscribe (`true`) or unsubscribe for the grace window.
+    fn note_change(&self, game: GameId, modio_id: u64, subscribed: bool) {
+        lock(&self.0.recent_changes).insert((game, modio_id), (Instant::now(), subscribed));
+    }
+
+    /// In-app changes younger than the grace window, which beat mod.io's list: it can lag
+    /// behind a subscribe or unsubscribe made a moment ago.
+    fn recent_changes(&self, game: GameId) -> HashMap<u64, bool> {
+        let mut changes = lock(&self.0.recent_changes);
+        changes.retain(|_, (at, _)| at.elapsed() < CHANGE_GRACE);
+        changes
+            .iter()
+            .filter(|((change_game, _), _)| *change_game == game)
+            .map(|((_, id), (_, subscribed))| (*id, *subscribed))
+            .collect()
     }
 
     fn subscribed_set(&self, game: GameId) -> BTreeSet<u64> {
@@ -174,8 +182,9 @@ impl App {
         let linked = self.linked_mod_ids(game, modio_id);
         for mod_id in linked {
             match self.uninstall_to_backup(game, &mod_id) {
-                // Already gone by hand: nothing left to remove.
-                Err(error) if error.code == ErrorCode::NotFound => {}
+                // Already gone by hand, or only a game-folder copy is left: nothing of ours
+                // to remove.
+                Err(error) if matches!(error.code, ErrorCode::NotFound | ErrorCode::ReadOnly) => {}
                 other => other?,
             }
         }

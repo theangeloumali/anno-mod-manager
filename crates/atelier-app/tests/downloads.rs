@@ -1621,9 +1621,18 @@ async fn a_page_dropped_on_modio_forgets_its_library_uninstall() {
         .respond_with(ResponseTemplate::new(201).set_body_json(fixture("message_201.json")))
         .mount(&server)
         .await;
+    serve_subscriptions(&server, "subscriptions.json").await;
     let harness = harness_for(&server, Some(API_KEY));
     sign_in(&harness);
-    download(&harness, 4801).await;
+    // Subscribed on mod.io's site, so no in-app change shields it from the next sync.
+    harness
+        .app
+        .sync_subscriptions(GameId::Anno117)
+        .await
+        .unwrap();
+    let job = wait_for_job(&harness).await;
+    harness.app.cancel_download(&job.id).unwrap();
+    server.reset().await;
     harness
         .app
         .uninstall_mod(GameId::Anno117, "roman-roads")
@@ -1669,4 +1678,68 @@ async fn subscribing_to_a_mod_installed_as_a_guest_keeps_the_installed_copy() {
         "nothing to download again"
     );
     assert!(is_installed(&harness, "roman-roads"));
+}
+
+#[tokio::test]
+async fn a_sync_whose_list_lags_behind_a_new_subscribe_keeps_the_mod() {
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    Mock::given(path("/v1/games/11358/mods/4801/subscribe"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(fixture("message_201.json")))
+        .mount(&server)
+        .await;
+    serve_subscriptions(&server, "subscriptions_empty.json").await;
+    let harness = harness_for(&server, Some(API_KEY));
+    sign_in(&harness);
+    download(&harness, 4801).await;
+
+    // mod.io doesn't list the new subscription yet.
+    harness
+        .app
+        .sync_subscriptions(GameId::Anno117)
+        .await
+        .unwrap();
+
+    assert!(is_installed(&harness, "roman-roads"));
+}
+
+#[tokio::test]
+async fn a_dropped_page_whose_only_copy_ships_with_the_game_does_not_block_the_sync() {
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    serve_subscriptions(&server, "subscriptions.json").await;
+    let harness = Harness::with(Options {
+        install: Some(GameId::Anno117),
+        modio_base: Some(base(&server)),
+        ..Options::default()
+    });
+    sign_in(&harness);
+    harness
+        .app
+        .sync_subscriptions(GameId::Anno117)
+        .await
+        .unwrap();
+    let job = wait_for_job(&harness).await;
+    harness.app.cancel_download(&job.id).unwrap();
+    // The Documents copy goes by hand; a same-id copy ships in the game folder.
+    std::fs::remove_dir_all(harness.documents_mods(GameId::Anno117).join("roman-roads")).ok();
+    for entry in std::fs::read_dir(harness.documents_mods(GameId::Anno117)).unwrap() {
+        std::fs::remove_dir_all(entry.unwrap().path()).ok();
+    }
+    let shipped = harness.install_dir().join("mods").join("Roman Roads");
+    std::fs::create_dir_all(&shipped).unwrap();
+    std::fs::write(
+        shipped.join("modinfo.json"),
+        modinfo("roman-roads", "1.0.0", GameId::Anno117),
+    )
+    .unwrap();
+
+    server.reset().await;
+    serve_subscriptions(&server, "subscriptions_empty.json").await;
+
+    harness
+        .app
+        .sync_subscriptions(GameId::Anno117)
+        .await
+        .unwrap();
 }
