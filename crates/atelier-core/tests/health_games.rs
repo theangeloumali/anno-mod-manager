@@ -331,7 +331,12 @@ fn the_same_folder_written_differently_is_the_same_path() {
     assert!(games::same_path(&install, Path::new(&spelled)));
     assert!(games::same_path(
         Path::new("D:/Missing/Anno 117/"),
-        Path::new("D:/missing/anno 117")
+        Path::new("D:/Missing/./Anno 117")
     ));
+    // Windows paths ignore case; elsewhere they don't.
+    assert_eq!(
+        games::same_path(Path::new("D:/Missing/Anno"), Path::new("D:/missing/anno")),
+        cfg!(windows)
+    );
     assert!(!games::same_path(&install, &tmp.path().join("Anno 1800")));
 }

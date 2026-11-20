@@ -340,7 +340,7 @@ pub fn launch_target(game: GameId, install: &Path, store: Store) -> LaunchTarget
 }
 
 /// One folder however it is written: resolved when both exist, otherwise compared part by
-/// part without case, so `/` against `\`, `.` and a trailing separator don't matter.
+/// part (without case on Windows), so `.` and a trailing separator don't matter.
 pub fn same_path(left: &Path, right: &Path) -> bool {
     if let (Ok(left), Ok(right)) = (fs::canonicalize(left), fs::canonicalize(right)) {
         return left == right;
@@ -351,6 +351,13 @@ pub fn same_path(left: &Path, right: &Path) -> bool {
 fn path_parts(path: &Path) -> Vec<String> {
     path.components()
         .filter(|part| !matches!(part, std::path::Component::CurDir))
-        .map(|part| part.as_os_str().to_string_lossy().to_ascii_lowercase())
+        .map(|part| {
+            let part = part.as_os_str().to_string_lossy();
+            if cfg!(windows) {
+                part.to_ascii_lowercase()
+            } else {
+                part.into_owned()
+            }
+        })
         .collect()
 }
