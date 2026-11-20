@@ -73,7 +73,11 @@ impl App {
         let mut mods = self.scan(game)?;
         let links = self.persisted().modio_links.get(&game).cloned();
         let updates = lock(&self.0.updates).get(&game).cloned();
-        for item in &mut mods {
+        // mod.io installs only ever land in Documents, so a shipped copy is never its page's.
+        for item in mods
+            .iter_mut()
+            .filter(|item| item.location == ModLocation::Documents)
+        {
             if let Some(link) = links.as_ref().and_then(|links| links.get(&item.id)) {
                 item.modio_id.get_or_insert(link.modio_id);
             }

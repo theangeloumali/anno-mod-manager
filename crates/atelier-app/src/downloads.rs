@@ -335,17 +335,22 @@ impl App {
                     .collect()
             })
             .unwrap_or_default();
-        // Like the new-mods rule: the files landed, so a failed profile write only warns.
+        // Like the new-mods rule: the files landed, so a failed profile write only warns. The
+        // hold goes too, so a later update of this page never applies stale rules.
         let held = self
             .apply_held_off(game, modio_id, &linked)
             .err()
             .map(|error| {
+                lock(&self.0.held_off).remove(&(game, modio_id));
                 format!(
-                    "Installed, but the collection's on/off rules weren't applied ({}).",
+                    "Installed, but the collection's on/off rules weren't fully applied ({}).",
                     error.message
                 )
             });
-        let warning = warning.or(held);
+        let warning = match (warning, held) {
+            (Some(first), Some(second)) => Some(format!("{first} {second}")),
+            (first, second) => first.or(second),
+        };
         if warning.is_some() {
             self.edit_job(job_id, |job| job.error = warning);
         }
@@ -371,6 +376,14 @@ impl App {
         modfile_id: u64,
         archive: &str,
     ) -> Result<(Vec<String>, Option<String>)> {
+        // Only a Documents copy is replaced; a game-folder copy stays beside the new one.
+        // Read before the preview, so a failed scan leaves no staging behind.
+        let replaceable: HashSet<String> = self
+            .scan(game)?
+            .into_iter()
+            .filter(|item| item.location == ModLocation::Documents && item.parent_id.is_none())
+            .map(|item| item.id)
+            .collect();
         let preview = self.preview_install(game, &[archive.to_owned()])?;
         let links = self
             .persisted()
@@ -378,13 +391,6 @@ impl App {
             .get(&game)
             .cloned()
             .unwrap_or_default();
-        // Only a Documents copy is replaced; a game-folder copy stays beside the new one.
-        let replaceable: HashSet<String> = self
-            .scan(game)?
-            .into_iter()
-            .filter(|item| item.location == ModLocation::Documents && item.parent_id.is_none())
-            .map(|item| item.id)
-            .collect();
         let foreign = preview.items.iter().find(|item| {
             replaceable.contains(&item.mod_id)
                 && links.get(&item.mod_id).map(|link| link.modio_id) != Some(modio_id)

@@ -1116,7 +1116,7 @@ async fn a_collection_download_whose_profile_write_fails_is_done_and_warns() {
     let server = MockServer::start().await;
     let harness = harness_for(&server, Some(API_KEY));
     serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
-    slow_download(&server, Duration::from_millis(800)).await;
+    slow_download(&server, Duration::from_secs(3)).await;
     serve_collection(&server, 11358).await;
     harness
         .app
@@ -1155,4 +1155,15 @@ async fn a_modio_update_of_a_game_folder_mod_installs() {
     let job = download(&harness, 4801).await;
 
     assert_eq!(job.status, DownloadStatus::Done, "{:?}", job.error);
+    // Only the Documents copy came from mod.io; the shipped one keeps no link.
+    let copies = harness.app.list_mods(GameId::Anno117).unwrap();
+    let linked = |location| {
+        copies
+            .iter()
+            .find(|item| item.id == "roman-roads" && item.location == location)
+            .unwrap()
+            .modio_id
+    };
+    assert_eq!(linked(atelier_core::ModLocation::Documents), Some(4801));
+    assert_eq!(linked(atelier_core::ModLocation::Game), None);
 }
