@@ -21,18 +21,17 @@ pub(crate) struct HeldCollection {
 impl HeldCollection {
     /// Two collections can wait on one mod; it ends up on in both of their profiles.
     fn merge(&mut self, other: &HeldCollection) {
-        for name in &other.on {
-            if !self.on.contains(name) {
-                self.on.push(name.clone());
-            }
+        add_missing(&mut self.on, &other.on);
+        add_missing(&mut self.off, &other.off);
+        self.off.retain(|name| !self.on.contains(name));
+    }
+}
+
+fn add_missing(names: &mut Vec<String>, more: &[String]) {
+    for name in more {
+        if !names.contains(name) {
+            names.push(name.clone());
         }
-        for name in &other.off {
-            if !self.off.contains(name) {
-                self.off.push(name.clone());
-            }
-        }
-        let on = self.on.clone();
-        self.off.retain(|name| !on.contains(name));
     }
 }
 /// atelier-core refuses profile names over 64 bytes; this leaves room for a " 99" suffix.

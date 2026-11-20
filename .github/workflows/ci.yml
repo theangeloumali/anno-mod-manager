@@ -59,3 +59,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm tauri build --debug --no-bundle
+      # A runnable test build, so the app can be tried without a local Rust toolchain.
+      - if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: anno-mod-manager-windows
+          path: target/debug/anno-mod-manager-desktop.exe
+          if-no-files-found: error

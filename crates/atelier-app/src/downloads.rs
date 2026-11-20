@@ -52,32 +52,25 @@ impl App {
     pub fn retry_download(&self, job_id: &str) -> Result<()> {
         let (game, modio_id) = {
             let mut jobs = lock(&self.0.jobs);
-            let entry = jobs
-                .iter_mut()
-                .find(|entry| entry.job.id == job_id)
+            let index = jobs
+                .iter()
+                .position(|entry| entry.job.id == job_id)
                 .ok_or_else(gone)?;
-            if entry.job.status != DownloadStatus::Failed {
+            let (game, modio_id) = (jobs[index].game, jobs[index].job.modio_id);
+            if jobs[index].job.status != DownloadStatus::Failed {
                 return Ok(());
             }
             // Checked before the job changes, so a refusal never leaves it stuck as Queued.
-            self.guard_writes(entry.game)?;
-            let (game, modio_id) = (entry.game, entry.job.modio_id);
+            self.guard_writes(game)?;
             // Another job already fetches this page; a second would race it into the install.
-            if jobs.iter().any(|other| {
-                other.game == game
-                    && other.job.modio_id == modio_id
-                    && !is_finished(other.job.status)
-            }) {
-                jobs.retain(|other| other.job.id != job_id);
+            if page_in_flight(&jobs, game, modio_id) {
+                jobs.remove(index);
                 return Ok(());
             }
-            let entry = jobs
-                .iter_mut()
-                .find(|entry| entry.job.id == job_id)
-                .ok_or_else(gone)?;
-            entry.job.status = DownloadStatus::Queued;
-            entry.job.progress = 0.0;
-            entry.job.error = None;
+            let job = &mut jobs[index].job;
+            job.status = DownloadStatus::Queued;
+            job.progress = 0.0;
+            job.error = None;
             (game, modio_id)
         };
         self.spawn(job_id.to_owned(), game, modio_id);
@@ -206,9 +199,7 @@ impl App {
     /// A page already downloading is not queued again; two installs of one mod would race.
     fn start_job(&self, game: GameId, modio_id: u64) {
         let mut jobs = lock(&self.0.jobs);
-        if jobs.iter().any(|entry| {
-            entry.game == game && entry.job.modio_id == modio_id && !is_finished(entry.job.status)
-        }) {
+        if page_in_flight(&jobs, game, modio_id) {
             return;
         }
         let id = format!("job-{}", self.0.next_job.fetch_add(1, Ordering::Relaxed));
@@ -416,6 +407,13 @@ fn apply_progress(job: &mut DownloadJob, progress: DownloadProgress) {
 
 fn is_finished(status: DownloadStatus) -> bool {
     matches!(status, DownloadStatus::Done | DownloadStatus::Failed)
+}
+
+/// Two jobs for one page would race each other into the install.
+fn page_in_flight(jobs: &[JobEntry], game: GameId, modio_id: u64) -> bool {
+    jobs.iter().any(|entry| {
+        entry.game == game && entry.job.modio_id == modio_id && !is_finished(entry.job.status)
+    })
 }
 
 fn local_id(links: &HashMap<String, ModioLink>, modio_id: u64) -> Option<String> {
