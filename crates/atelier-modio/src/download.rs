@@ -34,6 +34,12 @@ impl ModioClient {
                 modfile_id: modfile.id,
             });
         }
+        // With no md5 the listed size is the only check, and a size of 0 would pass an empty body.
+        if modfile.md5.is_empty() && modfile.filesize == 0 {
+            return Err(Error::Unverifiable {
+                modfile_id: modfile.id,
+            });
+        }
         // file_name() keeps only the last component, so "../x.zip" cannot escape.
         let file_name = Path::new(&modfile.filename)
             .file_name()
@@ -52,12 +58,21 @@ impl ModioClient {
                 return Err(error);
             }
         };
-        if !actual_md5.eq_ignore_ascii_case(&modfile.md5) {
-            discard(&part_path).await;
-            return Err(Error::ChecksumMismatch {
+        // mod.io leaves the md5 empty on some large files; then the exact listed size is the check.
+        let mismatch = if modfile.md5.is_empty() {
+            (downloaded != modfile.filesize).then(|| Error::SizeMismatch {
+                expected: modfile.filesize,
+                actual: downloaded,
+            })
+        } else {
+            (!actual_md5.eq_ignore_ascii_case(&modfile.md5)).then(|| Error::ChecksumMismatch {
                 expected: modfile.md5.clone(),
                 actual: actual_md5,
-            });
+            })
+        };
+        if let Some(error) = mismatch {
+            discard(&part_path).await;
+            return Err(error);
         }
         tokio::fs::rename(&part_path, &final_path).await?;
         on_progress(DownloadProgress {
