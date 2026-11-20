@@ -5,6 +5,7 @@ use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 use atelier_core::{GameId, ModLocation, ModUpdate};
+use atelier_install::InstallItemStatus;
 use atelier_modio::{DownloadJob, DownloadProgress, DownloadStatus, UpdateCheck};
 use tokio::task::AbortHandle;
 
@@ -104,6 +105,15 @@ impl App {
             .get(&game)
             .cloned()
             .unwrap_or_default();
+        // Recorded before the jobs start, so each one knows its page is a subscription and may
+        // adopt a copy installed by hand. `before` stays in, so a failed removal is retried.
+        self.update_persisted(|state| {
+            state
+                .subscribed
+                .entry(game)
+                .or_default()
+                .extend(current.iter().copied());
+        })?;
         self.start_missing(game, current.difference(&declined).copied())?;
         for &dropped in before.difference(&current) {
             self.remove_page_mods(game, dropped)?;
@@ -366,6 +376,12 @@ impl App {
         if page_in_flight(&jobs, game, modio_id) {
             return;
         }
+        // The new job supersedes the page's earlier failures, so they don't pile up.
+        jobs.retain(|entry| {
+            !(entry.game == game
+                && entry.job.modio_id == modio_id
+                && entry.job.status == DownloadStatus::Failed)
+        });
         let id = format!("job-{}", self.0.next_job.fetch_add(1, Ordering::Relaxed));
         jobs.push(JobEntry {
             job: DownloadJob {
@@ -529,10 +545,31 @@ impl App {
             .get(&game)
             .cloned()
             .unwrap_or_default();
+        // A copy without any mod.io link (installed by hand or another manager) is this page's
+        // when the player subscribes to the page; for a guest's Install it stays foreign.
+        let subscribed = self.has_token()? && self.subscribed_set(game).contains(&modio_id);
         let foreign = preview.items.iter().find(|item| {
             replaceable.contains(&item.mod_id)
-                && links.get(&item.mod_id).map(|link| link.modio_id) != Some(modio_id)
+                && match links.get(&item.mod_id) {
+                    Some(link) => link.modio_id != modio_id,
+                    None => !subscribed,
+                }
         });
+        // Adopted as they are: the same version or newer is already here, so only the link is new.
+        let adopted: HashSet<String> = preview
+            .items
+            .iter()
+            .filter(|item| {
+                subscribed
+                    && replaceable.contains(&item.mod_id)
+                    && !links.contains_key(&item.mod_id)
+                    && matches!(
+                        item.status,
+                        InstallItemStatus::Same | InstallItemStatus::Downgrade
+                    )
+            })
+            .map(|item| item.mod_id.clone())
+            .collect();
         if let Some(item) = foreign {
             let message = format!(
                 "A mod with the ModID {} is already installed and didn't come from this mod.io \
@@ -566,7 +603,7 @@ impl App {
             .items
             .into_iter()
             .map(|item| item.mod_id)
-            .filter(|mod_id| result.installed.contains(mod_id))
+            .filter(|mod_id| result.installed.contains(mod_id) || adopted.contains(mod_id))
             .collect();
         Ok((top_level, result.warning))
     }

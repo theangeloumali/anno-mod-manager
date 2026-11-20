@@ -816,12 +816,13 @@ async fn retrying_a_failed_job_never_runs_beside_an_active_one_for_that_page() {
     assert_eq!(failed.status, DownloadStatus::Failed);
     harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
 
-    harness.app.retry_download(&failed.id).unwrap();
+    // The new job replaced the failed entry, so there is nothing left to retry beside it.
+    assert!(harness.app.retry_download(&failed.id).is_err());
 
-    let active = harness
-        .app
-        .list_downloads()
-        .into_iter()
+    let jobs = harness.app.list_downloads();
+    assert!(jobs.iter().all(|job| job.id != failed.id));
+    let active = jobs
+        .iter()
         .filter(|job| !matches!(job.status, DownloadStatus::Done | DownloadStatus::Failed))
         .count();
     assert_eq!(active, 1);
@@ -1098,7 +1099,8 @@ async fn dismissing_a_failed_job_keeps_the_hold_a_live_job_for_that_page_needs()
         .await
         .unwrap();
 
-    harness.app.cancel_download(&failed.id).unwrap();
+    // The collection's new job already replaced the failed entry; dismissing it is a no-op.
+    let _ = harness.app.cancel_download(&failed.id);
 
     assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Done);
     harness
@@ -1742,4 +1744,74 @@ async fn a_dropped_page_whose_only_copy_ships_with_the_game_does_not_block_the_s
         .sync_subscriptions(GameId::Anno117)
         .await
         .unwrap();
+}
+
+#[tokio::test]
+async fn a_subscription_adopts_a_hand_installed_copy_of_the_same_version() {
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    serve_subscriptions(&server, "subscriptions.json").await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.add_mod(GameId::Anno117, "Roman Roads", "roman-roads", "1.0.0");
+    sign_in(&harness);
+
+    harness
+        .app
+        .sync_subscriptions(GameId::Anno117)
+        .await
+        .unwrap();
+
+    let job = wait_for_job(&harness).await;
+    assert_eq!(job.status, DownloadStatus::Done, "{:?}", job.error);
+    let adopted = installed(&harness, "roman-roads");
+    assert_eq!(
+        (adopted.version.as_str(), adopted.modio_id),
+        ("1.0.0", Some(4801))
+    );
+}
+
+#[tokio::test]
+async fn a_subscription_updates_an_older_hand_installed_copy() {
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.2.0").await;
+    serve_subscriptions(&server, "subscriptions.json").await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.add_mod(GameId::Anno117, "Roman Roads", "roman-roads", "1.0.0");
+    sign_in(&harness);
+
+    harness
+        .app
+        .sync_subscriptions(GameId::Anno117)
+        .await
+        .unwrap();
+
+    assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Done);
+    let updated = installed(&harness, "roman-roads");
+    assert_eq!(
+        (updated.version.as_str(), updated.modio_id),
+        ("1.2.0", Some(4801))
+    );
+}
+
+#[tokio::test]
+async fn a_new_job_for_a_page_clears_its_old_failed_entry() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("mod_no_modfile.json")))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    mount_modio_mod(&server, 4801, "roman-roads", "1.0.0", false).await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
+    assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Failed);
+
+    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let jobs = harness.app.list_downloads();
+    assert_eq!(jobs.len(), 1, "{jobs:?}");
+    assert_eq!(jobs[0].status, DownloadStatus::Done);
 }
