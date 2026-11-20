@@ -475,9 +475,7 @@ impl App {
         let installed = self.install_download(game, modio_id, &modfile, &archive.to_string_lossy());
         // Staging is scratch space; a leftover copy is harmless, so cleanup errors are ignored.
         let _ = std::fs::remove_dir_all(&staging);
-        let (top_level, install_warning) = installed?;
-        let unscanned = modfile.scan_skipped().then(|| UNSCANNED_WARNING.to_owned());
-        let warning = join_warnings(unscanned, install_warning);
+        let (top_level, warning) = installed?;
         let link = ModioLink {
             modio_id,
             modfile_id: modfile.id,
@@ -548,8 +546,10 @@ impl App {
             .filter(|item| item.location == ModLocation::Documents && item.parent_id.is_none())
             .map(|item| item.id)
             .collect();
-        // mod.io measures the unpacked size itself, so a large mod gets room it really needs.
-        let limits = Limits::for_declared_size(modfile.filesize_uncompressed);
+        // mod.io measures the unpacked size, so a large mod gets the room it needs; the
+        // archive's real size bounds that, so the figure can't open the door to a zip bomb.
+        let archive_bytes = std::fs::metadata(archive).map_or(0, |meta| meta.len());
+        let limits = Limits::for_download(modfile.filesize_uncompressed, archive_bytes);
         let preview = self.preview_install_with(game, &[archive.to_owned()], Some(limits))?;
         let links = self
             .persisted()
@@ -640,7 +640,10 @@ impl App {
             .map(|item| item.mod_id)
             .filter(|mod_id| result.installed.contains(mod_id) || adopted.contains(mod_id))
             .collect();
-        Ok((top_level, result.warning))
+        // Only files actually installed from the download were unscanned; an adopted copy wasn't.
+        let unscanned = (modfile.scan_skipped() && !result.installed.is_empty())
+            .then(|| UNSCANNED_WARNING.to_owned());
+        Ok((top_level, join_warnings(unscanned, result.warning)))
     }
 
     /// False when the job is gone (cancelled).

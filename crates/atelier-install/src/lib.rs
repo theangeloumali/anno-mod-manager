@@ -42,13 +42,18 @@ pub struct Limits {
 
 /// The most a declared unpacked size can raise the cap to.
 const DECLARED_SIZE_CEILING: u64 = 64 * GIB;
+/// Game mods unpack to a few times their archive; a zip bomb unpacks to thousands of times.
+const MAX_UNPACK_RATIO: u64 = 10;
 
 impl Limits {
-    /// For a download whose unpacked size the host has measured (mod.io's
-    /// `filesize_uncompressed`): that size plus 10%, never below the default or above 64 GiB.
-    pub fn for_declared_size(unpacked: u64) -> Self {
+    /// For a download whose unpacked size the host measured (mod.io's `filesize_uncompressed`):
+    /// that size plus 10%, held to 10x the archive actually downloaded so a bomb gains nothing,
+    /// and never below the default or above 64 GiB.
+    pub fn for_download(declared_unpacked: u64, archive_bytes: u64) -> Self {
         let default = Self::default();
-        let wanted = unpacked.saturating_add(unpacked / 10);
+        let wanted = declared_unpacked
+            .saturating_add(declared_unpacked / 10)
+            .min(archive_bytes.saturating_mul(MAX_UNPACK_RATIO));
         Self {
             max_total_bytes: wanted.clamp(default.max_total_bytes, DECLARED_SIZE_CEILING),
             ..default

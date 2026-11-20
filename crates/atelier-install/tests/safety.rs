@@ -222,16 +222,20 @@ fn a_rar_is_unsupported_with_a_user_facing_message() {
 }
 
 #[test]
-fn a_declared_unpacked_size_raises_the_cap_with_headroom_and_a_ceiling() {
+fn a_download_cap_follows_its_declared_size_within_its_archive_ratio() {
     const GIB: u64 = 1024 * 1024 * 1024;
-    assert_eq!(Limits::for_declared_size(0), Limits::default());
-    assert_eq!(Limits::for_declared_size(GIB).max_total_bytes, 4 * GIB);
+    let archive = 3_296_175_833; // New Horizons, as downloaded
+    assert_eq!(Limits::for_download(0, archive), Limits::default());
+    assert_eq!(Limits::for_download(GIB, archive).max_total_bytes, 4 * GIB);
     let new_horizons = 6_822_935_680;
-    let limits = Limits::for_declared_size(new_horizons);
+    let limits = Limits::for_download(new_horizons, archive);
     assert_eq!(limits.max_total_bytes, new_horizons + new_horizons / 10);
     assert_eq!(limits.max_entries, Limits::default().max_entries);
+    // A zip bomb's real unpacked size is huge next to its archive, so the ratio holds it down.
+    let bomb = Limits::for_download(60 * GIB, 10 * 1024 * 1024);
+    assert_eq!(bomb.max_total_bytes, 4 * GIB);
     assert_eq!(
-        Limits::for_declared_size(100 * GIB).max_total_bytes,
+        Limits::for_download(100 * GIB, 50 * GIB).max_total_bytes,
         64 * GIB
     );
 }
