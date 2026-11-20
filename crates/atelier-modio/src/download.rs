@@ -34,6 +34,12 @@ impl ModioClient {
                 modfile_id: modfile.id,
             });
         }
+        // With no md5 the listed size is the only check, and a size of 0 would pass an empty body.
+        if modfile.md5.is_empty() && modfile.filesize == 0 {
+            return Err(Error::Unverifiable {
+                modfile_id: modfile.id,
+            });
+        }
         // file_name() keeps only the last component, so "../x.zip" cannot escape.
         let file_name = Path::new(&modfile.filename)
             .file_name()

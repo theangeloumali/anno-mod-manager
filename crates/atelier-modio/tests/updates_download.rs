@@ -204,6 +204,20 @@ async fn a_modfile_listed_without_an_md5_is_refused_when_it_arrives_short() {
 }
 
 #[tokio::test]
+async fn a_modfile_listed_with_neither_an_md5_nor_a_size_is_refused_before_downloading() {
+    let server = MockServer::start().await;
+    let dest = tempfile::tempdir().unwrap();
+    let mut unverifiable = modfile(&server, "", 0);
+    unverifiable.filesize = 0;
+    let error = anonymous_client(&server)
+        .download(&unverifiable, dest.path(), |_| {})
+        .await
+        .unwrap_err();
+    assert!(matches!(error, Error::Unverifiable { modfile_id: 77001 }));
+    assert!(server.received_requests().await.unwrap().is_empty());
+}
+
+#[tokio::test]
 async fn a_virus_positive_modfile_is_refused_before_downloading() {
     let server = MockServer::start().await;
     let dest = tempfile::tempdir().unwrap();
