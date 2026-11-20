@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::MutexGuard;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use atelier_core::health::{self, Environment};
 use atelier_core::scan::{self, ModsFolder};
@@ -319,6 +319,59 @@ impl App {
             .map_err(|error| AppError::io(&error, &exe))?;
         lock(&self.0.launched).insert(game, Instant::now());
         Ok(())
+    }
+
+    /// Takes the old community 1800 loader out and puts the game's own python35.dll back,
+    /// returning the loader's backup (none when it was already deleted by hand).
+    /// A copy, not a move, keeps the loader: the game and the backups can be on different drives.
+    pub fn remove_legacy_loader(&self, game: GameId) -> Result<Option<PathBuf>> {
+        if game != GameId::Anno1800 {
+            return Err(AppError::new(
+                ErrorCode::NotSupported,
+                "Only Anno 1800 had the old mod loader.",
+            ));
+        }
+        let (install, _) = self.install(game).ok_or_else(|| game_not_found(game))?;
+        let _writes = self.write_guard(game)?;
+        let dir = health::loader_dir(&install);
+        let original = dir.join(health::LEGACY_LOADER_ORIGINAL);
+        let loader = dir.join(health::LEGACY_LOADER_DLL);
+        if !original.is_file() {
+            return Err(AppError::new(
+                ErrorCode::NotFound,
+                "No old mod loader is installed.",
+            ));
+        }
+        let backup = if loader.is_file() {
+            Some(self.back_up_loader(&loader)?)
+        } else {
+            None
+        };
+        if let Err(error) = fs::rename(&original, &loader) {
+            // Put the loader back, so a failed removal leaves the folder as it was.
+            if let Some(backup) = &backup {
+                let _ = fs::copy(backup, &loader);
+            }
+            return Err(AppError::io(&error, &original));
+        }
+        Ok(backup)
+    }
+
+    fn back_up_loader(&self, loader: &Path) -> Result<PathBuf> {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.as_secs());
+        let dir = self
+            .0
+            .data_dir
+            .join("backups")
+            .join("old-mod-loader")
+            .join(stamp.to_string());
+        fs::create_dir_all(&dir).map_err(|error| AppError::io(&error, &dir))?;
+        let backup = dir.join(health::LEGACY_LOADER_DLL);
+        fs::copy(loader, &backup).map_err(|error| AppError::io(&error, loader))?;
+        fs::remove_file(loader).map_err(|error| AppError::io(&error, loader))?;
+        Ok(backup)
     }
 
     /// A folder the user picked wins over detection, unless it has since become untrusted.

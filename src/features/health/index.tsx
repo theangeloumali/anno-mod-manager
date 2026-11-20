@@ -10,15 +10,19 @@ import {
   StateIcon,
   type StateTone,
 } from "@/components/app/state-badge";
+import { withToast } from "@/components/app/notify";
 import { useCurrentGame } from "@/components/app/use-current-game";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { isLaunchBlocker, LEGACY_LOADER_CHECK } from "@/data/health";
 import {
+  useAction,
   useHealthChecks,
   useIssues,
   useLoaderLog,
   useMods,
 } from "@/data/source";
-import type { LogEntry } from "@/data/types";
+import type { HealthCheck, LogEntry } from "@/data/types";
 
 const LOG_TONE: Record<LogEntry["level"], StateTone> = {
   info: "neutral",
@@ -36,7 +40,9 @@ export function HealthScreen() {
   const { data: log = [] } = useLoaderLog(gameId);
   const { data: mods = [] } = useMods(gameId);
   const [isShowingInfo, setShowingInfo] = useState(false);
-  const errorCount = issues.filter((issue) => issue.level === "error").length;
+  const errorCount =
+    issues.filter((issue) => issue.level === "error").length +
+    checks.filter(isLaunchBlocker).length;
   const logCards = log.filter(
     (entry) => isShowingInfo || entry.level !== "info",
   );
@@ -88,6 +94,13 @@ export function HealthScreen() {
                   <p className="text-label break-words text-copy-muted">
                     {check.detail}
                   </p>
+                  {check.id === LEGACY_LOADER_CHECK &&
+                    check.level === "error" && (
+                      <RemoveLegacyLoader
+                        check={check}
+                        isWriteLocked={isWriteLocked}
+                      />
+                    )}
                 </div>
               </li>
             ))}
@@ -153,5 +166,34 @@ export function HealthScreen() {
         </pre>
       </Panel>
     </div>
+  );
+}
+
+/** Backs up the old 1800 loader and puts the game's own python35.dll back. */
+function RemoveLegacyLoader({
+  check,
+  isWriteLocked,
+}: {
+  check: HealthCheck;
+  isWriteLocked: boolean;
+}) {
+  const { gameId } = useCurrentGame();
+  const remove = useAction((source) => source.removeLegacyLoader(gameId));
+  return (
+    <Button
+      size="sm"
+      className="mt-2"
+      disabled={isWriteLocked || remove.isPending}
+      aria-label={`Remove: ${check.title}`}
+      onClick={() =>
+        withToast(remove.mutateAsync([]), (backup) =>
+          backup
+            ? `Old mod loader removed. A backup is in ${backup}`
+            : "Old mod loader removed",
+        )
+      }
+    >
+      Remove old loader
+    </Button>
   );
 }

@@ -21,7 +21,7 @@ pub struct Environment<'a> {
 pub fn check_environment(env: &Environment) -> Vec<HealthCheck> {
     let mut checks = vec![game_found(env), mods_writable(env.mods_dir)];
     if env.game == GameId::Anno1800 {
-        checks.push(stale_python(env.install_path));
+        checks.push(legacy_loader(env.install_path));
     }
     checks.push(duplicate_ids(env.mods));
     checks.push(activation_scheme(env.game, env.mods_dir));
@@ -76,22 +76,35 @@ fn mods_writable(mods_dir: &Path) -> HealthCheck {
     }
 }
 
-/// The retired 1800 loader shipped as `python35.dll`; leaving it breaks the built-in loader.
-fn stale_python(install: Option<&Path>) -> HealthCheck {
-    let dll = install.map(|path| path.join("Bin").join("Win64").join("python35.dll"));
-    match dll {
-        Some(path) if path.is_file() => check(
-            "stale-python35",
-            Severity::Warning,
-            "Old mod loader DLL found",
-            format!("Delete {} to use the built-in mod loader", path.display()),
-        ),
-        _ => check(
-            "stale-python35",
+/// The old community loader's installer renames the game's own `python35.dll` to this
+/// and puts itself in its place.
+pub const LEGACY_LOADER_ORIGINAL: &str = "python35_ubi.dll";
+pub const LEGACY_LOADER_DLL: &str = "python35.dll";
+
+/// The game's Python DLL folder, where the old 1800 loader installs.
+pub fn loader_dir(install: &Path) -> std::path::PathBuf {
+    install.join("Bin").join("Win64")
+}
+
+/// `python35.dll` alone is the game's own DLL; only the renamed original marks the old
+/// loader, which stops a newer game at start with "not compatible with your Game Version".
+fn legacy_loader(install: Option<&Path>) -> HealthCheck {
+    let installed =
+        install.is_some_and(|path| loader_dir(path).join(LEGACY_LOADER_ORIGINAL).is_file());
+    if installed {
+        check(
+            "legacy-mod-loader",
+            Severity::Error,
+            "Old Anno 1800 Mod Loader installed",
+            "It no longer matches the game and stops it at start. Removing it puts the game's own python35.dll back, and the built-in mod loader takes over.".to_string(),
+        )
+    } else {
+        check(
+            "legacy-mod-loader",
             Severity::Ok,
-            "No old mod loader DLL",
+            "No old mod loader",
             String::new(),
-        ),
+        )
     }
 }
 

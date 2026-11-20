@@ -100,4 +100,6 @@ export const ipcSource: DataSource = {
   getSettings: () => call<Settings>("get_settings"),
   saveSettings: (settings) => call("save_settings", { settings }),
   launchGame: (game) => call("launch_game", { game }),
+  removeLegacyLoader: (game) =>
+    call<string | null>("remove_legacy_loader", { game }),
 };

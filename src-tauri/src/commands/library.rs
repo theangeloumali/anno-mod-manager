@@ -119,6 +119,16 @@ pub async fn launch_game(app: State<'_, App>, game: GameId) -> CommandResult<()>
     app.launch_game(game)
 }
 
+/// The backup's path for the UI to show; `None` when there was no loader DLL left to keep.
+#[tauri::command]
+pub async fn remove_legacy_loader(
+    app: State<'_, App>,
+    game: GameId,
+) -> CommandResult<Option<String>> {
+    app.remove_legacy_loader(game)
+        .map(|backup| backup.map(|path| path.display().to_string()))
+}
+
 #[tauri::command]
 pub async fn get_settings(app: State<'_, App>) -> CommandResult<Settings> {
     Ok(app.settings())

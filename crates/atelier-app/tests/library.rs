@@ -349,3 +349,82 @@ fn writes_wait_out_a_just_launched_game_before_it_shows_as_running() {
 
     assert_eq!(refused.code, ErrorCode::GameRunning);
 }
+
+/// Anno 1800 with the old community loader installed over the game's own python35.dll.
+fn with_legacy_loader() -> (Harness, std::path::PathBuf) {
+    let harness = Harness::with(Options {
+        install: Some(GameId::Anno1800),
+        ..Options::default()
+    });
+    let bin = harness.install_dir().join("Bin").join("Win64");
+    fs::write(bin.join("python35.dll"), b"old loader").unwrap();
+    fs::write(bin.join("python35_ubi.dll"), b"game python").unwrap();
+    (harness, bin)
+}
+
+#[test]
+fn removing_the_old_loader_backs_it_up_and_puts_the_games_dll_back() {
+    let (harness, bin) = with_legacy_loader();
+
+    let backup = harness
+        .app
+        .remove_legacy_loader(GameId::Anno1800)
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(fs::read(bin.join("python35.dll")).unwrap(), b"game python");
+    assert!(!bin.join("python35_ubi.dll").exists());
+    assert_eq!(fs::read(&backup).unwrap(), b"old loader");
+    assert!(backup.starts_with(harness.root.path().join("data")));
+    let checks = harness.app.local_health_checks(GameId::Anno1800).unwrap();
+    let loader = checks.iter().find(|c| c.id == "legacy-mod-loader").unwrap();
+    assert_eq!(loader.level, atelier_core::Severity::Ok);
+}
+
+#[test]
+fn removing_the_old_loader_when_none_is_installed_changes_nothing() {
+    let harness = Harness::with(Options {
+        install: Some(GameId::Anno1800),
+        ..Options::default()
+    });
+    let bin = harness.install_dir().join("Bin").join("Win64");
+    fs::write(bin.join("python35.dll"), b"game python").unwrap();
+
+    let error = harness
+        .app
+        .remove_legacy_loader(GameId::Anno1800)
+        .unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::NotFound);
+    assert_eq!(fs::read(bin.join("python35.dll")).unwrap(), b"game python");
+}
+
+#[test]
+fn removing_the_old_loader_waits_until_the_game_is_closed() {
+    let (harness, bin) = with_legacy_loader();
+    harness.set_running(true);
+
+    let error = harness
+        .app
+        .remove_legacy_loader(GameId::Anno1800)
+        .unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::GameRunning);
+    assert_eq!(fs::read(bin.join("python35.dll")).unwrap(), b"old loader");
+    assert_eq!(
+        fs::read(bin.join("python35_ubi.dll")).unwrap(),
+        b"game python"
+    );
+}
+
+#[test]
+fn a_loader_already_deleted_by_hand_still_gets_the_games_dll_back() {
+    let (harness, bin) = with_legacy_loader();
+    fs::remove_file(bin.join("python35.dll")).unwrap();
+
+    let backup = harness.app.remove_legacy_loader(GameId::Anno1800).unwrap();
+
+    assert_eq!(backup, None);
+    assert_eq!(fs::read(bin.join("python35.dll")).unwrap(), b"game python");
+    assert!(!bin.join("python35_ubi.dll").exists());
+}

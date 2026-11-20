@@ -1,6 +1,7 @@
 // Created by The Angelo Umali.
 // Stateful in-memory DataSource for the v2 mock-up. ModIDs and folders follow the real install (research 04).
 import { CoreError } from "./core-error.ts";
+import { LEGACY_LOADER_CHECK } from "./health.ts";
 import type { DataSource } from "./source.ts";
 import type {
   Account,
@@ -1032,6 +1033,8 @@ function createState() {
     } as MockScenario,
     gamePaths,
     runningGame: null as GameId | null,
+    /** Anno 1800 starts with the old community loader in place, so Health can offer its removal. */
+    legacyLoader: true,
     mods: { anno117: seedMods117(), anno1800: seedMods1800() } as Record<
       GameId,
       Mod[]
@@ -1749,6 +1752,24 @@ function buildHealthChecks(game: GameId): HealthCheck[] {
       title: "Mod loader is active",
       detail: `mod-loader.log written 2 minutes ago · ${loadedCount} mods loaded`,
     },
+    ...(game === "anno1800"
+      ? [
+          state.legacyLoader
+            ? {
+                id: LEGACY_LOADER_CHECK,
+                level: "error" as const,
+                title: "Old Anno 1800 Mod Loader installed",
+                detail:
+                  "It no longer matches the game and stops it at start. Removing it puts the game's own python35.dll back, and the built-in mod loader takes over.",
+              }
+            : {
+                id: LEGACY_LOADER_CHECK,
+                level: "ok" as const,
+                title: "No old mod loader",
+                detail: "",
+              },
+        ]
+      : []),
     state.scenario.offline
       ? {
           id: "modio-reachable",
@@ -2430,5 +2451,21 @@ export const mockSource: DataSource = {
       return refuse(`${exeName(game)} is already running.`, "game-running");
     state.runningGame = game;
     return respond(undefined);
+  },
+
+  removeLegacyLoader: (game) => {
+    if (game !== "anno1800")
+      return refuse("Only Anno 1800 had the old mod loader.", "not-supported");
+    if (state.runningGame === game)
+      return refuse(
+        `${exeName(game)} is running. Close the game to change mods.`,
+        "game-running",
+      );
+    if (!state.legacyLoader)
+      return refuse("No old mod loader is installed.", "not-found");
+    state.legacyLoader = false;
+    return respond(
+      "C:\\Users\\you\\AppData\\Roaming\\com.theangeloumali.annomodmanager\\backups\\old-mod-loader\\1795162494\\python35.dll",
+    );
   },
 };

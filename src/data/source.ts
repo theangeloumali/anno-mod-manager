@@ -102,6 +102,8 @@ export interface DataSource {
   getSettings(): Promise<Settings>;
   saveSettings(settings: Settings): Promise<void>;
   launchGame(game: GameId): Promise<void>;
+  /** Resolves the old loader's backup path, or null when no loader DLL was left to keep. */
+  removeLegacyLoader(game: GameId): Promise<string | null>;
 }
 
 let activeSource: DataSource = mockSource;
