@@ -3,10 +3,11 @@
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use atelier_app::{App, AppConfig};
+use atelier_core::games::LaunchTarget;
 use atelier_core::{GameId, Store};
 use atelier_modio::MemoryTokenStore;
 use serde_json::Value;
@@ -24,6 +25,8 @@ pub struct Harness {
     pub running: Arc<AtomicBool>,
     pub api_keys: Arc<MemoryTokenStore>,
     pub tokens: Arc<MemoryTokenStore>,
+    /// What Launch asked the OS to start, in order; nothing is really started.
+    pub launches: Arc<Mutex<Vec<LaunchTarget>>>,
 }
 
 pub struct Options {
@@ -33,6 +36,8 @@ pub struct Options {
     pub modio_base: Option<Url>,
     /// Stands in for the running-game check, e.g. to pause a job at its install step.
     pub is_running: Option<IsRunning>,
+    /// The store the detected install reports.
+    pub store: Store,
 }
 
 pub type IsRunning = Arc<dyn Fn(GameId) -> bool + Send + Sync>;
@@ -45,6 +50,7 @@ impl Default for Options {
             dev_api_key: None,
             modio_base: None,
             is_running: None,
+            store: Store::Steam,
         }
     }
 }
@@ -63,7 +69,7 @@ impl Harness {
             let exe = install_root.join(game.executable());
             fs::create_dir_all(exe.parent().unwrap()).unwrap();
             File::create(exe).unwrap();
-            (game, install_root.clone())
+            (game, install_root.clone(), options.store)
         });
         let running = Arc::new(AtomicBool::new(false));
         let running_flag = Arc::clone(&running);
@@ -72,14 +78,16 @@ impl Harness {
             None => MemoryTokenStore::default(),
         });
         let tokens = Arc::new(MemoryTokenStore::default());
+        let launches = Arc::new(Mutex::new(Vec::new()));
+        let recorded = Arc::clone(&launches);
         let config = AppConfig {
             data_dir: root.path().join("data"),
             documents_dir: Some(documents),
             locate: Arc::new(move |game| {
                 installed
                     .as_ref()
-                    .filter(|(installed_game, _)| *installed_game == game)
-                    .map(|(_, path)| (path.clone(), Store::Steam))
+                    .filter(|(installed_game, _, _)| *installed_game == game)
+                    .map(|(_, path, store)| (path.clone(), *store))
             }),
             is_running: options
                 .is_running
@@ -88,6 +96,10 @@ impl Harness {
             token_store: tokens.clone(),
             dev_api_key: options.dev_api_key.map(str::to_owned),
             modio_base: options.modio_base,
+            launch: Arc::new(move |target: &LaunchTarget| {
+                recorded.lock().unwrap().push(target.clone());
+                Ok(())
+            }),
         };
         let app = App::new(config).unwrap();
         Self {
@@ -96,6 +108,7 @@ impl Harness {
             running,
             api_keys,
             tokens,
+            launches,
         }
     }
 

@@ -1104,6 +1104,10 @@ function createState() {
 
 let state = createState();
 
+const MOCK_SESSION_MS = 4000;
+/** Outlives resets, so only the latest pretend session's timer may end it. */
+let mockSession = 0;
+
 const respond = <T>(value: T): Promise<T> =>
   new Promise((resolve) =>
     setTimeout(() => resolve(structuredClone(value)), MOCK_LATENCY_MS),
@@ -1827,8 +1831,10 @@ export function setMockScenario(
   game: GameId,
 ): void {
   state.scenario = { ...state.scenario, ...patch };
-  if (patch.gameRunning !== undefined)
+  if (patch.gameRunning !== undefined) {
     state.runningGame = patch.gameRunning ? game : null;
+    mockSession += 1;
+  }
   if (patch.signedOut === true) {
     state.signInCodeSentTo = null;
     state.account = {
@@ -2451,6 +2457,11 @@ export const mockSource: DataSource = {
     if (state.runningGame === game)
       return refuse(`${exeName(game)} is already running.`, "game-running");
     state.runningGame = game;
+    const session = ++mockSession;
+    // The pretend session closes on its own, as a real game does, so the polling has something to see.
+    setTimeout(() => {
+      if (mockSession === session) state.runningGame = null;
+    }, MOCK_SESSION_MS);
     return respond(undefined);
   },
 

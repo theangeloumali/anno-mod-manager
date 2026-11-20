@@ -316,3 +316,48 @@ mod platform {
         std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Documents"))
     }
 }
+
+/// How Launch starts a game.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LaunchTarget {
+    /// A store URL, opened by the OS.
+    Url(String),
+    Exe {
+        exe: PathBuf,
+        work_dir: PathBuf,
+    },
+}
+
+/// A Steam copy run as a bare exe hands itself to Ubisoft Connect and never starts, so
+/// Steam copies launch through Steam.
+pub fn launch_target(game: GameId, install: &Path, store: Store) -> LaunchTarget {
+    if store == Store::Steam {
+        return LaunchTarget::Url(format!("steam://rungameid/{}", game.steam_app_id()));
+    }
+    let exe = install.join(game.executable());
+    let work_dir = exe.parent().unwrap_or(install).to_path_buf();
+    LaunchTarget::Exe { exe, work_dir }
+}
+
+/// One folder however it is written: resolved when both exist, otherwise compared part by
+/// part (without case on Windows), so `.` and a trailing separator don't matter.
+pub fn same_path(left: &Path, right: &Path) -> bool {
+    if let (Ok(left), Ok(right)) = (fs::canonicalize(left), fs::canonicalize(right)) {
+        return left == right;
+    }
+    path_parts(left) == path_parts(right)
+}
+
+fn path_parts(path: &Path) -> Vec<String> {
+    path.components()
+        .filter(|part| !matches!(part, std::path::Component::CurDir))
+        .map(|part| {
+            let part = part.as_os_str().to_string_lossy();
+            if cfg!(windows) {
+                part.to_ascii_lowercase()
+            } else {
+                part.into_owned()
+            }
+        })
+        .collect()
+}

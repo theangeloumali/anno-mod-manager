@@ -315,3 +315,51 @@ async fn follow_rate_and_report_hit_their_endpoints() {
         .await
         .unwrap();
 }
+
+/// With the platform header, mod.io lists a dependency that has no platform file as `"modfile":{}`.
+fn with_empty_modfiles(mut body: serde_json::Value) -> serde_json::Value {
+    for item in body["data"].as_array_mut().unwrap() {
+        item["modfile"] = serde_json::json!({});
+    }
+    body
+}
+
+#[tokio::test]
+async fn a_dependency_listed_with_an_empty_modfile_is_still_a_dependency() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801/dependencies"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(with_empty_modfiles(fixture("dependencies.json"))),
+        )
+        .mount(&server)
+        .await;
+
+    let deps = anonymous_client(&server)
+        .dependencies(GameId::Anno117, 4801)
+        .await
+        .unwrap();
+    assert_eq!(
+        deps.iter().map(|item| item.id).collect::<Vec<_>>(),
+        vec![4820]
+    );
+}
+
+#[tokio::test]
+async fn a_mod_with_an_empty_modfile_has_no_file_rather_than_failing() {
+    let server = MockServer::start().await;
+    let mut body = fixture("mod.json");
+    body["modfile"] = serde_json::json!({});
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(body))
+        .mount(&server)
+        .await;
+
+    let detail = anonymous_client(&server)
+        .mod_detail(GameId::Anno117, 4801)
+        .await
+        .unwrap();
+    assert!(detail.modfile.is_none());
+}
