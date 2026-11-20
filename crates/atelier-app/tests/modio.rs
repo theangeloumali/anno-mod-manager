@@ -192,6 +192,8 @@ async fn an_emailed_code_signs_in_and_the_account_shows_the_username() {
     let account = harness.app.account().await.unwrap();
     assert!(account.signed_in);
     assert_eq!(account.username.as_deref(), Some("Aurelia"));
+    // mod.io's /me says nothing about expiry; the exchange's date is kept.
+    assert_eq!(account.expires_at.as_deref(), Some("2026-11-18T11:06:40Z"));
 }
 
 #[tokio::test]

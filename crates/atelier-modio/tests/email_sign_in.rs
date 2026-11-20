@@ -74,6 +74,7 @@ async fn an_emailed_code_signs_in_and_stores_the_token() {
         .unwrap();
 
     assert_eq!(account.username.as_deref(), Some("Aurelia"));
+    assert_eq!(account.expires_at.as_deref(), Some("2026-11-18T11:06:40Z"));
     assert_eq!(store.load().unwrap().as_deref(), Some("emailed-token"));
 }
 

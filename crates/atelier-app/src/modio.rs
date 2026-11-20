@@ -118,11 +118,16 @@ impl App {
             },
             Err(other) => return Err(other.into()),
         };
+        let expires_at = account.expires_at.or_else(|| {
+            account
+                .signed_in
+                .then(|| self.persisted().token_expires_at.clone())?
+        });
         Ok(AppAccount {
             has_api_key,
             signed_in: account.signed_in,
             username: account.username,
-            expires_at: account.expires_at,
+            expires_at,
             terms_accepted: terms_accepted || account.terms_accepted,
         })
     }
@@ -153,7 +158,10 @@ impl App {
             AuthMethod::Token => client.sign_in_with_token(secret).await,
         };
         match signed_in {
-            Ok(_) => Ok(()),
+            // A pasted personal token's expiry is unknown, so it clears any earlier one.
+            Ok(account) => {
+                self.update_persisted(|state| state.token_expires_at = account.expires_at)
+            }
             Err(atelier_modio::Error::Unauthorized) => Err(AppError::new(
                 ErrorCode::Unauthorized,
                 "mod.io rejected that token. Create a read+write token at mod.io/me/access.",
@@ -174,7 +182,8 @@ impl App {
     }
 
     pub fn sign_out(&self) -> Result<()> {
-        Ok(self.client().sign_out()?)
+        self.client().sign_out()?;
+        self.update_persisted(|state| state.token_expires_at = None)
     }
 
     pub async fn browse(&self, query: &ModioQuery) -> Result<ModioPage> {

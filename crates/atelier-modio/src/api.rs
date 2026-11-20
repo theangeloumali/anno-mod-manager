@@ -26,6 +26,9 @@ pub(crate) struct ApiUser {
 #[derive(Deserialize)]
 pub(crate) struct ApiAccessToken {
     pub access_token: String,
+    /// Unix seconds.
+    #[serde(default)]
+    pub date_expires: u64,
 }
 
 #[derive(Deserialize, Default)]

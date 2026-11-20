@@ -73,7 +73,8 @@ export function AccountPanel() {
   const sendCode = async (address: string) => {
     await requestCode.mutateAsync([address]);
     setEmail(address);
-    setStep("code");
+    // Moves on only if the player is still on this step, not after pressing Back.
+    setStep((current) => (current === "email" ? "code" : current));
   };
 
   const finishSignIn = async (method: AuthMethod, secret: string) => {

@@ -38,16 +38,28 @@ fn store_error(error: keyring::Error) -> Error {
     Error::TokenStore(error.to_string())
 }
 
+/// A split secret spans several entries, so one read, save or clear runs at a time.
+static SPLIT_LOCK: Mutex<()> = Mutex::new(());
+
+fn split_lock() -> std::sync::MutexGuard<'static, ()> {
+    SPLIT_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 impl TokenStore for KeyringTokenStore {
     fn load(&self) -> Result<Option<String>> {
+        let _held = split_lock();
         load_split(&KeyringSlots, self.user)
     }
 
     fn save(&self, token: &str) -> Result<()> {
+        let _held = split_lock();
         save_split(&KeyringSlots, self.user, token)
     }
 
     fn clear(&self) -> Result<()> {
+        let _held = split_lock();
         clear_split(&KeyringSlots, self.user)
     }
 }
@@ -91,16 +103,29 @@ impl Slots for KeyringSlots {
 /// Windows caps one credential at 2560 bytes of UTF-16 (1280 characters), and a mod.io
 /// access token is a longer JWT, so long secrets are stored in parts.
 const PART_CHARS: usize = 1000;
-/// Marks a header entry that names how many parts follow; no token or key starts with it.
+/// A header entry reads `atelier-parts:<set>:<count>`; no token or key starts with it.
 const PARTS_HEADER: &str = "atelier-parts:";
 
-/// How many parts a header entry names; `None` for a plain secret.
-fn part_count(head: &str) -> Option<usize> {
-    head.strip_prefix(PARTS_HEADER)?.parse().ok()
+/// Where a split secret's parts are. Two sets alternate, so the next save writes beside
+/// the current parts and a failed save leaves them intact.
+#[derive(Clone, Copy)]
+struct Parts<'a> {
+    set: &'a str,
+    count: usize,
 }
 
-fn part_name(user: &str, index: usize) -> String {
-    format!("{user}.{index}")
+impl<'a> Parts<'a> {
+    fn read(head: &'a str) -> Option<Self> {
+        let (set, count) = head.strip_prefix(PARTS_HEADER)?.split_once(':')?;
+        Some(Self {
+            set,
+            count: count.parse().ok()?,
+        })
+    }
+
+    fn name(self, user: &str, index: usize) -> String {
+        format!("{user}.{}.{index}", self.set)
+    }
 }
 
 fn load_split(slots: &dyn Slots, user: &str) -> Result<Option<String>> {
@@ -110,11 +135,11 @@ fn load_split(slots: &dyn Slots, user: &str) -> Result<Option<String>> {
     if !head.starts_with(PARTS_HEADER) {
         return Ok(Some(head));
     }
-    let count = part_count(&head)
+    let parts = Parts::read(&head)
         .ok_or_else(|| Error::TokenStore("unreadable saved sign-in; sign in again".into()))?;
     let mut secret = String::new();
-    for index in 0..count {
-        let part = slots.get(&part_name(user, index))?.ok_or_else(|| {
+    for index in 0..parts.count {
+        let part = slots.get(&parts.name(user, index))?.ok_or_else(|| {
             Error::TokenStore("part of the saved sign-in is missing; sign in again".into())
         })?;
         secret.push_str(&part);
@@ -122,30 +147,51 @@ fn load_split(slots: &dyn Slots, user: &str) -> Result<Option<String>> {
     Ok(Some(secret))
 }
 
-/// Parts go first and the header last, so an interrupted save never reads as complete.
+/// The new secret is complete before the header points at it; only then do the old parts go.
 fn save_split(slots: &dyn Slots, user: &str, secret: &str) -> Result<()> {
-    clear_split(slots, user)?;
+    let old_head = slots.get(user)?;
+    let old = old_head.as_deref().and_then(Parts::read);
     let chars: Vec<char> = secret.chars().collect();
     if chars.len() <= PART_CHARS {
-        return slots.set(user, secret);
+        slots.set(user, secret)?;
+    } else {
+        let set = if old.is_some_and(|old| old.set == "a") {
+            "b"
+        } else {
+            "a"
+        };
+        let chunks: Vec<String> = chars
+            .chunks(PART_CHARS)
+            .map(|chunk| chunk.iter().collect())
+            .collect();
+        let parts = Parts {
+            set,
+            count: chunks.len(),
+        };
+        for (index, chunk) in chunks.iter().enumerate() {
+            slots.set(&parts.name(user, index), chunk)?;
+        }
+        slots.set(user, &format!("{PARTS_HEADER}{set}:{}", parts.count))?;
     }
-    let parts: Vec<String> = chars
-        .chunks(PART_CHARS)
-        .map(|part| part.iter().collect())
-        .collect();
-    for (index, part) in parts.iter().enumerate() {
-        slots.set(&part_name(user, index), part)?;
+    // The new secret is saved; a leftover old part is harmless, so this can't fail the save.
+    if let Some(old) = old {
+        for index in 0..old.count {
+            let _ = slots.delete(&old.name(user, index));
+        }
     }
-    slots.set(user, &format!("{PARTS_HEADER}{}", parts.len()))
+    Ok(())
 }
 
 fn clear_split(slots: &dyn Slots, user: &str) -> Result<()> {
-    if let Some(count) = slots.get(user)?.as_deref().and_then(part_count) {
-        for index in 0..count {
-            slots.delete(&part_name(user, index))?;
+    let head = slots.get(user)?;
+    // The header goes first, so a half-finished clear reads as signed out, not as broken.
+    slots.delete(user)?;
+    if let Some(parts) = head.as_deref().and_then(Parts::read) {
+        for index in 0..parts.count {
+            slots.delete(&parts.name(user, index))?;
         }
     }
-    slots.delete(user)
+    Ok(())
 }
 
 /// Process-local store for tests and headless runs.
@@ -199,13 +245,19 @@ mod tests {
 
     /// Holds secrets the way Windows does: at most 1280 characters each.
     #[derive(Default)]
-    struct WindowsLikeSlots(Mutex<HashMap<String, String>>);
+    struct WindowsLikeSlots(
+        Mutex<HashMap<String, String>>,
+        std::sync::atomic::AtomicBool,
+    );
 
     impl Slots for WindowsLikeSlots {
         fn get(&self, name: &str) -> Result<Option<String>> {
             Ok(self.0.lock().unwrap().get(name).cloned())
         }
         fn set(&self, name: &str, value: &str) -> Result<()> {
+            if self.1.load(std::sync::atomic::Ordering::SeqCst) {
+                return Err(Error::TokenStore("disk full".into()));
+            }
             if value.chars().count() > 1280 {
                 return Err(Error::TokenStore("longer than platform limit".into()));
             }
@@ -251,6 +303,18 @@ mod tests {
             load_split(&slots, "modio-token").unwrap().as_deref(),
             Some("short-key")
         );
+    }
+
+    #[test]
+    fn a_failed_replacement_keeps_the_working_sign_in() {
+        let slots = WindowsLikeSlots::default();
+        let working = "w".repeat(2500);
+        save_split(&slots, "modio-token", &working).unwrap();
+        slots.1.store(true, std::sync::atomic::Ordering::SeqCst);
+
+        assert!(save_split(&slots, "modio-token", &"n".repeat(2500)).is_err());
+
+        assert_eq!(load_split(&slots, "modio-token").unwrap(), Some(working));
     }
 
     #[test]
