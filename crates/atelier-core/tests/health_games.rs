@@ -321,3 +321,17 @@ fn a_ubisoft_copy_runs_its_executable() {
         }
     );
 }
+
+#[test]
+fn the_same_folder_written_differently_is_the_same_path() {
+    let tmp = tempfile::tempdir().unwrap();
+    let install = tmp.path().join("Anno 117");
+    fs::create_dir_all(&install).unwrap();
+    let spelled = format!("{}/./", install.display());
+    assert!(games::same_path(&install, Path::new(&spelled)));
+    assert!(games::same_path(
+        Path::new("D:/Missing/Anno 117/"),
+        Path::new("D:/missing/anno 117")
+    ));
+    assert!(!games::same_path(&install, &tmp.path().join("Anno 1800")));
+}

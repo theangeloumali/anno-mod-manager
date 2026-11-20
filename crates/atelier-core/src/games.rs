@@ -339,8 +339,18 @@ pub fn launch_target(game: GameId, install: &Path, store: Store) -> LaunchTarget
     LaunchTarget::Exe { exe, work_dir }
 }
 
-/// Windows paths compare without case.
+/// One folder however it is written: resolved when both exist, otherwise compared part by
+/// part without case, so `/` against `\`, `.` and a trailing separator don't matter.
 pub fn same_path(left: &Path, right: &Path) -> bool {
-    left.to_string_lossy()
-        .eq_ignore_ascii_case(&right.to_string_lossy())
+    if let (Ok(left), Ok(right)) = (fs::canonicalize(left), fs::canonicalize(right)) {
+        return left == right;
+    }
+    path_parts(left) == path_parts(right)
+}
+
+fn path_parts(path: &Path) -> Vec<String> {
+    path.components()
+        .filter(|part| !matches!(part, std::path::Component::CurDir))
+        .map(|part| part.as_os_str().to_string_lossy().to_ascii_lowercase())
+        .collect()
 }
