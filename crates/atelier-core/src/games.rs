@@ -329,9 +329,9 @@ pub enum LaunchTarget {
 }
 
 /// A Steam copy run as a bare exe hands itself to Ubisoft Connect and never starts, so
-/// Steam copies, and folders picked inside a Steam library, launch through Steam.
+/// Steam copies, and a picked folder that Steam manages, launch through Steam.
 pub fn launch_target(game: GameId, install: &Path, store: Store) -> LaunchTarget {
-    if store == Store::Steam || (store == Store::Manual && inside_steam_library(install)) {
+    if store == Store::Steam || (store == Store::Manual && steam_manages(game, install)) {
         return LaunchTarget::Url(format!("steam://rungameid/{}", game.steam_app_id()));
     }
     let exe = install.join(game.executable());
@@ -339,12 +339,27 @@ pub fn launch_target(game: GameId, install: &Path, store: Store) -> LaunchTarget
     LaunchTarget::Exe { exe, work_dir }
 }
 
-fn inside_steam_library(path: &Path) -> bool {
-    let parts: Vec<String> = path
-        .components()
-        .map(|part| part.as_os_str().to_string_lossy().to_ascii_lowercase())
-        .collect();
-    parts
-        .windows(2)
-        .any(|pair| pair[0] == "steamapps" && pair[1] == "common")
+/// Steam's manifest in the library holding `install` names this very folder; another copy
+/// under `steamapps/common` would make the Steam URL start the wrong one.
+fn steam_manages(game: GameId, install: &Path) -> bool {
+    let library = install
+        .parent()
+        .filter(|common| has_name(common, "common"))
+        .and_then(Path::parent)
+        .filter(|steamapps| has_name(steamapps, "steamapps"))
+        .and_then(Path::parent);
+    library
+        .and_then(|library| steam_install(library, game))
+        .is_some_and(|managed| same_path(&managed, install))
+}
+
+fn has_name(path: &Path, name: &str) -> bool {
+    path.file_name()
+        .is_some_and(|part| part.to_string_lossy().eq_ignore_ascii_case(name))
+}
+
+/// Windows paths compare without case.
+fn same_path(left: &Path, right: &Path) -> bool {
+    left.to_string_lossy()
+        .eq_ignore_ascii_case(&right.to_string_lossy())
 }

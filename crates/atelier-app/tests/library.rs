@@ -501,16 +501,16 @@ fn launching_a_ubisoft_copy_runs_its_executable() {
 #[test]
 fn a_game_folder_picked_inside_a_steam_library_launches_through_steam() {
     let harness = Harness::new();
-    let install = harness
-        .root
-        .path()
-        .join("SteamLibrary")
-        .join("steamapps")
-        .join("common")
-        .join("Anno 117 - Pax Romana");
+    let steamapps = harness.root.path().join("SteamLibrary").join("steamapps");
+    let install = steamapps.join("common").join("Anno 117 - Pax Romana");
     let exe = install.join(GameId::Anno117.executable());
     fs::create_dir_all(exe.parent().unwrap()).unwrap();
     fs::write(&exe, b"").unwrap();
+    fs::write(
+        steamapps.join("appmanifest_3274580.acf"),
+        r#""AppState" { "appid" "3274580" "installdir" "Anno 117 - Pax Romana" }"#,
+    )
+    .unwrap();
     harness
         .app
         .set_game_path(GameId::Anno117, Some(install.to_str().unwrap()))

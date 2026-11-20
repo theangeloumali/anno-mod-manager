@@ -309,11 +309,33 @@ fn a_steam_copy_launches_through_steam() {
     );
 }
 
+/// A Steam library holding `dir`, with Steam's manifest naming `manifest_dir` for Anno 1800.
+fn steam_library(manifest_dir: &str, dir: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+    let tmp = tempfile::tempdir().unwrap();
+    let steamapps = tmp.path().join("SteamLibrary").join("steamapps");
+    let install = steamapps.join("common").join(dir);
+    fs::create_dir_all(&install).unwrap();
+    fs::write(
+        steamapps.join("appmanifest_916440.acf"),
+        format!("\"AppState\" {{ \"appid\" \"916440\" \"installdir\" \"{manifest_dir}\" }}"),
+    )
+    .unwrap();
+    (tmp, install)
+}
+
 #[test]
-fn a_manual_folder_inside_a_steam_library_launches_through_steam() {
-    let install = Path::new("D:/SteamLibrary/steamapps/common/Anno 1800");
-    let target = games::launch_target(GameId::Anno1800, install, Store::Manual);
+fn a_manual_folder_steam_manages_launches_through_steam() {
+    let (_tmp, install) = steam_library("Anno 1800", "Anno 1800");
+    let target = games::launch_target(GameId::Anno1800, &install, Store::Manual);
     assert_eq!(target, LaunchTarget::Url("steam://rungameid/916440".into()));
+}
+
+#[test]
+fn a_manual_copy_steam_does_not_manage_runs_its_own_executable() {
+    // Steam would start its own copy, not the one picked.
+    let (_tmp, install) = steam_library("Anno 1800", "Anno 1800 backup");
+    let target = games::launch_target(GameId::Anno1800, &install, Store::Manual);
+    assert!(matches!(target, LaunchTarget::Exe { .. }));
 }
 
 #[test]

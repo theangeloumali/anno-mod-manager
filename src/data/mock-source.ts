@@ -1033,6 +1033,8 @@ function createState() {
     } as MockScenario,
     gamePaths,
     runningGame: null as GameId | null,
+    /** Counts launches, so only the latest pretend session's timer may end it. */
+    launches: 0,
     /** Anno 1800 starts with the old community loader in place, so Health can offer its removal. */
     legacyLoader: true,
     mods: { anno117: seedMods117(), anno1800: seedMods1800() } as Record<
@@ -1831,6 +1833,7 @@ export function setMockScenario(
   state.scenario = { ...state.scenario, ...patch };
   if (patch.gameRunning !== undefined)
     state.runningGame = patch.gameRunning ? game : null;
+  state.launches += 1;
   if (patch.signedOut === true) {
     state.signInCodeSentTo = null;
     state.account = {
@@ -2453,9 +2456,10 @@ export const mockSource: DataSource = {
     if (state.runningGame === game)
       return refuse(`${exeName(game)} is already running.`, "game-running");
     state.runningGame = game;
+    const session = ++state.launches;
     // The pretend session closes on its own, as a real game does, so the polling has something to see.
     setTimeout(() => {
-      if (state.runningGame === game) state.runningGame = null;
+      if (state.launches === session) state.runningGame = null;
     }, MOCK_SESSION_MS);
     return respond(undefined);
   },
