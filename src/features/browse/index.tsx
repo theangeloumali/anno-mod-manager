@@ -64,6 +64,7 @@ function ModioCard({ mod, onOpen }: { mod: ModioMod; onOpen: () => void }) {
             <StarIcon aria-hidden="true" className="size-3" />
             {mod.rating}%
           </span>
+          {mod.installedModId && <StateBadge tone="ok">Installed</StateBadge>}
           {mod.subscribed && <StateBadge tone="info">Subscribed</StateBadge>}
         </div>
         <SubscribeButton mod={mod} compact />

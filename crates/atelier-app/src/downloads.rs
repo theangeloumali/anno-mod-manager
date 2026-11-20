@@ -32,7 +32,13 @@ impl App {
                 }
             })?;
         }
-        self.start_job(game, modio_id);
+        // Signed in, an installed copy is kept: subscribing only adds it to the sync. A guest's
+        // Install downloads again, which is how a guest takes a newer file.
+        let signed_in_and_installed =
+            self.has_token()? && self.installed_by_modio_id(game)?.contains_key(&modio_id);
+        if !signed_in_and_installed {
+            self.start_job(game, modio_id);
+        }
         Ok(())
     }
 
@@ -64,6 +70,7 @@ impl App {
             ));
         }
         self.guard_writes(game)?;
+        let _one_at_a_time = self.0.sync_lock.lock().await;
         let account = self.0.token_store.load()?;
         let started = Instant::now();
         let before = self.subscribed_set(game);
@@ -110,8 +117,12 @@ impl App {
                 self.remove_page_mods(game, dropped)?;
             }
         }
-        // Saved last, so a removal that failed is tried again by the next sync.
+        // Saved last, so a removal that failed is tried again by the next sync. A page no
+        // longer subscribed forgets its Library uninstall, so subscribing again brings it back.
         self.update_persisted(|state| {
+            if let Some(declined) = state.declined.get_mut(&game) {
+                declined.retain(|page| current.contains(page));
+            }
             state.subscribed.insert(game, current);
         })
     }

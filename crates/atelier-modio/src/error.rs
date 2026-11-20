@@ -50,6 +50,8 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("token store error: {0}")]
     TokenStore(String),
+    #[error("mod.io's list was longer than Atelier reads at once")]
+    IncompleteList,
     #[error("that isn't a valid email address")]
     InvalidEmail,
     #[error("that code isn't right; check the latest email from mod.io")]

@@ -108,10 +108,7 @@ impl App {
             Ok(account) => account,
             Err(atelier_modio::Error::Unauthorized) => {
                 self.0.token_store.clear()?;
-                let _ = self.update_persisted(|state| {
-                    state.subscribed.clear();
-                    state.declined.clear();
-                });
+                let _ = self.update_persisted(|state| state.subscribed.clear());
                 self.client().account().await?
             }
             Err(atelier_modio::Error::Offline) => atelier_modio::Account {
@@ -201,7 +198,6 @@ impl App {
         let _ = self.update_persisted(|state| {
             state.token_expires_at = None;
             state.subscribed.clear();
-            state.declined.clear();
         });
         Ok(())
     }
@@ -314,7 +310,7 @@ impl App {
     }
 
     /// Local mod id per mod.io id, for "installed" badges on mod.io listings.
-    fn installed_by_modio_id(&self, game: GameId) -> Result<HashMap<u64, String>> {
+    pub(crate) fn installed_by_modio_id(&self, game: GameId) -> Result<HashMap<u64, String>> {
         Ok(self
             .list_mods(game)?
             .into_iter()

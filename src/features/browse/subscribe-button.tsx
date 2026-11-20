@@ -42,7 +42,8 @@ export function SubscribeButton({
       </Button>
     );
 
-  if (mod.installedModId)
+  // Signed in, a mod installed as a guest can still be subscribed to, for updates and sync.
+  if (mod.installedModId && !isSignedIn)
     return (
       <Button size={size} disabled>
         <CheckIcon aria-hidden="true" />
@@ -51,7 +52,7 @@ export function SubscribeButton({
     );
 
   const label = isSignedIn
-    ? compact
+    ? compact || mod.installedModId
       ? "Subscribe"
       : "Subscribe and install"
     : "Install";
@@ -64,7 +65,9 @@ export function SubscribeButton({
       onClick={() =>
         withToast(
           subscribe.mutateAsync([]),
-          `Downloading ${mod.name} for ${shortName}`,
+          mod.installedModId
+            ? `Subscribed to ${mod.name}`
+            : `Downloading ${mod.name} for ${shortName}`,
         )
       }
     >

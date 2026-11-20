@@ -2156,9 +2156,11 @@ export const mockSource: DataSource = {
         "not-found",
       );
     if (state.account.signedIn) item.subscribed = true;
-    startJob(item.id, item.name, item.sizeBytes, () =>
-      installFromModio(game, item),
-    );
+    // Signed in, an installed copy is kept; subscribing only adds it to the sync.
+    if (!(state.account.signedIn && findMod(game, item.nameId)))
+      startJob(item.id, item.name, item.sizeBytes, () =>
+        installFromModio(game, item),
+      );
     return respond(undefined);
   },
 

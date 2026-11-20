@@ -69,6 +69,8 @@ struct Inner {
     /// When each page was last unsubscribed here, so a sync whose mod.io answer is older
     /// doesn't reinstall it.
     unsubscribed_at: Mutex<HashMap<(GameId, u64), Instant>>,
+    /// One subscription sync at a time, so one can't overwrite another's pending removals.
+    sync_lock: tokio::sync::Mutex<()>,
     updates: Mutex<HashMap<GameId, HashMap<String, ModUpdate>>>,
     /// (game, mod.io page) → profiles its mods go into off once installed, from a collection.
     held_off: Mutex<HashMap<(GameId, u64), collections::HeldCollection>>,
@@ -115,6 +117,7 @@ impl App {
             updates: Mutex::new(HashMap::new()),
             held_off: Mutex::new(HashMap::new()),
             unsubscribed_at: Mutex::new(HashMap::new()),
+            sync_lock: tokio::sync::Mutex::new(()),
             writes: Mutex::new(()),
             launched: Mutex::new(HashMap::new()),
         }));
