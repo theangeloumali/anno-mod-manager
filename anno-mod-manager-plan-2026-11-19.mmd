@@ -1,0 +1,52 @@
+flowchart LR
+  subgraph App["Atelier (Tauri 2)"]
+    UI["React 19 + TS<br/>features: library, order, tweaks,<br/>browse, collections, downloads,<br/>health, settings, onboarding"]
+    CMD["commands.rs<br/>(tauri-specta typed IPC)"]
+    subgraph Core["Rust core"]
+      G["games/ GameAdapter<br/>anno117 · anno1800 · detect"]
+      M["mods/ modinfo · scan ·<br/>activation · load_order · issues"]
+      I["install/ archive · roots ·<br/>preview · transaction · backup"]
+      MI["modio/ client · auth · download"]
+      S["store/ SQLite"]
+      W["watch.rs · process.rs lock"]
+    end
+    UI <--> CMD
+    CMD --> G & M & I & MI & S & W
+  end
+  I --> FS["Documents mods folders<br/>(117 + 1800)"]
+  M --> FS
+  MI --> KC["OS keychain (token)"]
+  MI --> API["g-11358.modapi.io<br/>g-4169.modapi.io<br/>mod.io CDN"]
+%% ---
+flowchart TD
+  D["Drop files / folders"] --> ST["Stage to staging/uuid<br/>reject zip-slip, size cap"]
+  ST --> R{"modinfo roots found?"}
+  R -- "none (117)" --> X["Reject with reason"]
+  R -- "none (1800)" --> INF["Infer from data/ (warn)"]
+  R -- "1..n" --> C["Classify game: Anno 7|8 or layout"]
+  INF --> C
+  C -- "other game" --> OG["Offer install for other game"]
+  C --> CMP["Compare by ModID:<br/>new / update / downgrade"]
+  CMP --> DEP["Check Require / Incompatible /<br/>Deprecate / DLC"]
+  DEP --> PV["Preview sheet<br/>(nothing written)"]
+  PV -- cancel --> DEL["Delete staging"]
+  PV -- "confirm (game not running)" --> BK["Backup old copy"]
+  BK --> MV["Atomic rename into mods/ModID"]
+  MV --> ACT["Write activation per adapter<br/>(snapshot first)"]
+  ACT --> RS["Rescan + toast"]
+%% ---
+flowchart LR
+  P0["0b Validate"] --> P1["1 Foundation"]
+  P1 --> P2["2 Mod engine"]
+  P1 --> P5a["5a mod.io client"]
+  P2 --> P3["3 Library UI"]
+  P2 --> P4["4 Installer"]
+  P2 --> P6["6 Health"]
+  P5a --> P5b["5b mod.io UI"]
+  P3 --> P5b
+  P3 --> P7["7 Onboarding / i18n / a11y"]
+  P4 --> P7
+  P5b --> P7
+  P6 --> P7
+  P7 --> P8["8 Hardening / QA"]
+  P8 --> P9["9 Release"]

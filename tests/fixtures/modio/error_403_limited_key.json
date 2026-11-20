@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 403,
+    "error_ref": 11017,
+    "message": "The API key supplied has limited abilities."
+  }
+}

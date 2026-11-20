@@ -1,0 +1,8 @@
+# Reviewed build scripts only (strictDepBuilds fails the install on any other).
+strictDepBuilds: true
+allowBuilds:
+  # esbuild's postinstall only re-checks the binary its platform package already ships.
+  esbuild: false
+
+# Minutes. A week-old floor keeps a freshly hijacked release out of the lockfile (same policy as zkidz-studio).
+minimumReleaseAge: 10080

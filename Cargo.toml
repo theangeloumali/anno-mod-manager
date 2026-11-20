@@ -1,0 +1,19 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "src-tauri"]
+# The Tauri shell needs webkit2gtk on Linux; plain `cargo test` covers only the pure crates.
+default-members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license-file = "LICENSE"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+atelier-core = { path = "crates/atelier-core" }
+atelier-modio = { path = "crates/atelier-modio" }
+atelier-install = { path = "crates/atelier-install" }
+atelier-app = { path = "crates/atelier-app" }

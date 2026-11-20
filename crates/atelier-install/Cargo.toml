@@ -1,0 +1,20 @@
+[package]
+name = "atelier-install"
+description = "Archive staging, mod-root detection, install preview, transactional install, backups and rollback."
+version.workspace = true
+edition.workspace = true
+license-file.workspace = true
+publish = false
+
+[dependencies]
+atelier-core = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+sevenz-rust2 = { version = "0.25", default-features = false, features = ["bzip2", "deflate", "ppmd", "util"] }
+uuid = { version = "1", features = ["v4"] }
+zip = { version = "9", default-features = false, features = ["bzip2", "deflate", "deflate64", "lzma"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+sevenz-rust2 = { version = "0.25", default-features = false, features = ["compress", "util"] }
+tempfile = "3"
