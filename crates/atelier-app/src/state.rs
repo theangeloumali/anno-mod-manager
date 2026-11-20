@@ -1,6 +1,6 @@
 //! What survives a restart: settings, chosen game folders and which mods came from mod.io.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -78,6 +78,12 @@ pub(crate) struct Persisted {
     pub terms_accepted: bool,
     /// When the stored mod.io token expires; mod.io's `/me` doesn't say.
     pub token_expires_at: Option<String>,
+    /// mod.io subscriptions seen at the last sync: only these are removed when they go,
+    /// so a guest or hand install never is.
+    pub subscribed: HashMap<GameId, BTreeSet<u64>>,
+    /// Subscribed pages the player uninstalled from the Library: the sync leaves them out
+    /// until they subscribe again.
+    pub declined: HashMap<GameId, BTreeSet<u64>>,
 }
 
 impl Persisted {

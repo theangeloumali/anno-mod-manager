@@ -1,7 +1,6 @@
 // Created by The Angelo Umali.
 import {
   CheckIcon,
-  DownloadIcon,
   FlagIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
@@ -24,6 +23,7 @@ import {
 import { useAccount, useAction, useModioDetail } from "@/data/source";
 import type { ModioMod } from "@/data/types";
 import { ReportForm } from "./report-form";
+import { SubscribeButton } from "./subscribe-button";
 
 type Rating = "up" | "down" | null;
 
@@ -34,11 +34,8 @@ export function ModioDetailSheet({
   mod: ModioMod | null;
   onClose: () => void;
 }) {
-  const { gameId, isWriteLocked, shortName } = useCurrentGame();
+  const { gameId } = useCurrentGame();
   const { data: account } = useAccount();
-  const subscribe = useAction((source, modioId: number) =>
-    source.subscribe(gameId, modioId),
-  );
   const sendRating = useAction((source, modioId: number, up: boolean) =>
     source.rateMod(gameId, modioId, up),
   );
@@ -70,7 +67,11 @@ export function ModioDetailSheet({
       <SheetContent className="w-full gap-0 bg-bg-elevated p-0 data-[side=right]:sm:max-w-lg">
         {mod && (
           <>
-            <ModBanner name={mod.name} className="h-36 w-full text-h2" />
+            <ModBanner
+              name={mod.name}
+              logoUrl={mod.logoUrl}
+              className="h-36 w-full text-h2"
+            />
             <SheetHeader className="pr-14">
               <SheetTitle className="text-panel-title font-bold">
                 {mod.name}
@@ -158,26 +159,7 @@ export function ModioDetailSheet({
               <span className="mr-auto">
                 <PoweredByModio />
               </span>
-              {mod.installedModId ? (
-                <Button disabled>
-                  <CheckIcon aria-hidden="true" />
-                  Installed
-                </Button>
-              ) : (
-                <Button
-                  variant="primary"
-                  disabled={isWriteLocked || subscribe.isPending}
-                  onClick={() =>
-                    withToast(
-                      subscribe.mutateAsync([mod.id]),
-                      `Downloading ${mod.name} for ${shortName}`,
-                    )
-                  }
-                >
-                  <DownloadIcon aria-hidden="true" />
-                  {isSignedIn ? "Subscribe and install" : "Install"}
-                </Button>
-              )}
+              <SubscribeButton mod={mod} />
             </SheetFooter>
           </>
         )}

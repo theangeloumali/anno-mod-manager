@@ -165,7 +165,7 @@ impl ModioClient {
         Ok(serde_json::from_slice(&body)?)
     }
 
-    /// Walks every page of a list endpoint.
+    /// Walks every page of a list endpoint, up to the page cap.
     pub(crate) async fn get_all<T: DeserializeOwned>(
         &self,
         game: GameId,
@@ -173,6 +173,32 @@ impl ModioClient {
         auth: Auth<'_>,
         query: &[(&str, String)],
     ) -> Result<Vec<T>> {
+        Ok(self.get_pages(game, path, auth, query).await?.0)
+    }
+
+    /// Every page, or an error when the cap cut the list short: for lists whose missing
+    /// entries would be acted on, like removing unsubscribed mods.
+    pub(crate) async fn get_all_complete<T: DeserializeOwned>(
+        &self,
+        game: GameId,
+        path: &str,
+        auth: Auth<'_>,
+        query: &[(&str, String)],
+    ) -> Result<Vec<T>> {
+        match self.get_pages(game, path, auth, query).await? {
+            (items, true) => Ok(items),
+            (_, false) => Err(Error::IncompleteList),
+        }
+    }
+
+    /// The items and whether they are the whole list.
+    async fn get_pages<T: DeserializeOwned>(
+        &self,
+        game: GameId,
+        path: &str,
+        auth: Auth<'_>,
+        query: &[(&str, String)],
+    ) -> Result<(Vec<T>, bool)> {
         let mut items = Vec::new();
         // A total that never stops growing would otherwise page forever.
         for _ in 0..MAX_PAGES {
@@ -184,10 +210,10 @@ impl ModioClient {
             let total = page.result_total;
             items.extend(page.data);
             if fetched == 0 || items.len() as u64 >= total {
-                return Ok(items);
+                return Ok((items, true));
             }
         }
-        Ok(items)
+        Ok((items, false))
     }
 
     /// A form POST whose JSON answer is needed (the sign-in exchanges).

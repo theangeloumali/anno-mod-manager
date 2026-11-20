@@ -1,7 +1,8 @@
 //! Download jobs: fetch a mod.io file, then install it through the same preview/confirm path as a drop.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::atomic::Ordering;
+use std::time::Instant;
 
 use atelier_core::{GameId, ModLocation, ModUpdate};
 use atelier_modio::{DownloadJob, DownloadProgress, DownloadStatus, UpdateCheck};
@@ -10,6 +11,9 @@ use tokio::task::AbortHandle;
 use crate::error::{AppError, ErrorCode, Result};
 use crate::state::ModioLink;
 use crate::{App, lock};
+
+/// How long an in-app subscribe or unsubscribe beats mod.io's subscription list.
+const CHANGE_GRACE: std::time::Duration = std::time::Duration::from_secs(10 * 60);
 
 pub(crate) struct JobEntry {
     job: DownloadJob,
@@ -22,13 +26,48 @@ impl App {
     pub async fn subscribe(&self, game: GameId, modio_id: u64) -> Result<()> {
         self.guard_writes(game)?;
         if self.has_token()? {
+            let _apply = self.0.sync_lock.lock().await;
             self.client().subscribe(game, modio_id).await?;
+            self.note_change(game, modio_id, true);
+            // Subscribing again is the player asking for it back after a Library uninstall.
+            self.update_persisted(|state| {
+                state.subscribed.entry(game).or_default().insert(modio_id);
+                if let Some(declined) = state.declined.get_mut(&game) {
+                    declined.remove(&modio_id);
+                }
+            })?;
         }
-        self.start_job(game, modio_id);
+        // Signed in, an installed copy is kept: subscribing only adds it to the sync. A guest's
+        // Install downloads again, which is how a guest takes a newer file.
+        let signed_in_and_installed =
+            self.has_token()? && self.installed_by_modio_id(game)?.contains_key(&modio_id);
+        if !signed_in_and_installed {
+            self.start_job(game, modio_id);
+        }
         Ok(())
     }
 
-    /// Installs every subscription that isn't installed here yet.
+    /// Unsubscribes on mod.io and uninstalls the page's mods, which keeps a backup.
+    pub async fn unsubscribe(&self, game: GameId, modio_id: u64) -> Result<()> {
+        self.guard_writes(game)?;
+        let _apply = self.0.sync_lock.lock().await;
+        self.client().unsubscribe(game, modio_id).await?;
+        self.note_change(game, modio_id, false);
+        // Forgotten only once removed: if removal fails, the next sync sees the page gone
+        // from mod.io and tries again.
+        self.remove_page_mods(game, modio_id)?;
+        self.update_persisted(|state| {
+            if let Some(subscribed) = state.subscribed.get_mut(&game) {
+                subscribed.remove(&modio_id);
+            }
+            if let Some(declined) = state.declined.get_mut(&game) {
+                declined.remove(&modio_id);
+            }
+        })
+    }
+
+    /// Installs every subscription that isn't installed here yet, and uninstalls the mods
+    /// of subscriptions dropped since the last sync.
     pub async fn sync_subscriptions(&self, game: GameId) -> Result<()> {
         if !self.has_token()? {
             return Err(AppError::new(
@@ -37,8 +76,118 @@ impl App {
             ));
         }
         self.guard_writes(game)?;
-        let subscriptions = self.client().subscriptions(game).await?;
-        self.start_missing(game, subscriptions.iter().map(|item| item.id))?;
+        let account = self.0.token_store.load()?;
+        let fetched: BTreeSet<u64> = self
+            .client()
+            .subscriptions(game)
+            .await?
+            .iter()
+            .map(|item| item.id)
+            .collect();
+        // The apply step, subscribe and unsubscribe take turns, so none overwrites another.
+        let _apply = self.0.sync_lock.lock().await;
+        // Signed out or into another account meanwhile: this answer belongs to nobody now.
+        if self.0.token_store.load()? != account {
+            return Ok(());
+        }
+        let recent = self.recent_changes(game);
+        let current: BTreeSet<u64> = fetched
+            .iter()
+            .copied()
+            .filter(|id| recent.get(id) != Some(&false))
+            .chain(recent.iter().filter(|(_, on)| **on).map(|(id, _)| *id))
+            .collect();
+        let before = self.subscribed_set(game);
+        let declined = self
+            .persisted()
+            .declined
+            .get(&game)
+            .cloned()
+            .unwrap_or_default();
+        self.start_missing(game, current.difference(&declined).copied())?;
+        for &dropped in before.difference(&current) {
+            self.remove_page_mods(game, dropped)?;
+        }
+        // Saved last, so a removal that failed is tried again by the next sync. A page no
+        // longer subscribed forgets its Library uninstall, so subscribing again brings it back.
+        self.update_persisted(|state| {
+            if let Some(declined) = state.declined.get_mut(&game) {
+                declined.retain(|page| current.contains(page));
+            }
+            state.subscribed.insert(game, current);
+        })
+    }
+
+    /// Remembers an in-app subscribe (`true`) or unsubscribe for the grace window.
+    fn note_change(&self, game: GameId, modio_id: u64, subscribed: bool) {
+        lock(&self.0.recent_changes).insert((game, modio_id), (Instant::now(), subscribed));
+    }
+
+    /// In-app changes younger than the grace window, which beat mod.io's list: it can lag
+    /// behind a subscribe or unsubscribe made a moment ago.
+    fn recent_changes(&self, game: GameId) -> HashMap<u64, bool> {
+        let mut changes = lock(&self.0.recent_changes);
+        changes.retain(|_, (at, _)| at.elapsed() < CHANGE_GRACE);
+        changes
+            .iter()
+            .filter(|((change_game, _), _)| *change_game == game)
+            .map(|((_, id), (_, subscribed))| (*id, *subscribed))
+            .collect()
+    }
+
+    fn subscribed_set(&self, game: GameId) -> BTreeSet<u64> {
+        self.persisted()
+            .subscribed
+            .get(&game)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// The installed mods whose mod.io link points at this page.
+    fn linked_mod_ids(&self, game: GameId, modio_id: u64) -> Vec<String> {
+        self.persisted()
+            .modio_links
+            .get(&game)
+            .map(|links| {
+                links
+                    .iter()
+                    .filter(|(_, link)| link.modio_id == modio_id)
+                    .map(|(mod_id, _)| mod_id.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Stops the page's pending download and uninstalls every installed mod linked to it.
+    fn remove_page_mods(&self, game: GameId, modio_id: u64) -> Result<()> {
+        let pending: Vec<String> = lock(&self.0.jobs)
+            .iter()
+            .filter(|entry| {
+                entry.game == game
+                    && entry.job.modio_id == modio_id
+                    && !is_finished(entry.job.status)
+            })
+            .map(|entry| entry.job.id.clone())
+            .collect();
+        for job_id in pending {
+            // One already installing can't be stopped: fail, so the page stays on the list and
+            // the next sync removes what it installed.
+            if self.cancel_download(&job_id).is_err() {
+                return Err(AppError::new(
+                    ErrorCode::Install,
+                    "It's still installing, so it can't be removed yet. The next sync removes it.",
+                ));
+            }
+        }
+        let linked = self.linked_mod_ids(game, modio_id);
+        for mod_id in linked {
+            match self.uninstall_to_backup(game, &mod_id) {
+                // Already gone by hand, or only a game-folder copy is left: nothing of ours
+                // to remove.
+                Err(error) if matches!(error.code, ErrorCode::NotFound | ErrorCode::ReadOnly) => {}
+                other => other?,
+            }
+        }
         Ok(())
     }
 
@@ -323,18 +472,7 @@ impl App {
             }
         }
         // A retry skips the already-installed mod, so the page's links name it, not this run.
-        let linked: Vec<String> = self
-            .persisted()
-            .modio_links
-            .get(&game)
-            .map(|links| {
-                links
-                    .iter()
-                    .filter(|(_, link)| link.modio_id == modio_id)
-                    .map(|(mod_id, _)| mod_id.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
+        let linked = self.linked_mod_ids(game, modio_id);
         // Like the new-mods rule: the files landed, so a failed profile write only warns. The
         // hold goes too, so a later update of this page never applies stale rules.
         let held = self

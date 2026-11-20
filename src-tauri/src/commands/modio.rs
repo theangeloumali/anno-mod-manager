@@ -138,6 +138,11 @@ pub async fn clear_api_key(app: State<'_, App>) -> CommandResult<()> {
 }
 
 #[tauri::command]
+pub async fn unsubscribe(app: State<'_, App>, game: GameId, modio_id: u64) -> CommandResult<()> {
+    app.unsubscribe(game, modio_id).await
+}
+
+#[tauri::command]
 pub async fn request_sign_in_code(app: State<'_, App>, email: String) -> CommandResult<()> {
     app.request_sign_in_code(&email).await
 }

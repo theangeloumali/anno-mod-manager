@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { mockSource } from "./mock-source.ts";
 import type {
   Account,
@@ -69,6 +69,8 @@ export interface DataSource {
     follow: boolean,
   ): Promise<void>;
   subscribe(game: GameId, modioId: number): Promise<void>;
+  /** Unsubscribes on mod.io and uninstalls the mod, keeping a backup. */
+  unsubscribe(game: GameId, modioId: number): Promise<void>;
   /** Resolves to the profile it created, or null where the game has no profiles. */
   installCollection(game: GameId, collectionId: number): Promise<string | null>;
   syncSubscriptions(game: GameId): Promise<void>;
@@ -256,6 +258,42 @@ export function useScheduledUpdateChecks(): void {
     refetchInterval: updateCheck === "hourly" ? HOUR_MS : false,
     refetchOnWindowFocus: false,
   });
+}
+
+const SYNC_MIN_GAP_MS = 60_000;
+
+/**
+ * Installs subscriptions made elsewhere (mod.io's site) and removes dropped ones: at start,
+ * hourly, and on opening Browse or the Library, at most once a minute. Failures stay quiet;
+ * the next run tries again.
+ */
+export function useSubscriptionSync(view: string): void {
+  const client = useQueryClient();
+  const isSignedIn = useAccount().data?.signedIn ?? false;
+  const lastRun = useRef(0);
+  const run = useCallback(async () => {
+    if (Date.now() - lastRun.current < SYNC_MIN_GAP_MS) return;
+    lastRun.current = Date.now();
+    await Promise.allSettled(
+      GAME_IDS.map((game) => activeSource.syncSubscriptions(game)),
+    );
+    void refreshLocalData(client);
+  }, [client]);
+
+  useEffect(() => {
+    // A new sign-in syncs straight away, however recently the last account did.
+    if (!isSignedIn) {
+      lastRun.current = 0;
+      return;
+    }
+    void run();
+    const timer = window.setInterval(() => void run(), HOUR_MS);
+    return () => window.clearInterval(timer);
+  }, [isSignedIn, run]);
+
+  useEffect(() => {
+    if (isSignedIn && (view === "browse" || view === "library")) void run();
+  }, [isSignedIn, view, run]);
 }
 
 /** Any write can change mods, issues, order and health, so a mutation refreshes all cached reads. */

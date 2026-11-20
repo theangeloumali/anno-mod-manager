@@ -572,10 +572,24 @@ const modioItem = (
   rating,
   summary,
   sizeBytes: megabytes(sizeMb),
-  logoUrl: null,
+  // Every other mock mod has a logo, so the mock-up shows both a logo and the fallback.
+  logoUrl: id % 2 === 0 ? mockLogo(name, id % 360) : null,
   subscribed: false,
   installedModId: null,
 });
+
+/** A generated stand-in for a mod.io logo thumbnail (320x180). */
+function mockLogo(name: string, hue: number): string {
+  const label = name.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180">` +
+    `<defs><linearGradient id="g" x2="1" y2="1">` +
+    `<stop offset="0" stop-color="hsl(${hue} 45% 34%)"/>` +
+    `<stop offset="1" stop-color="hsl(${(hue + 50) % 360} 50% 16%)"/>` +
+    `</linearGradient></defs><rect width="320" height="180" fill="url(#g)"/>` +
+    `<text x="18" y="160" font-family="sans-serif" font-size="22" font-weight="700" fill="#f3efe8">${label}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
 
 function seedModio(): Record<GameId, ModioMod[]> {
   return {
@@ -1765,6 +1779,16 @@ function buildHealthChecks(game: GameId): HealthCheck[] {
   ];
 }
 
+/** Moves a mod and its sub-mods into the backups, as Uninstall does. */
+function removeToBackups(game: GameId, modId: string): void {
+  const isRemoved = (candidate: Mod) =>
+    candidate.id === modId || candidate.parentId === modId;
+  state.backups[game].push(state.mods[game].filter(isRemoved));
+  state.mods[game] = state.mods[game].filter(
+    (candidate) => !isRemoved(candidate),
+  );
+}
+
 export function mockScenario(): MockScenario {
   return { ...state.scenario, gameRunning: state.runningGame !== null };
 }
@@ -1852,12 +1876,7 @@ export const mockSource: DataSource = {
         `${mod.name} lives in the ${mod.location === "ubi" ? "Ubisoft-managed .ubi" : "game"} folder. Atelier only removes mods in Documents.`,
         "read-only",
       );
-    const isRemoved = (candidate: Mod) =>
-      candidate.id === modId || candidate.parentId === modId;
-    state.backups[game].push(state.mods[game].filter(isRemoved));
-    state.mods[game] = state.mods[game].filter(
-      (candidate) => !isRemoved(candidate),
-    );
+    removeToBackups(game, modId);
     return respond(undefined);
   },
 
@@ -2137,9 +2156,31 @@ export const mockSource: DataSource = {
         "not-found",
       );
     if (state.account.signedIn) item.subscribed = true;
-    startJob(item.id, item.name, item.sizeBytes, () =>
-      installFromModio(game, item),
+    // Signed in, an installed copy is kept; subscribing only adds it to the sync.
+    if (!(state.account.signedIn && findMod(game, item.nameId)))
+      startJob(item.id, item.name, item.sizeBytes, () =>
+        installFromModio(game, item),
+      );
+    return respond(undefined);
+  },
+
+  unsubscribe: (game, modioId) => {
+    if (!state.account.signedIn) return refuseSignedOut("unsubscribe");
+    if (state.scenario.offline) return refuseOffline();
+    const blocked = writeBlockedReason(game);
+    if (blocked) return refuse(blocked, "game-running");
+    const item = state.modio[game].find(
+      (candidate) => candidate.id === modioId,
     );
+    if (!item)
+      return refuse(
+        `mod.io has no mod ${modioId} for ${shortGameName(game)}.`,
+        "not-found",
+      );
+    item.subscribed = false;
+    const installed = findMod(game, item.nameId);
+    if (installed?.location === "documents")
+      removeToBackups(game, installed.id);
     return respond(undefined);
   },
 

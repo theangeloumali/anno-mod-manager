@@ -66,6 +66,11 @@ struct Inner {
     client: RwLock<Arc<ModioClient>>,
     jobs: Mutex<Vec<JobEntry>>,
     next_job: AtomicU64,
+    /// In-app subscribes (`true`) and unsubscribes with when they happened, so a sync whose
+    /// mod.io answer lags behind them doesn't undo them.
+    recent_changes: Mutex<HashMap<(GameId, u64), (Instant, bool)>>,
+    /// Taken by a sync's apply step, subscribe and unsubscribe, so none overwrites another.
+    sync_lock: tokio::sync::Mutex<()>,
     updates: Mutex<HashMap<GameId, HashMap<String, ModUpdate>>>,
     /// (game, mod.io page) → profiles its mods go into off once installed, from a collection.
     held_off: Mutex<HashMap<(GameId, u64), collections::HeldCollection>>,
@@ -111,6 +116,8 @@ impl App {
             next_job: AtomicU64::new(1),
             updates: Mutex::new(HashMap::new()),
             held_off: Mutex::new(HashMap::new()),
+            recent_changes: Mutex::new(HashMap::new()),
+            sync_lock: tokio::sync::Mutex::new(()),
             writes: Mutex::new(()),
             launched: Mutex::new(HashMap::new()),
         }));

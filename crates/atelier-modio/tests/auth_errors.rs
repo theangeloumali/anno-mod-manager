@@ -266,3 +266,24 @@ async fn no_key_and_no_token_fails_without_a_request() {
     assert!(matches!(error, Error::MissingCredentials));
     assert!(server.received_requests().await.unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn a_subscription_list_cut_off_by_the_page_cap_is_an_error() {
+    let server = MockServer::start().await;
+    let mut page = fixture("subscriptions.json");
+    page["result_count"] = 1.into();
+    page["result_total"] = 1_000_000.into();
+    Mock::given(method("GET"))
+        .and(path("/v1/me/subscribed"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(page))
+        .mount(&server)
+        .await;
+    let store = Arc::new(MemoryTokenStore::with_token("signed-in"));
+
+    let error = client_with_store(&server, store)
+        .subscriptions(GameId::Anno117)
+        .await
+        .unwrap_err();
+
+    assert!(matches!(error, Error::IncompleteList), "{error:?}");
+}

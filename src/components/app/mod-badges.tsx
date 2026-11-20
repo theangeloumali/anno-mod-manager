@@ -1,5 +1,6 @@
 // Created by The Angelo Umali.
 import { FolderOpenIcon, LockIcon } from "lucide-react";
+import { useState } from "react";
 import type { Mod, ModLocation } from "@/data/types";
 import { StateBadge } from "./state-badge";
 
@@ -24,14 +25,27 @@ export function LocationBadge({ location }: { location: ModLocation }) {
   );
 }
 
-/** Gradient + initials stand in for mod.io logos; no Anno art (PRODUCT.md). */
+/** The mod's own mod.io logo; gradient + initials when it has none or it fails to load. */
 export function ModBanner({
   name,
+  logoUrl = null,
   className = "",
 }: {
   name: string;
+  logoUrl?: string | null;
   className?: string;
 }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  if (logoUrl && logoUrl !== failedUrl)
+    return (
+      <img
+        src={logoUrl}
+        alt=""
+        loading="lazy"
+        onError={() => setFailedUrl(logoUrl)}
+        className={`bg-surface object-cover ${className}`}
+      />
+    );
   const initials = name
     .split(/\s+/)
     .filter((word) => /^[A-Za-z0-9]/.test(word))

@@ -39,7 +39,7 @@ impl ModioClient {
     pub async fn subscriptions(&self, game: GameId) -> Result<Vec<ModioMod>> {
         let query = [("game_id", modio_game_id(game).to_string())];
         let mods: Vec<ApiMod> = self
-            .get_all(game, "me/subscribed", Auth::Bearer, &query)
+            .get_all_complete(game, "me/subscribed", Auth::Bearer, &query)
             .await?;
         Ok(mods.into_iter().map(|item| item.into_mod(true)).collect())
     }

@@ -108,6 +108,7 @@ impl App {
             Ok(account) => account,
             Err(atelier_modio::Error::Unauthorized) => {
                 self.0.token_store.clear()?;
+                let _ = self.update_persisted(|state| state.subscribed.clear());
                 self.client().account().await?
             }
             Err(atelier_modio::Error::Offline) => atelier_modio::Account {
@@ -193,16 +194,22 @@ impl App {
     pub fn sign_out(&self) -> Result<()> {
         self.client().sign_out()?;
         // The token is gone; an expiry left behind is never shown while signed out.
-        let _ = self.update_persisted(|state| state.token_expires_at = None);
+        // Another account may sign in next; its sync must not act on this one's subscriptions.
+        let _ = self.update_persisted(|state| {
+            state.token_expires_at = None;
+            state.subscribed.clear();
+        });
         Ok(())
     }
 
     pub async fn browse(&self, query: &ModioQuery) -> Result<ModioPage> {
         let mut page = self.browsing_client()?.browse(query).await?;
         let installed = self.installed_by_modio_id(query.game)?;
+        let subscribed = self.known_subscriptions(query.game)?;
         for item in &mut page.items {
             item.rating = (item.rating * RATING_SCALE).round();
             item.installed_mod_id = installed.get(&item.id).cloned();
+            item.subscribed |= subscribed.contains(&item.id);
         }
         Ok(page)
     }
@@ -215,7 +222,21 @@ impl App {
         let mut detail = self.browsing_client()?.mod_detail(game, modio_id).await?;
         detail.info.rating = (detail.info.rating * RATING_SCALE).round();
         detail.info.installed_mod_id = self.installed_by_modio_id(game)?.remove(&modio_id);
+        detail.info.subscribed |= self.known_subscriptions(game)?.contains(&modio_id);
         Ok(detail)
+    }
+
+    /// The subscriptions the last sync saw; empty when signed out.
+    fn known_subscriptions(&self, game: GameId) -> Result<std::collections::BTreeSet<u64>> {
+        if !self.has_token()? {
+            return Ok(Default::default());
+        }
+        Ok(self
+            .persisted()
+            .subscribed
+            .get(&game)
+            .cloned()
+            .unwrap_or_default())
     }
 
     pub async fn list_collections(&self, game: GameId) -> Result<Vec<ModioCollection>> {
@@ -289,7 +310,7 @@ impl App {
     }
 
     /// Local mod id per mod.io id, for "installed" badges on mod.io listings.
-    fn installed_by_modio_id(&self, game: GameId) -> Result<HashMap<u64, String>> {
+    pub(crate) fn installed_by_modio_id(&self, game: GameId) -> Result<HashMap<u64, String>> {
         Ok(self
             .list_mods(game)?
             .into_iter()
