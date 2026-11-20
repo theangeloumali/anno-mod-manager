@@ -139,9 +139,11 @@ fn load_split(slots: &dyn Slots, user: &str) -> Result<Option<String>> {
         .ok_or_else(|| Error::TokenStore("unreadable saved sign-in; sign in again".into()))?;
     let mut secret = String::new();
     for index in 0..parts.count {
-        let part = slots.get(&parts.name(user, index))?.ok_or_else(|| {
-            Error::TokenStore("part of the saved sign-in is missing; sign in again".into())
-        })?;
+        // A part gone after an interrupted clear means no usable sign-in: signed out, with
+        // the header left for the next save or clear to replace.
+        let Some(part) = slots.get(&parts.name(user, index))? else {
+            return Ok(None);
+        };
         secret.push_str(&part);
     }
     Ok(Some(secret))
@@ -168,10 +170,18 @@ fn save_split(slots: &dyn Slots, user: &str, secret: &str) -> Result<()> {
             set,
             count: chunks.len(),
         };
-        for (index, chunk) in chunks.iter().enumerate() {
-            slots.set(&parts.name(user, index), chunk)?;
+        let written = chunks
+            .iter()
+            .enumerate()
+            .try_for_each(|(index, chunk)| slots.set(&parts.name(user, index), chunk))
+            .and_then(|()| slots.set(user, &format!("{PARTS_HEADER}{set}:{}", parts.count)));
+        if let Err(error) = written {
+            // The old sign-in is untouched; the half-written new one must not linger.
+            for index in 0..parts.count {
+                let _ = slots.delete(&parts.name(user, index));
+            }
+            return Err(error);
         }
-        slots.set(user, &format!("{PARTS_HEADER}{set}:{}", parts.count))?;
     }
     // The new secret is saved; a leftover old part is harmless, so this can't fail the save.
     if let Some(old) = old {
@@ -242,35 +252,51 @@ mod tests {
 
     use super::*;
 
+    use std::sync::atomic::{AtomicBool, Ordering};
+
     /// Holds secrets the way Windows does: at most 1280 characters each.
     #[derive(Default)]
-    struct WindowsLikeSlots(
-        Mutex<HashMap<String, String>>,
+    struct WindowsLikeSlots {
+        entries: Mutex<HashMap<String, String>>,
         /// Fails every write, like a full or locked store.
-        std::sync::atomic::AtomicBool,
+        fail_writes: AtomicBool,
+        /// Fails only the header write, after the parts are already in.
+        fail_header: AtomicBool,
         /// Fails the next delete, like a credential Windows briefly holds open.
-        std::sync::atomic::AtomicBool,
-    );
+        fail_next_delete: AtomicBool,
+    }
+
+    impl WindowsLikeSlots {
+        fn len(&self) -> usize {
+            self.entries.lock().unwrap().len()
+        }
+    }
 
     impl Slots for WindowsLikeSlots {
         fn get(&self, name: &str) -> Result<Option<String>> {
-            Ok(self.0.lock().unwrap().get(name).cloned())
+            Ok(self.entries.lock().unwrap().get(name).cloned())
         }
         fn set(&self, name: &str, value: &str) -> Result<()> {
-            if self.1.load(std::sync::atomic::Ordering::SeqCst) {
+            let header = !name.contains('.');
+            if self.fail_writes.load(Ordering::SeqCst)
+                || (header && self.fail_header.load(Ordering::SeqCst))
+            {
                 return Err(Error::TokenStore("disk full".into()));
             }
             if value.chars().count() > 1280 {
                 return Err(Error::TokenStore("longer than platform limit".into()));
             }
-            self.0.lock().unwrap().insert(name.into(), value.into());
+            self.entries
+                .lock()
+                .unwrap()
+                .insert(name.into(), value.into());
             Ok(())
         }
         fn delete(&self, name: &str) -> Result<()> {
-            if self.2.swap(false, std::sync::atomic::Ordering::SeqCst) {
+            if self.fail_next_delete.swap(false, Ordering::SeqCst) {
                 return Err(Error::TokenStore("in use".into()));
             }
-            self.0.lock().unwrap().remove(name);
+            self.entries.lock().unwrap().remove(name);
             Ok(())
         }
     }
@@ -292,7 +318,7 @@ mod tests {
 
         clear_split(&slots, "modio-token").unwrap();
 
-        assert!(slots.0.lock().unwrap().is_empty());
+        assert_eq!(slots.len(), 0);
         assert_eq!(load_split(&slots, "modio-token").unwrap(), None);
     }
 
@@ -303,7 +329,7 @@ mod tests {
 
         save_split(&slots, "modio-token", "short-key").unwrap();
 
-        assert_eq!(slots.0.lock().unwrap().len(), 1);
+        assert_eq!(slots.len(), 1);
         assert_eq!(
             load_split(&slots, "modio-token").unwrap().as_deref(),
             Some("short-key")
@@ -315,7 +341,7 @@ mod tests {
         let slots = WindowsLikeSlots::default();
         let working = "w".repeat(2500);
         save_split(&slots, "modio-token", &working).unwrap();
-        slots.1.store(true, std::sync::atomic::Ordering::SeqCst);
+        slots.fail_writes.store(true, Ordering::SeqCst);
 
         assert!(save_split(&slots, "modio-token", &"n".repeat(2500)).is_err());
 
@@ -326,12 +352,33 @@ mod tests {
     fn a_clear_that_fails_partway_finishes_when_run_again() {
         let slots = WindowsLikeSlots::default();
         save_split(&slots, "modio-token", &"c".repeat(2500)).unwrap();
-        slots.2.store(true, std::sync::atomic::Ordering::SeqCst);
+        slots.fail_next_delete.store(true, Ordering::SeqCst);
 
         assert!(clear_split(&slots, "modio-token").is_err());
         clear_split(&slots, "modio-token").unwrap();
 
-        assert!(slots.0.lock().unwrap().is_empty());
+        assert_eq!(slots.len(), 0);
+    }
+
+    #[test]
+    fn a_save_that_fails_at_the_header_leaves_no_new_parts() {
+        let slots = WindowsLikeSlots::default();
+        slots.fail_header.store(true, Ordering::SeqCst);
+
+        assert!(save_split(&slots, "modio-token", &"s".repeat(2500)).is_err());
+
+        assert_eq!(slots.len(), 0);
+    }
+
+    #[test]
+    fn a_sign_in_missing_a_part_reads_as_signed_out() {
+        let slots = WindowsLikeSlots::default();
+        save_split(&slots, "modio-token", &"m".repeat(2500)).unwrap();
+        slots.delete("modio-token.a.1").unwrap();
+
+        assert_eq!(load_split(&slots, "modio-token").unwrap(), None);
+        clear_split(&slots, "modio-token").unwrap();
+        assert_eq!(slots.len(), 0);
     }
 
     #[test]
