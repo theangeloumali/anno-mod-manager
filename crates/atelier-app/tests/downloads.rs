@@ -1029,7 +1029,7 @@ async fn a_cancelled_collection_download_drops_its_profile_rules() {
         .respond_with(
             ResponseTemplate::new(200)
                 .set_body_json(fixture("mod_no_modfile.json"))
-                .set_delay(Duration::from_secs(2)),
+                .set_delay(Duration::from_secs(30)),
         )
         .mount(&server)
         .await;
@@ -1039,7 +1039,12 @@ async fn a_cancelled_collection_download_drops_its_profile_rules() {
         .install_collection(GameId::Anno117, 310)
         .await
         .unwrap();
-    let job = harness.app.list_downloads().remove(0);
+    let job = harness
+        .app
+        .list_downloads()
+        .into_iter()
+        .find(|job| job.modio_id == 4801)
+        .unwrap();
     harness.app.cancel_download(&job.id).unwrap();
     harness
         .app
@@ -1051,4 +1056,103 @@ async fn a_cancelled_collection_download_drops_its_profile_rules() {
     download(&harness, 4801).await;
 
     assert!(installed(&harness, "roman-roads").active);
+}
+
+/// Holds page 4801's download for `delay`, ahead of the normal download mock.
+async fn slow_download(server: &MockServer, delay: Duration) {
+    Mock::given(method("GET"))
+        .and(path("/v1/files/4801/download"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_bytes(zip_bytes(&[(
+                    "Packed/modinfo.json",
+                    modinfo("roman-roads", "1.0.0", GameId::Anno117).as_bytes(),
+                )]))
+                .set_delay(delay),
+        )
+        .with_priority(1)
+        .mount(server)
+        .await;
+}
+
+#[tokio::test]
+async fn dismissing_a_failed_job_keeps_the_hold_a_live_job_for_that_page_needs() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods/4801"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("mod_no_modfile.json")))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
+    let failed = wait_for_job(&harness).await;
+    assert_eq!(failed.status, DownloadStatus::Failed);
+    mount_modio_mod(&server, 4801, "roman-roads", "1.0.0", false).await;
+    slow_download(&server, Duration::from_millis(1500)).await;
+    serve_collection(&server, 11358).await;
+    harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap();
+
+    harness.app.cancel_download(&failed.id).unwrap();
+
+    assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Done);
+    harness
+        .app
+        .switch_profile(GameId::Anno117, "Default")
+        .unwrap();
+    assert!(
+        !installed(&harness, "roman-roads").active,
+        "the collection's rule still applies"
+    );
+}
+
+#[tokio::test]
+async fn a_collection_download_whose_profile_write_fails_is_done_and_warns() {
+    let server = MockServer::start().await;
+    let harness = harness_for(&server, Some(API_KEY));
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    slow_download(&server, Duration::from_millis(800)).await;
+    serve_collection(&server, 11358).await;
+    harness
+        .app
+        .install_collection(GameId::Anno117, 310)
+        .await
+        .unwrap();
+    // A file where the snapshots folder goes makes every profile write fail from here on.
+    let snapshots = harness.root.path().join("data/snapshots");
+    let _ = std::fs::remove_dir_all(&snapshots);
+    std::fs::create_dir_all(snapshots.parent().unwrap()).unwrap();
+    std::fs::write(&snapshots, "").unwrap();
+
+    let job = wait_for_job(&harness).await;
+
+    assert_eq!(job.status, DownloadStatus::Done, "{:?}", job.error);
+    assert!(job.error.is_some(), "the unapplied rule is reported");
+}
+
+#[tokio::test]
+async fn a_modio_update_of_a_game_folder_mod_installs() {
+    let server = MockServer::start().await;
+    let harness = Harness::with(Options {
+        install: Some(GameId::Anno117),
+        modio_base: Some(base(&server)),
+        ..Options::default()
+    });
+    let shipped = harness.install_dir().join("mods").join("Roman Roads");
+    std::fs::create_dir_all(&shipped).unwrap();
+    std::fs::write(
+        shipped.join("modinfo.json"),
+        modinfo("roman-roads", "1.0.0", GameId::Anno117),
+    )
+    .unwrap();
+    serve_modio_mod(&server, 4801, "roman-roads", "2.0.0").await;
+
+    let job = download(&harness, 4801).await;
+
+    assert_eq!(job.status, DownloadStatus::Done, "{:?}", job.error);
 }

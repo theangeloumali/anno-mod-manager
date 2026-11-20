@@ -1,5 +1,11 @@
 // Created by The Angelo Umali.
-import { DownloadIcon, RefreshCwIcon, RotateCwIcon, XIcon } from "lucide-react";
+import {
+  DownloadIcon,
+  RefreshCwIcon,
+  RotateCwIcon,
+  TriangleAlertIcon,
+  XIcon,
+} from "lucide-react";
 import { formatBytes } from "@/components/app/format";
 import { withToast } from "@/components/app/notify";
 import { PageHeader } from "@/components/app/page-header";
@@ -74,7 +80,17 @@ function JobRow({ job }: { job: DownloadJob }) {
           className="[&_[data-slot=progress-indicator]]:bg-accent [&_[data-slot=progress-track]]:bg-surface"
         />
       )}
-      {job.error && (
+      {/* On a finished job the message is a warning: the mod is installed. */}
+      {job.error && job.status === "done" && (
+        <p role="status" className="flex gap-1.5 text-ui text-copy">
+          <TriangleAlertIcon
+            aria-hidden="true"
+            className="mt-0.5 size-4 shrink-0"
+          />
+          {job.error}
+        </p>
+      )}
+      {job.error && job.status !== "done" && (
         <p role="alert" className="text-ui text-danger">
           {job.error}
         </p>

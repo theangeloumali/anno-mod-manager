@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::Ordering;
 
-use atelier_core::{GameId, ModUpdate};
+use atelier_core::{GameId, ModLocation, ModUpdate};
 use atelier_modio::{DownloadJob, DownloadProgress, DownloadStatus, UpdateCheck};
 use tokio::task::AbortHandle;
 
@@ -92,12 +92,16 @@ impl App {
             ));
         }
         let entry = jobs.remove(index);
+        let page = (entry.game, entry.job.modio_id);
+        let still_wanted = page_in_flight(&jobs, page.0, page.1);
         drop(jobs);
         if let Some(abort) = entry.abort {
             abort.abort();
         }
         // A page installed by hand later follows the normal rules, not a collection's.
-        lock(&self.0.held_off).remove(&(entry.game, entry.job.modio_id));
+        if !still_wanted {
+            lock(&self.0.held_off).remove(&page);
+        }
         // Scratch space like run_job's staging: a leftover after a failed delete is harmless.
         let _ = std::fs::remove_dir_all(self.0.data_dir.join("downloads").join(job_id));
         Ok(())
@@ -331,7 +335,17 @@ impl App {
                     .collect()
             })
             .unwrap_or_default();
-        self.apply_held_off(game, modio_id, &linked)?;
+        // Like the new-mods rule: the files landed, so a failed profile write only warns.
+        let held = self
+            .apply_held_off(game, modio_id, &linked)
+            .err()
+            .map(|error| {
+                format!(
+                    "Installed, but the collection's on/off rules weren't applied ({}).",
+                    error.message
+                )
+            });
+        let warning = warning.or(held);
         if warning.is_some() {
             self.edit_job(job_id, |job| job.error = warning);
         }
@@ -364,8 +378,15 @@ impl App {
             .get(&game)
             .cloned()
             .unwrap_or_default();
+        // Only a Documents copy is replaced; a game-folder copy stays beside the new one.
+        let replaceable: HashSet<String> = self
+            .scan(game)?
+            .into_iter()
+            .filter(|item| item.location == ModLocation::Documents && item.parent_id.is_none())
+            .map(|item| item.id)
+            .collect();
         let foreign = preview.items.iter().find(|item| {
-            item.previous_version.is_some()
+            replaceable.contains(&item.mod_id)
                 && links.get(&item.mod_id).map(|link| link.modio_id) != Some(modio_id)
         });
         if let Some(item) = foreign {
