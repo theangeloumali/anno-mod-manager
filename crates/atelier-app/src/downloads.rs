@@ -603,7 +603,8 @@ impl App {
         let adopted = if adopted.is_empty() {
             adopted
         } else {
-            let still_here: HashMap<String, String> = self
+            // Every Documents copy of each ModID, since duplicates can share one.
+            let still_here: HashSet<(String, String)> = self
                 .scan(game)?
                 .into_iter()
                 .filter(|item| item.location == ModLocation::Documents && item.parent_id.is_none())
@@ -613,7 +614,11 @@ impl App {
                 .items
                 .iter()
                 .filter(|item| adopted.contains(&item.mod_id))
-                .filter(|item| still_here.get(&item.mod_id) == item.previous_version.as_ref())
+                .filter(|item| {
+                    item.previous_version.as_ref().is_some_and(|version| {
+                        still_here.contains(&(item.mod_id.clone(), version.clone()))
+                    })
+                })
                 .map(|item| item.mod_id.clone())
                 .collect()
         };
