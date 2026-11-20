@@ -35,12 +35,14 @@ impl App {
     pub async fn unsubscribe(&self, game: GameId, modio_id: u64) -> Result<()> {
         self.guard_writes(game)?;
         self.client().unsubscribe(game, modio_id).await?;
+        // Forgotten only once removed: if removal fails, the next sync sees the page gone
+        // from mod.io and tries again.
+        self.remove_page_mods(game, modio_id)?;
         self.update_persisted(|state| {
             if let Some(subscribed) = state.subscribed.get_mut(&game) {
                 subscribed.remove(&modio_id);
             }
-        })?;
-        self.remove_page_mods(game, modio_id)
+        })
     }
 
     /// Installs every subscription that isn't installed here yet, and uninstalls the mods
@@ -53,27 +55,42 @@ impl App {
             ));
         }
         self.guard_writes(game)?;
-        let current: BTreeSet<u64> = self
+        let before = self.subscribed_set(game);
+        let fetched: BTreeSet<u64> = self
             .client()
             .subscriptions(game)
             .await?
             .iter()
             .map(|item| item.id)
             .collect();
+        // A subscribe or unsubscribe made while mod.io answered is newer than its answer.
+        let now = self.subscribed_set(game);
+        let added: BTreeSet<u64> = now.difference(&before).copied().collect();
+        let removed: BTreeSet<u64> = before.difference(&now).copied().collect();
+        let current: BTreeSet<u64> = fetched
+            .difference(&removed)
+            .copied()
+            .chain(added.iter().copied())
+            .collect();
         self.start_missing(game, current.iter().copied())?;
-        let previous = self
-            .persisted()
-            .subscribed
-            .get(&game)
-            .cloned()
-            .unwrap_or_default();
-        for &dropped in previous.difference(&current) {
-            self.remove_page_mods(game, dropped)?;
+        for &dropped in before.difference(&current) {
+            // An unsubscribe in the app already removed its own page.
+            if !removed.contains(&dropped) {
+                self.remove_page_mods(game, dropped)?;
+            }
         }
         // Saved last, so a removal that failed is tried again by the next sync.
         self.update_persisted(|state| {
             state.subscribed.insert(game, current);
         })
+    }
+
+    fn subscribed_set(&self, game: GameId) -> BTreeSet<u64> {
+        self.persisted()
+            .subscribed
+            .get(&game)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// The installed mods whose mod.io link points at this page.
@@ -91,8 +108,21 @@ impl App {
             .unwrap_or_default()
     }
 
-    /// Uninstalls every installed mod linked to this mod.io page.
+    /// Stops the page's pending download and uninstalls every installed mod linked to it.
     fn remove_page_mods(&self, game: GameId, modio_id: u64) -> Result<()> {
+        let pending: Vec<String> = lock(&self.0.jobs)
+            .iter()
+            .filter(|entry| {
+                entry.game == game
+                    && entry.job.modio_id == modio_id
+                    && !is_finished(entry.job.status)
+            })
+            .map(|entry| entry.job.id.clone())
+            .collect();
+        for job_id in pending {
+            // One already installing can't be stopped; the next sync removes what it installs.
+            let _ = self.cancel_download(&job_id);
+        }
         let linked = self.linked_mod_ids(game, modio_id);
         for mod_id in linked {
             match self.uninstall_mod(game, &mod_id) {

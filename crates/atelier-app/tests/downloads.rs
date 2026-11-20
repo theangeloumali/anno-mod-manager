@@ -1326,3 +1326,116 @@ async fn browse_marks_the_mods_you_subscribed_to() {
         .collect();
     assert_eq!(subscribed, [4801]);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn subscribing_while_a_sync_waits_on_modio_is_not_undone_by_it() {
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    Mock::given(path("/v1/games/11358/mods/4801/subscribe"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(fixture("message_201.json")))
+        .mount(&server)
+        .await;
+    // mod.io's answer was fetched before the subscribe, so it doesn't list 4801.
+    Mock::given(method("GET"))
+        .and(path("/v1/me/subscribed"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(fixture("subscriptions_empty.json"))
+                .set_delay(Duration::from_millis(800)),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/v1/games/11358/mods"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(fixture("mods_page.json")))
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    sign_in(&harness);
+
+    let sync = harness.app.sync_subscriptions(GameId::Anno117);
+    let subscribe = async {
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        harness.app.subscribe(GameId::Anno117, 4801).await
+    };
+    let (synced, subscribed) = tokio::join!(sync, subscribe);
+    synced.unwrap();
+    subscribed.unwrap();
+
+    let page = harness
+        .app
+        .browse(&atelier_modio::ModioQuery {
+            game: GameId::Anno117,
+            search: String::new(),
+            tags: Vec::new(),
+            sort: atelier_modio::ModioSort::Trending,
+            subscribed_only: false,
+            offset: 0,
+        })
+        .await
+        .unwrap();
+    assert!(
+        page.items
+            .iter()
+            .any(|item| item.id == 4801 && item.subscribed)
+    );
+}
+
+#[tokio::test]
+async fn unsubscribing_stops_a_download_that_has_not_installed_yet() {
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    slow_download(&server, Duration::from_millis(1500)).await;
+    Mock::given(path("/v1/games/11358/mods/4801/subscribe"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(fixture("message_201.json")))
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    sign_in(&harness);
+    harness.app.subscribe(GameId::Anno117, 4801).await.unwrap();
+
+    harness
+        .app
+        .unsubscribe(GameId::Anno117, 4801)
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(2000)).await;
+
+    assert!(harness.app.list_downloads().is_empty());
+    assert!(!is_installed(&harness, "roman-roads"));
+}
+
+#[tokio::test]
+async fn a_removal_that_failed_on_unsubscribe_is_retried_by_the_next_sync() {
+    let server = MockServer::start().await;
+    serve_modio_mod(&server, 4801, "roman-roads", "1.0.0").await;
+    Mock::given(path("/v1/games/11358/mods/4801/subscribe"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(fixture("message_201.json")))
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    sign_in(&harness);
+    download(&harness, 4801).await;
+    // A file where the backups folder goes makes the removal fail.
+    let backups = harness.root.path().join("data/backups");
+    let _ = std::fs::remove_dir_all(&backups);
+    std::fs::write(&backups, "").unwrap();
+
+    assert!(
+        harness
+            .app
+            .unsubscribe(GameId::Anno117, 4801)
+            .await
+            .is_err()
+    );
+    assert!(is_installed(&harness, "roman-roads"));
+
+    std::fs::remove_file(&backups).unwrap();
+    serve_subscriptions(&server, "subscriptions_empty.json").await;
+    harness
+        .app
+        .sync_subscriptions(GameId::Anno117)
+        .await
+        .unwrap();
+    assert!(!is_installed(&harness, "roman-roads"));
+}
