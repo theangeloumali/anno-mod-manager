@@ -59,7 +59,9 @@ export function HealthScreen() {
         description={`Problems Atelier can predict before ${shortName} starts, plus what the game's mod loader reported last time it ran.`}
         actions={
           errorCount ? (
-            <StateBadge tone="error">{errorCount} errors</StateBadge>
+            <StateBadge tone="error">
+              {errorCount} {errorCount === 1 ? "error" : "errors"}
+            </StateBadge>
           ) : (
             <StateBadge tone="ok">Ready to launch</StateBadge>
           )
