@@ -94,6 +94,11 @@ const PART_CHARS: usize = 1000;
 /// Marks a header entry that names how many parts follow; no token or key starts with it.
 const PARTS_HEADER: &str = "atelier-parts:";
 
+/// How many parts a header entry names; `None` for a plain secret.
+fn part_count(head: &str) -> Option<usize> {
+    head.strip_prefix(PARTS_HEADER)?.parse().ok()
+}
+
 fn part_name(user: &str, index: usize) -> String {
     format!("{user}.{index}")
 }
@@ -102,12 +107,11 @@ fn load_split(slots: &dyn Slots, user: &str) -> Result<Option<String>> {
     let Some(head) = slots.get(user)? else {
         return Ok(None);
     };
-    let Some(count) = head.strip_prefix(PARTS_HEADER) else {
+    if !head.starts_with(PARTS_HEADER) {
         return Ok(Some(head));
-    };
-    let count: usize = count
-        .parse()
-        .map_err(|_| Error::TokenStore("unreadable saved sign-in; sign in again".into()))?;
+    }
+    let count = part_count(&head)
+        .ok_or_else(|| Error::TokenStore("unreadable saved sign-in; sign in again".into()))?;
     let mut secret = String::new();
     for index in 0..count {
         let part = slots.get(&part_name(user, index))?.ok_or_else(|| {
@@ -136,10 +140,7 @@ fn save_split(slots: &dyn Slots, user: &str, secret: &str) -> Result<()> {
 }
 
 fn clear_split(slots: &dyn Slots, user: &str) -> Result<()> {
-    if let Some(count) = slots
-        .get(user)?
-        .and_then(|head| head.strip_prefix(PARTS_HEADER)?.parse::<usize>().ok())
-    {
+    if let Some(count) = slots.get(user)?.as_deref().and_then(part_count) {
         for index in 0..count {
             slots.delete(&part_name(user, index))?;
         }

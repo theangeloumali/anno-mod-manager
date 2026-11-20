@@ -1,19 +1,15 @@
 import { KeyRoundIcon, TrashIcon } from "lucide-react";
-import { useState } from "react";
 import { ExternalLink } from "@/components/app/external-link";
-import { FIELD_CLASS } from "@/components/app/field-class";
-import { errorMessage } from "@/components/app/format";
 import { withToast } from "@/components/app/notify";
 import { Button } from "@/components/ui/button";
 import { useAccount, useAction } from "@/data/source";
+import { SecretForm } from "./secret-form";
 
 const MODIO_ACCESS_URL = "https://mod.io/me/access";
 
 /** Each user brings their own mod.io API key; the app never ships or shares one. */
 export function ApiKeyPanel() {
   const { data: account } = useAccount();
-  const [apiKey, setApiKey] = useState("");
-  const [keyError, setKeyError] = useState<string | null>(null);
   const saveKey = useAction((source, key: string) => source.setApiKey(key));
   const clearKey = useAction((source) => source.clearApiKey());
   const box = "flex flex-col gap-3 rounded-field border border-line bg-bg p-4";
@@ -45,57 +41,23 @@ export function ApiKeyPanel() {
     );
 
   return (
-    <form
-      className={box}
-      onSubmit={async (event) => {
-        event.preventDefault();
-        setKeyError(null);
-        try {
-          await saveKey.mutateAsync([apiKey.trim()]);
-          setApiKey("");
-        } catch (error) {
-          setKeyError(errorMessage(error));
-        }
-      }}
-    >
-      <label htmlFor="modio-api-key" className="text-ui font-semibold">
-        Your mod.io API key
-      </label>
-      <p id="modio-api-key-hint" className="text-label text-copy-muted">
-        Browsing mod.io needs your own key. Get it free at{" "}
-        <ExternalLink href={MODIO_ACCESS_URL}>mod.io/me/access</ExternalLink>{" "}
-        under "API Access". It's stored in Windows Credential Manager, never in
-        a file.
-      </p>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <input
-          id="modio-api-key"
-          type="password"
-          autoComplete="off"
-          spellCheck={false}
-          required
-          value={apiKey}
-          aria-invalid={keyError ? true : undefined}
-          aria-describedby={
-            keyError ? "modio-api-key-error" : "modio-api-key-hint"
-          }
-          onChange={(event) => setApiKey(event.target.value)}
-          className={`${FIELD_CLASS} font-mono`}
-          placeholder="32-character key"
-        />
-        <Button type="submit" variant="steel" disabled={saveKey.isPending}>
-          Save key
-        </Button>
-      </div>
-      {keyError && (
-        <p
-          id="modio-api-key-error"
-          role="alert"
-          className="text-ui text-danger"
-        >
-          {keyError}
-        </p>
-      )}
-    </form>
+    <SecretForm
+      id="modio-api-key"
+      label="Your mod.io API key"
+      hint={
+        <>
+          Browsing mod.io needs your own key. Get it free at{" "}
+          <ExternalLink href={MODIO_ACCESS_URL}>mod.io/me/access</ExternalLink>{" "}
+          under "API Access". It's stored in Windows Credential Manager, never
+          in a file.
+        </>
+      }
+      type="password"
+      fieldClassName="font-mono"
+      placeholder="32-character key"
+      submitLabel="Save key"
+      isPending={saveKey.isPending}
+      onSubmit={(key) => saveKey.mutateAsync([key])}
+    />
   );
 }

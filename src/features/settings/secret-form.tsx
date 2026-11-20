@@ -11,6 +11,7 @@ export function SecretForm({
   type,
   placeholder,
   submitLabel,
+  fieldClassName = "",
   isPending,
   onSubmit,
   onBack,
@@ -20,11 +21,13 @@ export function SecretForm({
   label: string;
   hint: ReactNode;
   type: "email" | "text" | "password";
+  /** Extra classes for the field, e.g. a monospace key. */
+  fieldClassName?: string;
   placeholder: string;
   submitLabel: string;
   isPending: boolean;
   onSubmit: (value: string) => Promise<void>;
-  onBack: () => void;
+  onBack?: () => void;
   extra?: ReactNode;
 }) {
   const [value, setValue] = useState("");
@@ -62,7 +65,7 @@ export function SecretForm({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : hintId}
           onChange={(event) => setValue(event.target.value)}
-          className={FIELD_CLASS}
+          className={`${FIELD_CLASS} ${fieldClassName}`}
           placeholder={placeholder}
         />
         <Button type="submit" variant="steel" disabled={isPending}>
@@ -74,12 +77,16 @@ export function SecretForm({
           {error}
         </p>
       )}
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="quiet" onClick={onBack}>
-          Back
-        </Button>
-        {extra}
-      </div>
+      {(onBack || extra) && (
+        <div className="flex flex-wrap gap-2">
+          {onBack && (
+            <Button type="button" variant="quiet" onClick={onBack}>
+              Back
+            </Button>
+          )}
+          {extra}
+        </div>
+      )}
     </form>
   );
 }
