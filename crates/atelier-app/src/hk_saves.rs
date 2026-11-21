@@ -121,17 +121,23 @@ impl App {
         )
     }
 
-    /// The path comes from the UI, so it must resolve inside Save Files.
+    /// The path comes from the UI, so it must resolve inside Save Files. A relative or network
+    /// path is refused unresolved: resolving it would touch the cwd or a remote share.
     fn read_save(&self, game: GameId, path: &Path) -> Result<Save> {
         let save_files = humankind_dir(game, &self.0.documents)?.join(saves::SAVE_FILES_DIR);
+        let refused = || {
+            AppError::new(
+                ErrorCode::InvalidInput,
+                "Choose a save from Humankind's Save Files folder.",
+            )
+        };
+        let text = path.to_string_lossy();
+        if !path.is_absolute() || text.starts_with("\\\\") || text.starts_with("//") {
+            return Err(refused());
+        }
         let file = match (save_files.canonicalize(), path.canonicalize()) {
             (Ok(root), Ok(file)) if file.starts_with(&root) && file.is_file() => file,
-            _ => {
-                return Err(AppError::new(
-                    ErrorCode::InvalidInput,
-                    "Choose a save from Humankind's Save Files folder.",
-                ));
-            }
+            _ => return Err(refused()),
         };
         saves::read_save(&file)
             .map_err(|error| AppError::new(ErrorCode::InvalidInput, format!("This save {error}.")))

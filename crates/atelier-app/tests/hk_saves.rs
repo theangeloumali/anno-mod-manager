@@ -411,3 +411,24 @@ fn a_workshop_copy_blocks_restoring_and_is_named() {
         Some("0.9")
     );
 }
+
+#[test]
+fn a_relative_or_network_style_path_is_refused_before_it_is_resolved() {
+    let harness = Harness::new();
+    let save = write_save(&harness, "one.ctr", "eventful");
+    let save = save.canonicalize().unwrap();
+    let climb_to_root = std::env::current_dir()
+        .unwrap()
+        .components()
+        .skip(1)
+        .map(|_| "..")
+        .collect::<PathBuf>();
+    let relative = climb_to_root.join(save.strip_prefix("/").unwrap());
+    let doubled = PathBuf::from(format!("/{}", save.display()));
+
+    for path in [relative, doubled] {
+        assert!(path.canonicalize().is_ok(), "{} resolves", path.display());
+        let error = harness.app.inspect_save(HUMANKIND, &path).unwrap_err();
+        assert_eq!(error.code, ErrorCode::InvalidInput, "{}", path.display());
+    }
+}
