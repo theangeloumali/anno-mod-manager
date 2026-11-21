@@ -511,17 +511,14 @@ impl App {
     }
 }
 
+/// Only reached for a copy outside Documents.
 fn read_only_error(shipped: &Mod) -> AppError {
-    let place = match shipped.location {
-        ModLocation::Ubi => "Ubisoft-managed .ubi folder",
-        ModLocation::Workshop => "Steam Workshop folder",
-        ModLocation::Game | ModLocation::Documents => "game folder",
-    };
     AppError::new(
         ErrorCode::ReadOnly,
         format!(
-            "{} lives in the {place}. Atelier only removes mods in Documents.",
-            shipped.name
+            "{} lives in the {}. Atelier only removes mods in Documents.",
+            shipped.name,
+            shipped.location.place()
         ),
     )
 }

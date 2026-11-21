@@ -610,3 +610,38 @@ fn a_lone_module_on_anno_is_built_for_humankind() {
         "{item:#?}"
     );
 }
+
+#[test]
+fn a_workshop_copy_is_a_duplicate_and_nothing_installs() {
+    let sandbox = Sandbox::new();
+    let long = long_name("Sigma Pack", "2.5");
+    let workshop = sandbox.root.path().join("workshop/content/1124300/3001");
+    write_tree(&workshop.join(&long), &[(&long, "module")]);
+    let folder = atelier_core::scan::ModsFolder {
+        path: workshop,
+        location: atelier_core::ModLocation::Workshop,
+    };
+    let installed = atelier_core::scan::scan(HUMANKIND, &[folder]).unwrap().mods;
+    let archive = drop_zip(
+        &sandbox,
+        "Sigma.zip",
+        &module_files("S", "Sigma Pack", "2.6"),
+    );
+
+    let preview = sandbox
+        .engine
+        .preview_with_options(
+            HUMANKIND,
+            &[archive],
+            &installed,
+            &PreviewOptions::default(),
+        )
+        .unwrap();
+
+    let item = only_item(&preview);
+    assert_eq!(item.status, InstallItemStatus::Invalid);
+    assert!(
+        has_check(item, Severity::Error, "Steam Workshop folder"),
+        "{item:#?}"
+    );
+}

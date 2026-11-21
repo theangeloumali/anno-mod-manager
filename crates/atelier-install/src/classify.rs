@@ -229,23 +229,22 @@ impl<'a> Classifier<'a> {
         }
     }
 
-    /// A Documents copy Atelier didn't install would load alongside the new one.
+    /// A copy Atelier didn't install (Documents, Workshop or game folder) would load alongside
+    /// the new one.
     fn copy_outside_atelier(&self, mod_id: &str) -> Option<String> {
         let atelier = format!("{ATELIER_FOLDER}/");
-        self.installed
-            .iter()
-            .find(|copy| {
-                copy.game == GameId::Humankind
-                    && copy.id == mod_id
-                    && copy.location == ModLocation::Documents
-                    && !copy.folder.starts_with(&atelier)
-            })
-            .map(|copy| {
-                format!(
-                    "Already installed in Community\\{}; remove that copy first so Humankind doesn't load it twice",
-                    copy.folder.replace('/', "\\")
-                )
-            })
+        let copy = self.installed.iter().find(|copy| {
+            copy.game == GameId::Humankind
+                && copy.id == mod_id
+                && (copy.location != ModLocation::Documents || !copy.folder.starts_with(&atelier))
+        })?;
+        let place = match copy.location {
+            ModLocation::Documents => format!("Community\\{}", copy.folder.replace('/', "\\")),
+            other => format!("the {}", other.place()),
+        };
+        Some(format!(
+            "Already installed in {place}; remove that copy first so Humankind doesn't load it twice"
+        ))
     }
 
     fn wrong_game(

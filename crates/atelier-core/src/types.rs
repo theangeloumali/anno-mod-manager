@@ -34,6 +34,18 @@ pub enum ModLocation {
     Workshop,
 }
 
+impl ModLocation {
+    /// The folder as players know it, for messages.
+    pub fn place(self) -> &'static str {
+        match self {
+            Self::Documents => "Documents mods folder",
+            Self::Game => "game folder",
+            Self::Ubi => "Ubisoft-managed .ubi folder",
+            Self::Workshop => "Steam Workshop folder",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ModOrigin {
