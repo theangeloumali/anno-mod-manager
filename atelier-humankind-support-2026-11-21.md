@@ -237,7 +237,7 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
   - Install target `Community\Atelier\<modId>_<modfileId>\`.
   - Install crate: `roots.rs:76-91` recognises a Humankind root (a `<Name>.<guid32>.<n>.<n>` file next to its `.assetbundle`). `classify.rs` and `stage.rs` get Humankind wording and targets. BepInEx plugin zips (a `BepInEx/plugins` tree or a lone `.dll`) are a separate kind that installs to `<install>\BepInEx\plugins\`.
   - Verify: `set -o pipefail; cargo test -p atelier-modio -p atelier-install -p atelier-app 2>&1 | tail -15` passes (wiremock for mod.io, a fixture zip per root kind)
-- [ ] Phase 6: Live verification on this PC (needs the shared game lock, `~/.claude/state/game-access.lock`)
+- [x] Phase 6: Live verification on this PC (needs the shared game lock, `~/.claude/state/game-access.lock`)
   - Back up `Registry.xml` to `.backup/`.
   - From a debug build:
     1. Apply a 2-mod profile, launch through Steam, and confirm the game loaded that order. Read the game's `Temporary Files\Diagnostics` "Set up new configuration" line.
