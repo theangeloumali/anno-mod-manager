@@ -1,13 +1,34 @@
 //! Byte decoding and JSONC clean-up shared by modinfo and the options file.
 
 use std::fs;
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Read};
 use std::path::Path;
 
 use encoding_rs::{BIG5, Encoding, GB18030, WINDOWS_1252};
 
-use crate::Result;
 use crate::error::io_at;
+use crate::{Error, Result};
+
+/// Far above any Registry.xml or history file the game and plugin write.
+const MAX_READ_BYTES: u64 = 8 * 1024 * 1024;
+
+/// The file's bytes, `Ok(None)` when it does not exist, `TooLarge` past the cap.
+pub(crate) fn read_capped(path: &Path) -> Result<Option<Vec<u8>>> {
+    let file = match fs::File::open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(io_at(path)(error)),
+    };
+    let mut bytes = Vec::new();
+    // Reads one byte past the cap, so a file that grows after a size check is still caught.
+    file.take(MAX_READ_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(io_at(path))?;
+    if bytes.len() as u64 > MAX_READ_BYTES {
+        return Err(Error::TooLarge(path.to_path_buf()));
+    }
+    Ok(Some(bytes))
+}
 
 /// Reads and decodes a text file; `Ok(None)` when it does not exist.
 pub(crate) fn read_optional(path: &Path) -> Result<Option<String>> {

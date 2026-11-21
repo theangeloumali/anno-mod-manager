@@ -137,6 +137,17 @@ fn missing_registry_reads_as_the_base_game_only() {
 }
 
 #[test]
+fn an_oversized_registry_is_refused_rather_than_read() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("Registry.xml");
+    fs::write(&path, vec![b' '; 9 * 1024 * 1024]).unwrap();
+    let error = registry::read_modules(&path).unwrap_err();
+    assert!(matches!(error, Error::TooLarge(_)), "{error:?}");
+    let error = registry::write_modules(&path, &[], &snapshots(tmp.path())).unwrap_err();
+    assert!(matches!(error, Error::TooLarge(_)), "{error:?}");
+}
+
+#[test]
 fn registry_write_changes_only_the_module_value() {
     let tmp = tempfile::tempdir().unwrap();
     let path = registry_file(&game_dir(tmp.path()));

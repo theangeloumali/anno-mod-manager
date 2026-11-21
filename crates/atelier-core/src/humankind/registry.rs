@@ -1,6 +1,6 @@
 //! The ordered module list in Registry.xml, `<RuntimeModuleConfiguration>a/b/c</…>`.
 
-use std::fs;
+use std::io::ErrorKind;
 use std::ops::Range;
 use std::path::Path;
 
@@ -8,7 +8,7 @@ use super::module_name::short_name;
 use crate::activation::Snapshots;
 use crate::error::io_at;
 use crate::snapshots::write_with_snapshot;
-use crate::text::read_optional;
+use crate::text::{decode, read_capped};
 use crate::{Error, Result};
 
 /// The base game; the game loads it first and falls back to it alone when the list is empty.
@@ -26,7 +26,9 @@ enum Value {
 
 /// A missing file or empty value reads as the base game alone, as the game treats it.
 pub fn read_modules(path: &Path) -> Result<Vec<String>> {
-    let text = read_optional(path)?.unwrap_or_default();
+    let text = read_capped(path)?
+        .map(|bytes| decode(&bytes))
+        .unwrap_or_default();
     let modules: Vec<String> = match find_value(&text) {
         Some(Value::Between(range)) => text[range]
             .split(SEPARATOR)
@@ -44,7 +46,7 @@ pub fn read_modules(path: &Path) -> Result<Vec<String>> {
 
 /// Rewrites only the value, keeping the BOM, line endings and every other byte.
 pub fn write_modules(path: &Path, modules: &[String], snapshots: &Snapshots) -> Result<()> {
-    let bytes = fs::read(path).map_err(io_at(path))?;
+    let bytes = read_capped(path)?.ok_or_else(|| io_at(path)(ErrorKind::NotFound.into()))?;
     let invalid = || Error::InvalidRegistry(path.to_path_buf());
     let text = String::from_utf8(bytes).map_err(|_| invalid())?;
     let value = escape(&base_first(modules).join(SEPARATOR));

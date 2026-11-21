@@ -462,6 +462,19 @@ fn a_log_older_than_the_plugins_is_stale() {
 }
 
 #[test]
+fn a_log_is_read_only_up_to_its_size_cap() {
+    let harness = humankind();
+    let mut log = " ".repeat(9 * 1024 * 1024);
+    log.push_str("\n[Info   :   BepInEx] Loading [Past The Cap 1.0]\n");
+    write(&harness.install_dir().join("BepInEx/LogOutput.log"), &log);
+
+    let status = harness.app.bepinex_status(HUMANKIND).unwrap();
+
+    assert!(status.log_found);
+    assert!(status.plugins.is_empty());
+}
+
+#[test]
 fn status_without_a_log_reports_no_plugins() {
     let harness = humankind();
 

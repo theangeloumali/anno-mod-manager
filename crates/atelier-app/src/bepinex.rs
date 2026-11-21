@@ -25,6 +25,8 @@ const LOG: &str = "BepInEx/LogOutput.log";
 const MAX_RELEASE_JSON: usize = 1024 * 1024;
 const MAX_ASSET_BYTES: usize = 16 * 1024 * 1024;
 const MAX_UNPACKED_BYTES: u64 = 64 * 1024 * 1024;
+/// The version and plugin lines come first in a session's log; the rest is never needed.
+const MAX_LOG_BYTES: u64 = 8 * 1024 * 1024;
 
 /// Where the release listing comes from, and the SHA-256 its asset must have.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -389,9 +391,11 @@ fn status(install: &Path) -> BepInExStatus {
     let present = bepinex_installed(install);
     let installed_by_atelier = install.join(INSTALLED_LIST).is_file();
     let log_path = install.join(LOG);
-    let log = fs::read(&log_path)
-        .ok()
-        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned());
+    let log = fs::File::open(&log_path).ok().and_then(|file| {
+        let mut bytes = Vec::new();
+        file.take(MAX_LOG_BYTES).read_to_end(&mut bytes).ok()?;
+        Some(String::from_utf8_lossy(&bytes).into_owned())
+    });
     let (logged_version, plugins) = log.as_deref().map(parse_log).unwrap_or_default();
     // An Atelier list names the version for sure; a log may be left from an earlier copy.
     let version = if installed_by_atelier {

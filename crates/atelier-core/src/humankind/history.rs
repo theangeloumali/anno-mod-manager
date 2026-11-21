@@ -1,14 +1,12 @@
 //! The ModListGuard plugin's log of every change to the game's saved mod list, one JSON object
 //! per line, so a list the game reset to vanilla can be put back.
 
-use std::fs;
-use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::Result;
-use crate::error::io_at;
+use crate::text::read_capped;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,10 +37,8 @@ pub fn history_path(game_dir: &Path) -> PathBuf {
 
 /// Newest first. A line the plugin cut short or that isn't an entry is skipped, not an error.
 pub fn read_history(path: &Path) -> Result<Vec<HistoryEntry>> {
-    let bytes = match fs::read(path) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(io_at(path)(error)),
+    let Some(bytes) = read_capped(path)? else {
+        return Ok(Vec::new());
     };
     let mut entries: Vec<HistoryEntry> = bytes
         .split(|byte| *byte == b'\n')

@@ -299,6 +299,17 @@ fn no_history_file_lists_nothing() {
 }
 
 #[test]
+fn an_oversized_history_file_is_refused_with_a_clear_error() {
+    let harness = setup();
+    let path = game_dir(&harness).join("ModListGuard/history.jsonl");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, vec![b'\n'; 9 * 1024 * 1024]).unwrap();
+    let error = harness.app.mod_list_history().unwrap_err();
+    assert_eq!(error.code, ErrorCode::Io);
+    assert!(error.message.contains("too large"), "{}", error.message);
+}
+
+#[test]
 fn history_lists_newest_first() {
     let harness = setup();
     write_history(

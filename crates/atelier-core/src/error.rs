@@ -41,6 +41,8 @@ pub enum Error {
         .0.join(", ")
     )]
     MissingModules(Vec<String>),
+    #[error("{0} is too large to be a file the game wrote, so Atelier won't read it")]
+    TooLarge(PathBuf),
 }
 
 /// Attaches the path to an I/O error, which `io::Error` alone never says.

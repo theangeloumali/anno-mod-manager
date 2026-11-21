@@ -77,7 +77,8 @@ impl From<atelier_core::Error> for AppError {
             Core::Io { .. }
             | Core::Json(_)
             | Core::InvalidModInfo(_)
-            | Core::InvalidRegistry(_) => ErrorCode::Io,
+            | Core::InvalidRegistry(_)
+            | Core::TooLarge(_) => ErrorCode::Io,
         };
         Self::new(code, error.to_string())
     }
