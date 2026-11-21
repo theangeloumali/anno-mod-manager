@@ -4,4 +4,5 @@ pub mod bundle;
 pub mod detect;
 pub mod module_name;
 pub mod registry;
+pub mod saves;
 pub(crate) mod scan;

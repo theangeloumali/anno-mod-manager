@@ -11,7 +11,7 @@ mod stage;
 mod types;
 mod version;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -21,6 +21,7 @@ use atelier_core::{GameId, Mod};
 use classify::Classifier;
 use install::StagedItem;
 
+pub use backup::{BackupVersion, KeptVersion};
 pub use error::{Error, Result};
 pub use types::*;
 
@@ -191,6 +192,30 @@ impl InstallEngine {
         backup::rollback(&self.game_backups(game), target_mods_dir, mod_id)
     }
 
+    /// Restores the newest backup of `mod_id` at `version`: into `installed_dir` when the mod
+    /// has a copy there (it must sit inside `target_mods_dir`), else into its own folder.
+    pub fn restore_version(
+        &self,
+        game: GameId,
+        mod_id: &str,
+        version: &str,
+        target_mods_dir: &Path,
+        installed_dir: Option<&Path>,
+    ) -> Result<()> {
+        backup::restore_version(
+            &self.game_backups(game),
+            target_mods_dir,
+            mod_id,
+            version,
+            installed_dir,
+        )
+    }
+
+    /// Every backed-up version of `game`'s `mod_id`, newest first.
+    pub fn backup_versions(&self, game: GameId, mod_id: &str) -> Result<Vec<BackupVersion>> {
+        backup::list_versions(&self.game_backups(game), mod_id)
+    }
+
     /// Lets a same-version item install as an update, for a new mod.io file whose author
     /// didn't bump the manifest version. Other statuses are left alone.
     pub fn allow_reinstall(&self, preview_id: &str, mod_id: &str) -> Result<()> {
@@ -213,8 +238,22 @@ impl InstallEngine {
     }
 
     pub fn prune_backups(&self) -> Result<()> {
+        self.prune_backups_keeping(&HashSet::new())
+    }
+
+    /// [`Self::prune_backups`], never deleting a version in `kept`.
+    pub fn prune_backups_keeping(&self, kept: &HashSet<KeptVersion>) -> Result<()> {
         for game in GameId::ALL {
-            backup::prune(&self.game_backups(game), self.config.retention_days)?;
+            let game_kept = kept
+                .iter()
+                .filter(|version| version.game == game)
+                .map(|version| (version.mod_id.clone(), version.version.clone()))
+                .collect();
+            backup::prune(
+                &self.game_backups(game),
+                self.config.retention_days,
+                &game_kept,
+            )?;
         }
         Ok(())
     }

@@ -4,6 +4,7 @@
 mod collections;
 mod downloads;
 mod error;
+mod hk_saves;
 mod install;
 mod library;
 mod modio;
@@ -23,6 +24,7 @@ use atelier_modio::{ModioClient, TokenStore};
 use url::Url;
 
 pub use error::{AppError, ErrorCode, Result};
+pub use hk_saves::{SaveInspection, SaveLoadReport};
 pub use modio::{AppAccount, AuthMethod};
 pub use state::{NewModsStart, Settings, UpdateChannel, UpdateCheck};
 
@@ -143,10 +145,12 @@ impl App {
     }
 
     /// Uses the current retention setting; the long-lived engine holds the one from startup.
+    /// Versions a save was played with are never pruned.
     pub(crate) fn prune_backups(&self) -> Result<()> {
         let retention = self.settings().backup_retention_days;
+        let kept = self.versions_saves_need()?;
         InstallEngine::new(engine_config(&self.0.data_dir, retention))
-            .prune_backups()
+            .prune_backups_keeping(&kept)
             .map_err(AppError::from)
     }
 

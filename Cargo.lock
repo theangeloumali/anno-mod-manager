@@ -234,6 +234,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "winreg 0.55.0",
+ "zip",
 ]
 
 [[package]]
