@@ -700,6 +700,41 @@ Each one becomes an exhaustive `match` with a test.
    Read-only roots: Workshop 1124300 · Public\Modification · Community\mod.io
 ```
 
+## As built (2026-11-22)
+
+Notes on how the build differs from the plan:
+
+- **Where the module type comes from:** the large `.assetbundle`, not the 4 KB file. The small file turned out to be the AssetBundleManifest.
+- **One write pipeline:** every list write goes through `humankind::order::write`. It validates the order as given, refuses a list that names an uninstalled module, and saves a snapshot before writing. The two callers are `set_load_order` and the save keeper; Library on/off switches use the same rules when switching a mod on. Removal (switch-off or uninstall) uses `order::remove`, which can only shorten the list, so a stale entry never blocks it.
+- **Launch:** refused while the registry names a missing module.
+- **Uninstall:** takes the module out of the registry first.
+
+```ascii
+ React (src/features)                          Tauri commands (src-tauri/src/commands)
+ ┌──────────────────────────────────────┐      ┌───────────────────────────────────────┐
+ │ load-order/humankind-editor ─────────┼─────▶│ library.rs: list/switch/save/delete/  │
+ │ library/profile-bar + history-sheet  │      │   export profile, load_order, launch  │
+ │ saves/ (list, detail, make loadable) │      │ humankind.rs: set_load_order,         │
+ │ health/bepinex-card · launch-button  │      │   launch_blockers, saves, history,    │
+ │ data/mock-source (same rules, tests) │      │   bepinex status/install/uninstall    │
+ └──────────────────────────────────────┘      └──────────────────┬────────────────────┘
+                                                                   ▼
+ atelier-app (impl App)   library.rs routes Humankind ─▶ hk_order.rs · hk_saves.rs · bepinex.rs
+                          write_guard (game closed) · launch guard · uninstall → order::remove
+                                                                   │
+ atelier-core/humankind    ┌───────────────────────────────────────┴──────────────────────┐
+                           │ scan ─ bundle (UnityFS/LZ4, capped) ─ module_name             │
+                           │ order::{read, write, remove} ─▶ load_order rules ─▶ registry  │
+                           │ saves (capped, linear parse) · history (capped) · profiles    │
+                           │ health/humankind: missing modules, dup guids, pagefile, vulkan│
+                           └───────────────┬──────────────────────────────┬────────────────┘
+ atelier-install                           │ snapshot, then write          │ installs
+   roots/classify: modules, plugins        ▼                               ▼
+   (no plugins from downloads), dupes  Users\<id>\Registry.xml   Community\Atelier\… · BepInEx\plugins\…
+   backup: versioned restore, saves'   (one element; BOM+CRLF)   (Workshop/game copies refused)
+   versions never pruned
+```
+
 ## Risks
 
 - **UnityFS type-tree parsing** may fail on some bundles. The spike gate and the "unverified" badge cover it; the load order still works, because Extensions are the common case.
