@@ -618,7 +618,7 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
   - Health: the new checks plus the BepInEx install card.
   - Mock data source: Humankind fixtures for every screen.
   - Verify: `pnpm build` passes and the dev server shows 0 console errors at 375px and desktop width on every new screen (DevTools check)
-- [ ] Phase 9: Close
+- [x] Phase 9: Close
   - Run /simplify.
   - Wave 2 review: @maya + @kai on the whole diff, then the Codex pass if logged in.
   - Fix every Wave 2 finding (backend @ravi, UI @lena, test first), then @maya re-checks the fixes.
