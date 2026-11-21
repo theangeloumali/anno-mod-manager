@@ -9,6 +9,7 @@ import {
   setHumankindModActive,
   writeHumankindOrder,
 } from "../../src/data/mock-humankind.ts";
+import { CoreError } from "../../src/data/core-error.ts";
 import { MISSING_MODULE } from "../../src/data/mock-humankind-seeds.ts";
 import { mockSource, resetMockData } from "../../src/data/mock-source.ts";
 
@@ -74,17 +75,21 @@ test("a save with a missing mod restores what it can and leaves the registry alo
   assert.deepEqual(hk.order, before);
 });
 
-test("a save version only a Workshop copy could provide is reported, not restored", () => {
+test("a save version only a Workshop copy could provide is refused before anything is restored", () => {
   const { hk, mods } = setup();
   const sigma = mods.find((mod) => mod.id === "sigma pack");
   assert.ok(sigma);
   sigma.location = "workshop";
   const save = hk.saves.saves[0];
   assert.ok(save);
-  const report = makeHumankindSaveLoadable(hk, mods, save.path);
-  assert.deepEqual(report.restored, []);
+  assert.throws(
+    () => makeHumankindSaveLoadable(hk, mods, save.path),
+    (error: unknown) =>
+      error instanceof CoreError &&
+      error.code === "read-only" &&
+      error.message.includes("Steam Workshop folder"),
+  );
   assert.equal(sigma.version, "3.2");
-  assert.ok(report.missing.some((check) => check.name === "sigma pack"));
 });
 
 const hkOrder = async () =>

@@ -17,6 +17,7 @@ import type {
   LoadOrder,
   Mod,
   ModCheck,
+  ModLocation,
   Profile,
   SaveInspection,
   SaveLoadReport,
@@ -256,6 +257,14 @@ export function inspectHumankindSave(
 }
 
 /** Puts back backed-up versions; writes the list only when every mod then matches. */
+/** Mirrors `ModLocation::place` in the core, so mock refusals read like real ones. */
+export const READ_ONLY_PLACE: Record<ModLocation, string> = {
+  documents: "Documents mods folder",
+  game: "game folder",
+  ubi: "Ubisoft-managed .ubi folder",
+  workshop: "Steam Workshop folder",
+};
+
 export function makeHumankindSaveLoadable(
   hk: HumankindMock,
   mods: Mod[],
@@ -263,14 +272,20 @@ export function makeHumankindSaveLoadable(
 ): SaveLoadReport {
   const save = findSave(hk, path);
   requireRegistry(hk);
-  // A Workshop or game-folder copy is read-only, so only a Documents copy can be swapped.
-  const isWritable = (name: string) =>
-    mods.find((mod) => mod.id === name)?.location === "documents";
+  // As the core: a read-only copy at the wrong version would load beside a restored one.
+  const readOnly = checkMods(mods, save.mods)
+    .filter((check) => check.status.kind !== "exact" && check.version)
+    .map((check) => mods.find((mod) => mod.id === check.name))
+    .find((mod) => mod !== undefined && mod.location !== "documents");
+  if (readOnly)
+    throw new CoreError(
+      "read-only",
+      `${readOnly.id} is in the ${READ_ONLY_PLACE[readOnly.location]}, which Atelier can't change, so the version this save was played with wasn't put back. Remove that copy first.`,
+    );
   const restored = checkMods(mods, save.mods)
     .filter(
       (check) =>
         check.status.kind === "otherVersion" &&
-        isWritable(check.name) &&
         BACKED_UP_VERSIONS.has(`${check.name}@${check.version}`),
     )
     .map(({ name, version }) => ({ name, version }));

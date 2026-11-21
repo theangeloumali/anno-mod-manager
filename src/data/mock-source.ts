@@ -15,6 +15,7 @@ import {
   inspectHumankindSave,
   installHumankindBepinex,
   makeHumankindSaveLoadable,
+  READ_ONLY_PLACE,
   MISSING_MODULE,
   missingModules,
   restoreHumankindHistory,
@@ -1707,7 +1708,7 @@ function buildPreviewItem(seed: PackSeed, game: GameId): InstallPreviewItem {
       checks: [
         {
           level: "error",
-          message: `Already installed in the ${installed.location === "workshop" ? "Steam Workshop" : "game"} folder; remove that copy first so Humankind doesn't load it twice`,
+          message: `Already installed in the ${READ_ONLY_PLACE[installed.location]}; remove that copy first so Humankind doesn't load it twice`,
         },
       ],
     };
