@@ -4,8 +4,8 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 
-use atelier_core::{GameId, ModLocation, ModUpdate};
-use atelier_install::{InstallItemStatus, Limits};
+use atelier_core::{GameId, ModLocation, ModUpdate, Severity};
+use atelier_install::{InstallItemStatus, Limits, PreviewOptions};
 use atelier_modio::{DownloadJob, DownloadProgress, DownloadStatus, Modfile, UpdateCheck};
 use tokio::task::AbortHandle;
 
@@ -549,8 +549,28 @@ impl App {
         // mod.io measures the unpacked size, so a large mod gets the room it needs; the
         // archive's real size bounds that, so the figure can't open the door to a zip bomb.
         let archive_bytes = std::fs::metadata(archive).map_or(0, |meta| meta.len());
-        let limits = Limits::for_download(modfile.filesize_uncompressed, archive_bytes);
-        let preview = self.preview_install_with(game, &[archive.to_owned()], Some(limits))?;
+        let options = PreviewOptions {
+            limits: Some(Limits::for_download(
+                modfile.filesize_uncompressed,
+                archive_bytes,
+            )),
+            modio_folder: Some(format!("{modio_id}_{modfile_id}")),
+            ..PreviewOptions::default()
+        };
+        let preview = self.preview_install_with(game, &[archive.to_owned()], options)?;
+        // A Humankind module already in mod.io's own folder would load twice; say so, install nothing.
+        if game == GameId::Humankind
+            && let Some(reason) = preview
+                .items
+                .iter()
+                .filter(|item| item.status == InstallItemStatus::Invalid)
+                .flat_map(|item| &item.checks)
+                .find(|check| check.level == Severity::Error)
+        {
+            let message = reason.message.clone();
+            self.cancel_install(&preview.id)?;
+            return Err(AppError::new(ErrorCode::Install, message));
+        }
         let links = self
             .persisted()
             .modio_links

@@ -3,10 +3,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use atelier_core::GameId;
+
 use crate::error::io_at;
 use crate::extract::{Budget, extract_7z, extract_zip, is_mac_metadata};
 use crate::fsops::{child_dirs, copy_tree, file_name, walk_files};
-use crate::roots::{has_data_folder, has_modinfo};
+use crate::roots::{has_data_folder, has_modinfo, has_module_file, has_plugin_files};
 use crate::{Error, Limits, Result};
 
 const MODINFO_NAMES: [&str; 2] = ["modinfo.json", "modinfo.jsonc"];
@@ -18,7 +20,7 @@ enum SourceKind {
 }
 
 /// Stages `source` into `dest` (created here). Every file under `dest` came from the drop.
-pub(crate) fn stage_source(source: &Path, dest: &Path, limits: Limits) -> Result<()> {
+pub(crate) fn stage_source(source: &Path, dest: &Path, game: GameId, limits: Limits) -> Result<()> {
     let name = file_name(source);
     let mut budget = Budget::new(name.clone(), limits);
     let kind = classify(source)?;
@@ -36,7 +38,7 @@ pub(crate) fn stage_source(source: &Path, dest: &Path, limits: Limits) -> Result
     if !has_modinfo_anywhere(dest)? {
         unpack_nested_archives(dest, &mut budget)?;
     }
-    wrap_loose_root(dest, &archive_stem(source))?;
+    wrap_loose_root(dest, game, &archive_stem(source))?;
     if count_files(dest)? == 0 {
         return Err(Error::EmptySource(name));
     }
@@ -100,10 +102,14 @@ fn unpack_nested_archives(dest: &Path, budget: &mut Budget) -> Result<()> {
     Ok(())
 }
 
-/// An archive whose modinfo or `data/` sits at its top level gets a folder named after the archive,
-/// so every root has a folder name to install under.
-fn wrap_loose_root(dest: &Path, stem: &str) -> Result<()> {
-    if !has_modinfo(dest) && !has_data_folder(dest) {
+/// An archive whose modinfo, `data/`, module file or (on Humankind) plugin files sit at its top
+/// level gets a folder named after the archive, so every root has a folder name to install under.
+fn wrap_loose_root(dest: &Path, game: GameId, stem: &str) -> Result<()> {
+    let loose = has_modinfo(dest)
+        || has_data_folder(dest)
+        || has_module_file(dest)
+        || (game == GameId::Humankind && has_plugin_files(dest));
+    if !loose {
         return Ok(());
     }
     let wrapper = dest.join(format!(".{stem}.wrapping"));
