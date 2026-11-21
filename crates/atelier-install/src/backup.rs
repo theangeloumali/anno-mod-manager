@@ -34,8 +34,8 @@ pub struct KeptVersion {
 }
 
 /// A fresh backup slot for `dir`, always newer than any existing backup of the same mod.
-pub(crate) fn backup_path(backup_dir: &Path, dir: &Path) -> Result<PathBuf> {
-    let (mod_id, version) = identity(dir);
+pub(crate) fn backup_path(game: GameId, backup_dir: &Path, dir: &Path) -> Result<PathBuf> {
+    let (mod_id, version) = identity(game, dir);
     let mod_backups = backup_dir.join(new_folder_name(&mod_id));
     let newest = list_backups(&mod_backups)?
         .last()
@@ -45,15 +45,16 @@ pub(crate) fn backup_path(backup_dir: &Path, dir: &Path) -> Result<PathBuf> {
 }
 
 /// Puts the newest backup of `mod_id` back, first backing up the copy it replaces.
-pub(crate) fn rollback(backup_dir: &Path, target: &Path, mod_id: &str) -> Result<()> {
+pub(crate) fn rollback(game: GameId, backup_dir: &Path, target: &Path, mod_id: &str) -> Result<()> {
     check_id(mod_id)?;
     let dest = target.join(target_folder(target, mod_id)?);
-    restore(backup_dir, mod_id, None, &dest)
+    restore(game, backup_dir, mod_id, None, &dest)
 }
 
 /// Puts the newest backup of `mod_id` at `version` back, into `installed` when the mod has a
 /// copy there (it must sit inside `target`), else into the mod's folder in `target`.
 pub(crate) fn restore_version(
+    game: GameId,
     backup_dir: &Path,
     target: &Path,
     mod_id: &str,
@@ -66,7 +67,7 @@ pub(crate) fn restore_version(
         Some(dir) => return Err(Error::UnsafeTarget(dir.to_path_buf())),
         None => target.join(target_folder(target, mod_id)?),
     };
-    restore(backup_dir, mod_id, Some(version), &dest)
+    restore(game, backup_dir, mod_id, Some(version), &dest)
 }
 
 /// Newest first; an id that isn't a plain folder name has no backups.
@@ -116,7 +117,13 @@ pub(crate) fn prune(
 }
 
 /// Moves the chosen backup to `dest`, first backing up whatever is there.
-fn restore(backup_dir: &Path, mod_id: &str, version: Option<&str>, dest: &Path) -> Result<()> {
+fn restore(
+    game: GameId,
+    backup_dir: &Path,
+    mod_id: &str,
+    version: Option<&str>,
+    dest: &Path,
+) -> Result<()> {
     let wanted = version.map(safe_version);
     let (_, chosen) = list_backups(&backup_dir.join(new_folder_name(mod_id)))?
         .into_iter()
@@ -130,7 +137,7 @@ fn restore(backup_dir: &Path, mod_id: &str, version: Option<&str>, dest: &Path) 
             Error::NoBackup(version.map_or(mod_id.to_string(), |v| format!("{mod_id} {v}")))
         })?;
     let displaced = if dest.exists() {
-        let slot = backup_path(backup_dir, dest)?;
+        let slot = backup_path(game, backup_dir, dest)?;
         move_dir(dest, &slot)?;
         Some(slot)
     } else {
@@ -167,7 +174,11 @@ fn is_inside(target: &Path, dir: &Path) -> bool {
 }
 
 /// Humankind folders have no modinfo: their `<Name>.<guid>.<major>.<minor>` file names them.
-fn identity(dir: &Path) -> (String, String) {
+/// Only Humankind looks for one, so an Anno file shaped like it never renames a backup.
+fn identity(game: GameId, dir: &Path) -> (String, String) {
+    if game != GameId::Humankind {
+        return identify(dir);
+    }
     let module = fs::read_dir(dir)
         .into_iter()
         .flatten()

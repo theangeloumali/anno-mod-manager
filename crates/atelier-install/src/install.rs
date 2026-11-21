@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use atelier_core::{modinfo, normalize_mod_id};
+use atelier_core::{GameId, modinfo, normalize_mod_id};
 
 use crate::backup::backup_path;
 use crate::error::io_at;
@@ -42,6 +42,7 @@ enum Step {
 }
 
 pub(crate) fn install_all(
+    game: GameId,
     items: &[StagedItem],
     target: &Path,
     backup_dir: &Path,
@@ -56,7 +57,7 @@ pub(crate) fn install_all(
             result.skipped.push(item_label(item));
             continue;
         }
-        if let Err(cause) = place(staged, target, backup_dir, &mut journal) {
+        if let Err(cause) = place(game, staged, target, backup_dir, &mut journal) {
             return Err(undo(journal, cause));
         }
         result.installed.push(item.mod_id.clone());
@@ -83,6 +84,7 @@ fn item_label(item: &InstallPreviewItem) -> String {
 }
 
 fn place(
+    game: GameId,
     staged: &StagedItem,
     target: &Path,
     backup_dir: &Path,
@@ -100,7 +102,7 @@ fn place(
             {
                 return Err(Error::UnsafeTarget(dest));
             }
-            move_in(staged, &dest, backup_dir, journal)
+            move_in(game, staged, &dest, backup_dir, journal)
         }
         Placement::Module { folder } => {
             let atelier = target.join(ATELIER_FOLDER);
@@ -114,9 +116,9 @@ fn place(
             }
             let old = find_module(&atelier, mod_id)?.filter(|old| *old != dest);
             if let Some(old) = &old {
-                back_up(old, backup_dir, journal)?;
+                back_up(game, old, backup_dir, journal)?;
             }
-            move_in(staged, &dest, backup_dir, journal)?;
+            move_in(game, staged, &dest, backup_dir, journal)?;
             // A replaced mod.io file leaves its `<modId>_<modfileId>` folder empty; remove_dir keeps a full one.
             if let Some(parent) = old
                 .as_deref()
@@ -139,20 +141,21 @@ fn place(
             {
                 return Err(Error::UnsafeTarget(dest));
             }
-            move_in(staged, &dest, backup_dir, journal)
+            move_in(game, staged, &dest, backup_dir, journal)
         }
     }
 }
 
 /// Backs up whatever sits at `dest`, then moves the staged root there.
 fn move_in(
+    game: GameId,
     staged: &StagedItem,
     dest: &Path,
     backup_dir: &Path,
     journal: &mut Vec<Step>,
 ) -> Result<()> {
     if dest.exists() {
-        back_up(dest, backup_dir, journal)?;
+        back_up(game, dest, backup_dir, journal)?;
     }
     move_dir(&staged.staged_dir, dest)?;
     journal.push(Step::Placed {
@@ -162,8 +165,8 @@ fn move_in(
     Ok(())
 }
 
-fn back_up(dir: &Path, backup_dir: &Path, journal: &mut Vec<Step>) -> Result<()> {
-    let backup = backup_path(backup_dir, dir)?;
+fn back_up(game: GameId, dir: &Path, backup_dir: &Path, journal: &mut Vec<Step>) -> Result<()> {
+    let backup = backup_path(game, backup_dir, dir)?;
     move_dir(dir, &backup)?;
     journal.push(Step::BackedUp {
         original: dir.to_path_buf(),

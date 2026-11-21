@@ -262,3 +262,20 @@ fn pruning_keeps_a_humankind_version_a_save_needs() {
 
     assert_eq!(versions(&sandbox, HUMANKIND, "eventful"), ["0.9", "0.7"]);
 }
+
+#[test]
+fn an_anno_mod_holding_a_module_shaped_file_is_backed_up_under_its_modinfo_id() {
+    let sandbox = Sandbox::new();
+    let dir = sandbox.mods().join("Lookalike");
+    write_tree(
+        &dir,
+        &[
+            ("modinfo.json", &modinfo("lookalike", "2.0", Some(8))),
+            (&format!("Other.{GUID}.1.0"), "data"),
+        ],
+    );
+
+    sandbox.engine.remove_to_backup(ANNO, &dir).unwrap();
+
+    assert_eq!(versions(&sandbox, ANNO, "lookalike"), ["2.0"]);
+}
