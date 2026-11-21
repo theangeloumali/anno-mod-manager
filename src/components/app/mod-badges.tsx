@@ -25,7 +25,6 @@ export function LocationBadge({ location }: { location: ModLocation }) {
   );
 }
 
-/** The mod's own mod.io logo; gradient + initials when it has none or it fails to load. */
 /** Offers a line break after `_`, `-`, `.` and slashes, so one-token names and ModIDs break
  * at their own separators; `wrap-anywhere` on the parent stays the fallback. */
 export function BreakableText({ text }: { text: string }) {
@@ -41,6 +40,7 @@ export function BreakableText({ text }: { text: string }) {
 export const categoryPrefix = (category: string) =>
   category ? `[${category}] ` : "";
 
+/** The mod's own mod.io logo; gradient + initials when it has none or it fails to load. */
 export function ModBanner({
   name,
   logoUrl = null,
