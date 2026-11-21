@@ -139,7 +139,10 @@ impl App {
             &writable[0].path,
             copy.as_deref(),
         ) {
-            Ok(()) => Ok(true),
+            Ok(()) => {
+                self.relink_after_restore(game, &check.module.name)?;
+                Ok(true)
+            }
             Err(atelier_install::Error::NoBackup(_)) => Ok(false),
             Err(error) => Err(error.into()),
         }

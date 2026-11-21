@@ -138,6 +138,7 @@ pub fn set_active(
     writable: &ModsFolder,
     target: &Mod,
     active: bool,
+    installed: &[Mod],
     snapshots: &Snapshots,
 ) -> Result<()> {
     ensure_writable(writable)?;
@@ -165,7 +166,9 @@ pub fn set_active(
                 snapshots,
             )
         }
-        ActivationScheme::RegistryList => set_in_registry(dir, target, active, snapshots),
+        ActivationScheme::RegistryList => {
+            set_in_registry(dir, target, active, installed, snapshots)
+        }
     }
 }
 
@@ -191,6 +194,7 @@ fn set_in_registry(
     mods_dir: &Path,
     target: &Mod,
     active: bool,
+    installed: &[Mod],
     snapshots: &Snapshots,
 ) -> Result<()> {
     let game_dir = mods_dir.parent().unwrap_or(mods_dir);
@@ -199,12 +203,16 @@ fn set_in_registry(
     if !active && wanted == humankind::registry::BASE_MODULE {
         return Err(Error::BaseModule(target.id.clone()));
     }
-    let mut modules = humankind::registry::read_modules(&path)?;
-    let listed = modules.iter().any(|entry| short_name(entry) == wanted);
-    match (active, listed) {
-        (true, false) => modules.push(target.id.clone()),
-        (false, true) => modules.retain(|entry| short_name(entry) != wanted),
-        _ => return Ok(()),
+    let current = humankind::load_order::normalize(&humankind::registry::read_modules(&path)?);
+    // Through the load-order rules, so a second Standalone or Conversion replaces the first.
+    let modules = if active {
+        let types = humankind::load_order::module_types(installed);
+        humankind::load_order::enable(&current, &wanted, &types)
+    } else {
+        humankind::load_order::disable(&current, &wanted)?
+    };
+    if modules == current {
+        return Ok(());
     }
     humankind::registry::write_modules(&path, &modules, snapshots)
 }

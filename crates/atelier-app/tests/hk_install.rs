@@ -231,6 +231,18 @@ fn uninstalling_a_workshop_or_game_folder_module_is_refused() {
 }
 
 #[test]
+fn uninstalling_a_modio_module_leaves_no_empty_folder() {
+    let harness = Harness::new();
+    let long = long_name("Sigma Pack", "2.5");
+    let page = community(&harness).join("Atelier").join("123_456");
+    write_module(&page.join(&long), &long);
+
+    harness.app.uninstall_mod(HUMANKIND, "sigma pack").unwrap();
+
+    assert!(!page.exists(), "{} was left behind", page.display());
+}
+
+#[test]
 fn an_uninstalled_module_is_restored_under_atelier() {
     let harness = Harness::new();
     let long = long_name("Sigma Pack", "2.5");

@@ -103,6 +103,7 @@ impl App {
             &self.writable(game),
             &target,
             active,
+            &self.scan(game)?,
             &self.0.snapshots,
         )?;
         Ok(())
@@ -153,6 +154,14 @@ impl App {
         let dir = scan::mod_dir(&self.folders(game), target).ok_or_else(|| not_found(mod_id))?;
         // Kept in the backups for the retention period, so restore_mod can undo this.
         self.0.engine.remove_to_backup(game, &dir)?;
+        // A mod.io install sits one level down (`<modId>_<fileId>/<module>`); drop that folder
+        // once empty. remove_dir refuses a non-empty folder, so nothing else can go.
+        if let Some(parent) = dir.parent()
+            && parent != self.documents_mods(game)
+            && parent.starts_with(self.documents_mods(game))
+        {
+            let _ = fs::remove_dir(parent);
+        }
         let has_link = self
             .persisted()
             .modio_links
@@ -180,6 +189,11 @@ impl App {
         self.0
             .engine
             .rollback(game, mod_id, &self.documents_mods(game))?;
+        self.relink_after_restore(game, mod_id)
+    }
+
+    /// A restored backup is either an undone uninstall or an older file than the link names.
+    pub(crate) fn relink_after_restore(&self, game: GameId, mod_id: &str) -> Result<()> {
         self.update_persisted(|state| {
             let aside = state
                 .uninstalled_links
@@ -306,6 +320,11 @@ impl App {
                 ErrorCode::GameRunning,
                 format!("{} is already running.", game.executable_name()),
             ));
+        }
+        // Humankind resets the whole mod list to vanilla when any listed module is missing.
+        let missing = self.launch_blockers(game)?;
+        if !missing.is_empty() {
+            return Err(atelier_core::Error::MissingModules(missing).into());
         }
         // A picked folder is the Steam copy only when Steam's own detection finds it there.
         let store = match store {

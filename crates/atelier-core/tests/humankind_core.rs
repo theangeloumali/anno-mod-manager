@@ -592,13 +592,55 @@ fn no_registry_reads_as_every_mod_off() {
 }
 
 #[test]
+fn switching_on_a_second_standalone_replaces_the_first() {
+    let tmp = tempfile::tempdir().unwrap();
+    let game = game_dir(tmp.path());
+    let community = documents(&game.join("Community"));
+    let store = snapshots(tmp.path());
+    let standalone = |id: &str| Mod {
+        game: GameId::Humankind,
+        folder: format!("mod.io/1_1/{id}"),
+        ..test_mod(id, "Standalone", id)
+    };
+    let installed = [
+        standalone("old world"),
+        standalone("new world"),
+        module("sigma pack"),
+    ];
+    for target in &installed {
+        activation::set_active(
+            GameId::Humankind,
+            &community,
+            target,
+            true,
+            &installed,
+            &store,
+        )
+        .unwrap();
+    }
+    let expected = names(&["project mercury", "new world", "sigma pack"]);
+    assert_eq!(
+        registry::read_modules(&registry_file(&game)).unwrap(),
+        expected
+    );
+}
+
+#[test]
 fn switching_on_appends_and_off_removes() {
     let tmp = tempfile::tempdir().unwrap();
     let game = game_dir(tmp.path());
     let community = documents(&game.join("Community"));
     let store = snapshots(tmp.path());
     for id in ["sigma pack", "deepsea reloaded", "sigma pack"] {
-        activation::set_active(GameId::Humankind, &community, &module(id), true, &store).unwrap();
+        activation::set_active(
+            GameId::Humankind,
+            &community,
+            &module(id),
+            true,
+            &[],
+            &store,
+        )
+        .unwrap();
     }
     let path = registry_file(&game);
     let expected = names(&["project mercury", "sigma pack", "deepsea reloaded"]);
@@ -609,6 +651,7 @@ fn switching_on_appends_and_off_removes() {
         &community,
         &module("sigma pack"),
         false,
+        &[],
         &store,
     )
     .unwrap();
@@ -629,6 +672,7 @@ fn switching_off_drops_a_long_name_entry_too() {
         &community,
         &module("deepsea reloaded"),
         false,
+        &[],
         &store,
     )
     .unwrap();
@@ -649,6 +693,7 @@ fn base_game_module_cannot_be_switched_off() {
         &community,
         &base,
         false,
+        &[],
         &snapshots(tmp.path()),
     )
     .unwrap_err();
@@ -664,6 +709,7 @@ fn switching_without_a_registry_is_refused() {
         &community,
         &module("sigma pack"),
         true,
+        &[],
         &snapshots(tmp.path()),
     )
     .unwrap_err();

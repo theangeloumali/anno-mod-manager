@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use atelier_app::ErrorCode;
 use atelier_core::{GameId, Profile};
-use common::Harness;
+use common::{Harness, Options};
 
 const HUMANKIND: GameId = GameId::Humankind;
 const BASE: &str = "project mercury";
@@ -164,6 +164,26 @@ fn launch_blockers_name_listed_modules_that_are_not_installed() {
         harness.app.launch_blockers(HUMANKIND).unwrap(),
         names(&["gone"])
     );
+}
+
+#[test]
+fn launch_is_refused_while_a_listed_module_is_missing() {
+    let harness = Harness::with(Options {
+        install: Some(HUMANKIND),
+        ..Options::default()
+    });
+    add_module(&harness, "Alpha");
+    write_registry(&harness, &format!("{BASE}/alpha/gone"));
+
+    let error = harness.app.launch_game(HUMANKIND).unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::NotFound);
+    assert!(error.message.contains("gone"), "{}", error.message);
+    assert!(harness.launches.lock().unwrap().is_empty());
+
+    write_registry(&harness, &format!("{BASE}/alpha"));
+    harness.app.launch_game(HUMANKIND).unwrap();
+    assert_eq!(harness.launches.lock().unwrap().len(), 1);
 }
 
 // profiles

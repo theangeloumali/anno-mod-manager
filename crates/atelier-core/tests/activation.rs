@@ -109,6 +109,7 @@ fn toggling_writes_the_active_profile_and_keeps_comments() {
         &documents(tmp.path()),
         find(&mods, "a"),
         false,
+        &[],
         &snaps,
     )
     .unwrap();
@@ -122,6 +123,7 @@ fn toggling_writes_the_active_profile_and_keeps_comments() {
         &documents(tmp.path()),
         find(&mods, "a"),
         true,
+        &[],
         &snaps,
     )
     .unwrap();
@@ -144,6 +146,7 @@ fn legacy_toggle_preserves_comments() {
         &documents(tmp.path()),
         find(&mods, "a"),
         false,
+        &[],
         &snapshots(tmp.path()),
     )
     .unwrap();
@@ -189,6 +192,7 @@ fn activation_json_round_trips() {
         &documents(tmp.path()),
         find(&mods, "a"),
         false,
+        &[],
         &snaps,
     )
     .unwrap();
@@ -205,6 +209,7 @@ fn activation_json_round_trips() {
         &documents(tmp.path()),
         find(&mods, "a"),
         true,
+        &[],
         &snaps,
     )
     .unwrap();
@@ -226,6 +231,7 @@ fn missing_1800_mods_folder_is_created_on_first_write() {
         &documents(&mods_dir),
         &target,
         false,
+        &[],
         &snapshots(tmp.path()),
     )
     .unwrap();
@@ -243,6 +249,7 @@ fn dash_prefixed_1800_folder_is_inactive_and_enabling_renames_it() {
         &documents(tmp.path()),
         find(&mods, "off"),
         true,
+        &[],
         &snapshots(tmp.path()),
     )
     .unwrap();
@@ -260,6 +267,7 @@ fn read_only_locations_refuse_writes() {
             &folder_at(tmp.path(), location),
             &target,
             false,
+            &[],
             &snapshots(tmp.path()),
         );
         assert!(matches!(result, Err(Error::ReadOnly(_))));
@@ -281,6 +289,7 @@ fn sub_mods_follow_their_parent() {
         &documents(tmp.path()),
         find(&mods, "child"),
         true,
+        &[],
         &snapshots(tmp.path()),
     );
     assert!(matches!(result, Err(Error::SubMod(_))));
@@ -393,6 +402,7 @@ fn a_profile_name_that_escapes_the_profiles_folder_falls_back_to_default() {
         &documents(&mods_dir),
         find(&mods, "a"),
         false,
+        &[],
         &snapshots(tmp.path()),
     )
     .unwrap();

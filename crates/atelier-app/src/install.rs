@@ -109,10 +109,11 @@ impl App {
             return Ok(());
         }
         let writable = self.writable(game);
-        for item in self.scan(game)?.iter().filter(|item| {
+        let mods = self.scan(game)?;
+        for item in mods.iter().filter(|item| {
             installed.contains(&item.id) && item.parent_id.is_none() && item.active != active
         }) {
-            activation::set_active(game, &writable, item, active, &self.0.snapshots)?;
+            activation::set_active(game, &writable, item, active, &mods, &self.0.snapshots)?;
         }
         Ok(())
     }
