@@ -97,7 +97,10 @@ pub(crate) fn modules_in(dir: &Path) -> Result<Vec<(ModuleName, bool)>> {
 pub(crate) fn find_roots(staged: &Path, game: GameId) -> Result<Vec<FoundRoot>> {
     let mut humankind = module_roots(staged)?;
     if game == GameId::Humankind {
-        humankind.extend(plugin_roots(staged)?);
+        // A dll inside a module's folder ships with the module; it isn't a second item.
+        let mut plugins = plugin_roots(staged)?;
+        plugins.retain(|plugin| !overlaps_any(plugin, &humankind));
+        humankind.extend(plugins);
     }
     let mut anno = anno_roots(staged)?;
     if game == GameId::Humankind {

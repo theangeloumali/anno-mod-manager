@@ -645,3 +645,16 @@ fn a_workshop_copy_is_a_duplicate_and_nothing_installs() {
         "{item:#?}"
     );
 }
+
+#[test]
+fn a_dll_beside_a_module_is_part_of_the_module_not_a_plugin() {
+    let sandbox = Sandbox::new();
+    let mut files = module_files("Pack", "Alpha", "1.0");
+    files.push(("Pack/Helper.dll".to_string(), b"MZ".to_vec()));
+    let archive = drop_zip(&sandbox, "Pack.zip", &files);
+    let game = game_dir(&sandbox, true);
+
+    let preview = preview(&sandbox, HUMANKIND, &archive, &plugin_options(Some(game)));
+
+    assert_eq!(only_item(&preview).mod_id, "alpha");
+}
