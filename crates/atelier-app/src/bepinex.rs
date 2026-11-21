@@ -126,6 +126,7 @@ impl App {
             .filter_map(enclosed)
             .map(|relative| install.join(relative))
             .collect();
+        refuse_links(&install, files.iter().chain([&list]).map(PathBuf::as_path))?;
         for file in files.iter().chain([&list]) {
             match fs::remove_file(file) {
                 Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
@@ -324,8 +325,45 @@ fn unpack(bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>> {
     Ok(files)
 }
 
+/// A link or junction under the game folder would send a write or delete somewhere else.
+fn refuse_links<'a>(install: &Path, paths: impl IntoIterator<Item = &'a Path>) -> Result<()> {
+    let linked = paths.into_iter().find_map(|path| {
+        path.ancestors()
+            .take_while(|part| *part != install)
+            .find(|part| is_link(part))
+    });
+    match linked {
+        Some(part) => Err(install_error(format!(
+            "{} is a link to another folder. Atelier won't change files through it, so nothing \
+             was changed.",
+            part.strip_prefix(install).unwrap_or(part).display()
+        ))),
+        None => Ok(()),
+    }
+}
+
+fn is_link(path: &Path) -> bool {
+    path.symlink_metadata().is_ok_and(|meta| {
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::MetadataExt;
+            const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+            if meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+                return true;
+            }
+        }
+        meta.file_type().is_symlink()
+    })
+}
+
 /// All files or none: anything already there stops it, and a failed write undoes the rest.
 fn write_files(install: &Path, files: &[(String, Vec<u8>)]) -> Result<()> {
+    let targets: Vec<PathBuf> = files
+        .iter()
+        .map(|(relative, _)| install.join(relative))
+        .chain([install.join(INSTALLED_LIST)])
+        .collect();
+    refuse_links(install, targets.iter().map(PathBuf::as_path))?;
     if let Some((taken, _)) = files
         .iter()
         .find(|(relative, _)| install.join(relative).symlink_metadata().is_ok())

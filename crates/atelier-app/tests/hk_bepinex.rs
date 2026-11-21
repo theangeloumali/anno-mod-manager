@@ -516,3 +516,52 @@ fn a_folder_inside_bepinex_plugins_cannot_be_the_game() {
 
     assert_eq!(error.code, ErrorCode::InvalidInput);
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_linked_folder_in_the_game_folder_stops_the_install() {
+    let server = MockServer::start().await;
+    let asset = release_zip();
+    let sha = sha256(&asset);
+    mount_release(&server, &sha, asset, 1).await;
+    let harness = humankind();
+    let outside = harness.root.path().join("elsewhere");
+    fs::create_dir_all(&outside).unwrap();
+    std::os::unix::fs::symlink(&outside, harness.install_dir().join("BepInEx")).unwrap();
+
+    let error = harness
+        .app
+        .install_bepinex_from(HUMANKIND, &source(&server, &sha))
+        .await
+        .unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::Install);
+    assert!(error.message.contains("BepInEx"), "{}", error.message);
+    assert_eq!(fs::read_dir(&outside).unwrap().count(), 0);
+    assert!(!harness.install_dir().join("winhttp.dll").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_linked_folder_in_the_list_stops_the_uninstall() {
+    let harness = humankind();
+    let install = harness.install_dir();
+    let outside = harness.root.path().join("elsewhere");
+    write(&outside.join("BepInEx.dll"), "keep");
+    write(
+        &install.join(LIST),
+        "BepInEx/core/BepInEx.dll\nwinhttp.dll\n",
+    );
+    write(&install.join("winhttp.dll"), "listed");
+    std::os::unix::fs::symlink(&outside, install.join("BepInEx/core")).unwrap();
+
+    let error = harness.app.uninstall_bepinex(HUMANKIND).unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::Install);
+    assert_eq!(
+        fs::read_to_string(outside.join("BepInEx.dll")).unwrap(),
+        "keep"
+    );
+    assert!(install.join("winhttp.dll").is_file());
+    assert!(install.join(LIST).is_file());
+}
