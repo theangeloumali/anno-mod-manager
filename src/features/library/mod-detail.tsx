@@ -143,9 +143,13 @@ export function ModDetail({
   return (
     // The wrapper sticks (the Panel alone spans its own box, so it never moved), capped to the scroll
     // area so a tall card scrolls inside it: 6rem of header and status bar, plus 1rem above and below.
+    // Focusable so the keyboard can scroll it; the outline sits inside, where the scroller can't clip it.
     <div
       ref={panelRef}
-      className="scroll-mt-4 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-8rem)] xl:overflow-y-auto"
+      role="region"
+      aria-label={`${mod.name} details`}
+      tabIndex={0}
+      className="scroll-mt-4 rounded-card outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring xl:sticky xl:top-4 xl:max-h-[calc(100dvh-8rem)] xl:overflow-y-auto"
     >
       <Panel className="flex flex-col gap-5" title={null}>
         <div className="flex gap-4">
