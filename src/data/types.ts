@@ -83,7 +83,8 @@ export interface LoadOrderEntry {
   position: number;
   modId: string;
   phase: "normal" | "late";
-  reason: "load-after" | "late" | "alphabetical";
+  /** "player": Humankind keeps the order the player set in Registry.xml. */
+  reason: "load-after" | "late" | "alphabetical" | "player";
   after: string[];
 }
 
@@ -296,4 +297,78 @@ export interface Settings {
   updateCheck: "hourly" | "startup" | "manual";
   language: string;
   updateChannel: "stable" | "beta";
+}
+
+/** One module a Humankind save was played with; version is null when the save didn't pin one. */
+export interface SaveMod {
+  name: string;
+  version: string | null;
+}
+
+export interface GameOption {
+  key: string;
+  value: string;
+}
+
+export interface Save {
+  path: string;
+  name: string;
+  build: string | null;
+  /** In load order, the base game left out. */
+  mods: SaveMod[];
+  options: GameOption[];
+  worldSize: string | null;
+  empireCount: number | null;
+}
+
+export interface SkippedSave {
+  path: string;
+  reason: string;
+}
+
+export interface SaveList {
+  saves: Save[];
+  skipped: SkippedSave[];
+}
+
+export type ModStatus =
+  | { kind: "exact" }
+  | { kind: "otherVersion"; installed: string }
+  | { kind: "missing" };
+
+export type ModCheck = SaveMod & { status: ModStatus };
+
+export type SaveInspection = Save & { checks: ModCheck[] };
+
+export interface SaveLoadReport {
+  restored: SaveMod[];
+  /** Still not at the save's version: not installed, or no backup of that version. */
+  missing: ModCheck[];
+  registryWritten: boolean;
+}
+
+/** A change to Registry.xml's mod list, as the ModListGuard plugin logged it. Newest first. */
+export interface HistoryEntry {
+  time: string;
+  reason: string;
+  culprit: string | null;
+  old: string[];
+  new: string[];
+}
+
+export interface LoadedPlugin {
+  name: string;
+  version: string;
+}
+
+export interface BepInExStatus {
+  present: boolean;
+  version: string | null;
+  /** Only then can Atelier remove it. */
+  installedByAtelier: boolean;
+  /** From the last game session's log, in load order. */
+  plugins: LoadedPlugin[];
+  logFound: boolean;
+  /** A plugin changed after the log was written, so the list may be out of date. */
+  logStale: boolean;
 }
