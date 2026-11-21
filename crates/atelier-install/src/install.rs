@@ -1,20 +1,38 @@
 //! Moves staged mods into the mods folder, backing up what they replace, all or nothing.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use atelier_core::{modinfo, normalize_mod_id};
 
 use crate::backup::backup_path;
 use crate::error::io_at;
-use crate::fsops::{child_dirs, file_name, move_dir};
+use crate::fsops::{child_dirs, file_name, is_windows_safe_name, move_dir};
+use crate::roots::modules_in;
 use crate::{Error, InstallItemStatus, InstallPreviewItem, InstallResult, Result};
+
+/// Humankind's Community folder holds Atelier's installs here, apart from mod.io's own folder.
+pub(crate) const ATELIER_FOLDER: &str = "Atelier";
 
 pub(crate) struct StagedItem {
     pub item: InstallPreviewItem,
     pub staged_dir: PathBuf,
     /// The installed copy as the preview saw it, checked again at confirm.
     pub seen: Option<crate::classify::CopyStamp>,
+    pub placement: Placement,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Placement {
+    /// A direct child of the mods folder, named by `target_folder`.
+    ModsFolder,
+    /// `<target>/Atelier/<folder>`, replacing the module's copy wherever it sits under Atelier.
+    Module { folder: PathBuf },
+    /// `<plugins_dir>/<folder>`, outside the mods folder.
+    Plugin {
+        plugins_dir: PathBuf,
+        folder: String,
+    },
 }
 
 /// One completed move, kept so a later failure can put everything back.
@@ -71,29 +89,113 @@ fn place(
     journal: &mut Vec<Step>,
 ) -> Result<()> {
     let mod_id = &staged.item.mod_id;
-    let folder = target_folder(target, mod_id)?;
-    let dest = target.join(&folder);
-    // Defence in depth: never back up or replace anything but a direct child of the mods folder.
-    if mod_id.is_empty()
-        || matches!(folder.as_str(), "" | "." | "..")
-        || dest.parent() != Some(target)
-    {
-        return Err(Error::UnsafeTarget(dest));
+    match &staged.placement {
+        Placement::ModsFolder => {
+            let folder = target_folder(target, mod_id)?;
+            let dest = target.join(&folder);
+            // Defence in depth: never back up or replace anything but a direct child of the mods folder.
+            if mod_id.is_empty()
+                || matches!(folder.as_str(), "" | "." | "..")
+                || dest.parent() != Some(target)
+            {
+                return Err(Error::UnsafeTarget(dest));
+            }
+            move_in(staged, &dest, backup_dir, journal)
+        }
+        Placement::Module { folder } => {
+            let atelier = target.join(ATELIER_FOLDER);
+            let dest = atelier.join(folder);
+            let plain = folder.components().all(|part| match part {
+                Component::Normal(name) => is_windows_safe_name(&name.to_string_lossy()),
+                _ => false,
+            });
+            if mod_id.is_empty() || !plain || folder.as_os_str().is_empty() {
+                return Err(Error::UnsafeTarget(dest));
+            }
+            let old = find_module(&atelier, mod_id)?.filter(|old| *old != dest);
+            if let Some(old) = &old {
+                back_up(old, backup_dir, journal)?;
+            }
+            move_in(staged, &dest, backup_dir, journal)?;
+            // A replaced mod.io file leaves its `<modId>_<modfileId>` folder empty; remove_dir keeps a full one.
+            if let Some(parent) = old
+                .as_deref()
+                .and_then(Path::parent)
+                .filter(|dir| *dir != atelier)
+            {
+                let _ = fs::remove_dir(parent);
+            }
+            Ok(())
+        }
+        Placement::Plugin {
+            plugins_dir,
+            folder,
+        } => {
+            let dest = plugins_dir.join(folder);
+            if !plugins_dir.is_absolute()
+                || matches!(folder.as_str(), "" | "." | "..")
+                || !is_windows_safe_name(folder)
+                || dest.parent() != Some(plugins_dir.as_path())
+            {
+                return Err(Error::UnsafeTarget(dest));
+            }
+            move_in(staged, &dest, backup_dir, journal)
+        }
     }
+}
+
+/// Backs up whatever sits at `dest`, then moves the staged root there.
+fn move_in(
+    staged: &StagedItem,
+    dest: &Path,
+    backup_dir: &Path,
+    journal: &mut Vec<Step>,
+) -> Result<()> {
     if dest.exists() {
-        let backup = backup_path(backup_dir, &dest)?;
-        move_dir(&dest, &backup)?;
-        journal.push(Step::BackedUp {
-            original: dest.clone(),
-            backup,
-        });
+        back_up(dest, backup_dir, journal)?;
     }
-    move_dir(&staged.staged_dir, &dest)?;
+    move_dir(&staged.staged_dir, dest)?;
     journal.push(Step::Placed {
         staged: staged.staged_dir.clone(),
-        dest,
+        dest: dest.to_path_buf(),
     });
     Ok(())
+}
+
+fn back_up(dir: &Path, backup_dir: &Path, journal: &mut Vec<Step>) -> Result<()> {
+    let backup = backup_path(backup_dir, dir)?;
+    move_dir(dir, &backup)?;
+    journal.push(Step::BackedUp {
+        original: dir.to_path_buf(),
+        backup,
+    });
+    Ok(())
+}
+
+/// The folder under `root` holding the module whose short name is `short_name`, at any depth.
+pub(crate) fn find_module(root: &Path, short_name: &str) -> Result<Option<PathBuf>> {
+    if !root.is_dir() {
+        return Ok(None);
+    }
+    for dir in child_dirs(root)? {
+        if file_name(&dir).starts_with('.') {
+            continue;
+        }
+        let modules = modules_in(&dir)?;
+        if modules
+            .iter()
+            .any(|(module, _)| module.short_name() == short_name)
+        {
+            return Ok(Some(dir));
+        }
+        // A module folder's subfolders belong to it, never to another module.
+        if modules.is_empty()
+            && let Some(found) = find_module(&dir, short_name)?
+        {
+            return Ok(Some(found));
+        }
+    }
+    Ok(None)
 }
 
 /// Reverses the journal newest first; anything that won't move back is named for a manual check.

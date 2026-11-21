@@ -71,6 +71,15 @@ impl Default for Limits {
     }
 }
 
+/// Per-call preview settings: caps, Humankind's install folder for plugins, and the
+/// `<modId>_<modfileId>` folder a mod.io download installs under.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PreviewOptions {
+    pub limits: Option<Limits>,
+    pub game_dir: Option<PathBuf>,
+    pub modio_folder: Option<String>,
+}
+
 struct StagedPreview {
     dir: PathBuf,
     game: GameId,
@@ -114,9 +123,24 @@ impl InstallEngine {
         installed: &[Mod],
         limits: Limits,
     ) -> Result<InstallPreview> {
+        let options = PreviewOptions {
+            limits: Some(limits),
+            ..PreviewOptions::default()
+        };
+        self.preview_with_options(game, sources, installed, &options)
+    }
+
+    /// [`Self::preview`] with every per-call setting.
+    pub fn preview_with_options(
+        &self,
+        game: GameId,
+        sources: &[PathBuf],
+        installed: &[Mod],
+        options: &PreviewOptions,
+    ) -> Result<InstallPreview> {
         let id = uuid::Uuid::new_v4().to_string();
         let dir = self.config.staging_dir.join(&id);
-        let items = match self.stage_and_classify(&dir, game, sources, installed, limits) {
+        let items = match self.stage_and_classify(&dir, game, sources, installed, options) {
             Ok(items) => items,
             Err(error) => {
                 let _ = fs::remove_dir_all(&dir);
@@ -189,11 +213,27 @@ impl InstallEngine {
 
     /// Restores the newest backup of `game`'s `mod_id` into `target_mods_dir`.
     pub fn rollback(&self, game: GameId, mod_id: &str, target_mods_dir: &Path) -> Result<()> {
-        backup::rollback(&self.game_backups(game), target_mods_dir, mod_id)
+        if game != GameId::Humankind {
+            return backup::rollback(&self.game_backups(game), target_mods_dir, mod_id);
+        }
+        // A module's folder is named by its long name, not its id, so find the copy it replaces.
+        let newest = backup::list_versions(&self.game_backups(game), mod_id)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| Error::NoBackup(mod_id.to_string()))?;
+        let current = install::find_module(&target_mods_dir.join(install::ATELIER_FOLDER), mod_id)?;
+        self.restore_version(
+            game,
+            mod_id,
+            &newest.version,
+            target_mods_dir,
+            current.as_deref(),
+        )
     }
 
     /// Restores the newest backup of `mod_id` at `version`: into `installed_dir` when the mod
-    /// has a copy there (it must sit inside `target_mods_dir`), else into its own folder.
+    /// has a copy there (it must sit inside `target_mods_dir`), else into its own folder, which
+    /// for Humankind sits under `Community/Atelier`.
     pub fn restore_version(
         &self,
         game: GameId,
@@ -202,9 +242,13 @@ impl InstallEngine {
         target_mods_dir: &Path,
         installed_dir: Option<&Path>,
     ) -> Result<()> {
+        let target = match (game, installed_dir) {
+            (GameId::Humankind, None) => target_mods_dir.join(install::ATELIER_FOLDER),
+            _ => target_mods_dir.to_path_buf(),
+        };
         backup::restore_version(
             &self.game_backups(game),
-            target_mods_dir,
+            &target,
             mod_id,
             version,
             installed_dir,
@@ -274,17 +318,19 @@ impl InstallEngine {
         game: GameId,
         sources: &[PathBuf],
         installed: &[Mod],
-        limits: Limits,
+        options: &PreviewOptions,
     ) -> Result<Vec<StagedItem>> {
+        let limits = options.limits.unwrap_or(self.limits);
         let mut found = Vec::new();
         for (index, source) in sources.iter().enumerate() {
             let staged = dir.join(format!("src-{index}"));
-            stage::stage_source(source, &staged, limits)?;
-            let mut roots = roots::find_roots(&staged)?;
+            stage::stage_source(source, &staged, game, limits)?;
+            let mut roots = roots::find_roots(&staged, game)?;
             roots.sort_by_key(roots::FoundRoot::mod_id);
             found.extend(roots.into_iter().map(|root| (staged.clone(), root)));
         }
-        let mut classifier = Classifier::new(game, installed, found.iter().map(|(_, root)| root));
+        let mut classifier =
+            Classifier::new(game, installed, options, found.iter().map(|(_, root)| root));
         Ok(found
             .iter()
             .map(|(staged, root)| {
@@ -293,6 +339,7 @@ impl InstallEngine {
                     seen: classify::copy_stamp(game, installed, &item.mod_id),
                     item,
                     staged_dir: root.dir.clone(),
+                    placement: classifier.placement(root),
                 }
             })
             .collect())

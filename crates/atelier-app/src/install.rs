@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use atelier_core::{GameId, activation};
-use atelier_install::{InstallPreview, InstallResult, Limits};
+use atelier_install::{InstallPreview, InstallResult, PreviewOptions};
 
 use crate::error::{AppError, ErrorCode, Result};
 use crate::state::NewModsStart;
@@ -13,15 +13,16 @@ const EXPIRED_PREVIEW: &str = "That preview has expired. Drop the file again.";
 
 impl App {
     pub fn preview_install(&self, game: GameId, paths: &[String]) -> Result<InstallPreview> {
-        self.preview_install_with(game, paths, None)
+        self.preview_install_with(game, paths, PreviewOptions::default())
     }
 
-    /// `limits` overrides the engine's caps, e.g. from a download's declared unpacked size.
+    /// `options` carries a download's caps and mod.io folder; the game folder is filled in here,
+    /// since a BepInEx plugin installs into it.
     pub(crate) fn preview_install_with(
         &self,
         game: GameId,
         paths: &[String],
-        limits: Option<Limits>,
+        options: PreviewOptions,
     ) -> Result<InstallPreview> {
         if paths.is_empty() {
             return Err(AppError::new(
@@ -41,13 +42,14 @@ impl App {
         }
         let sources: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
         let installed = self.scan(game)?;
-        let preview = match limits {
-            Some(limits) => self
-                .0
-                .engine
-                .preview_with_limits(game, &sources, &installed, limits)?,
-            None => self.0.engine.preview(game, &sources, &installed)?,
+        let options = PreviewOptions {
+            game_dir: self.install(game).map(|(dir, _)| dir),
+            ..options
         };
+        let preview = self
+            .0
+            .engine
+            .preview_with_options(game, &sources, &installed, &options)?;
         lock(&self.0.previews).insert(preview.id.clone(), game);
         Ok(preview)
     }
