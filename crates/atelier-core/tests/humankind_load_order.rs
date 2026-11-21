@@ -214,58 +214,6 @@ fn the_base_cannot_be_disabled() {
     assert!(matches!(error, Error::BaseModule(name) if name == BASE_MODULE));
 }
 
-// move_to
-
-fn move_to(values: &[&str], module: &str, index: usize) -> Result<Vec<String>, OrderError> {
-    load_order::move_to(
-        &order(values),
-        module,
-        index,
-        &load_order::module_types(&installed()),
-    )
-}
-
-#[test]
-fn an_extension_moves_within_the_extensions() {
-    let current = [BASE_MODULE, "solo", "conv", "ext", "ext2", "unverified"];
-    assert_eq!(
-        move_to(&current, "unverified", 3).unwrap(),
-        order(&[BASE_MODULE, "solo", "conv", "unverified", "ext", "ext2"])
-    );
-    assert_eq!(
-        move_to(&current, "ext", 99).unwrap(),
-        order(&[BASE_MODULE, "solo", "conv", "ext2", "unverified", "ext"])
-    );
-}
-
-#[test]
-fn an_extension_cannot_move_above_the_standalone_or_conversion() {
-    assert_eq!(
-        move_to(&[BASE_MODULE, "solo", "conv", "ext", "ext2"], "ext2", 0).unwrap(),
-        order(&[BASE_MODULE, "solo", "conv", "ext2", "ext"])
-    );
-}
-
-#[test]
-fn the_base_standalone_and_conversion_stay_in_their_slots() {
-    let current = [BASE_MODULE, "solo", "conv", "ext"];
-    assert_eq!(move_to(&current, BASE_MODULE, 3).unwrap(), order(&current));
-    assert_eq!(move_to(&current, "solo", 3).unwrap(), order(&current));
-    assert_eq!(move_to(&current, "conv", 0).unwrap(), order(&current));
-}
-
-#[test]
-fn moving_an_unlisted_module_or_within_an_invalid_order_is_refused() {
-    assert_eq!(
-        move_to(&[BASE_MODULE, "ext"], "ext2", 1),
-        Err(OrderError::NotListed("ext2".into()))
-    );
-    assert_eq!(
-        move_to(&[BASE_MODULE, "ext", "solo"], "ext", 1),
-        Err(OrderError::StandaloneMisplaced("solo".into()))
-    );
-}
-
 // missing
 
 #[test]

@@ -79,6 +79,13 @@ fn the_base_game_alone_is_never_missing() {
     assert_eq!(check.level, Severity::Ok);
 }
 
+#[test]
+fn a_module_listed_twice_is_named_once() {
+    let listed = common::ids(&["project mercury", "gone", "Gone"]);
+    let check = humankind::missing_modules(&listed, &[]);
+    assert!(check.detail.ends_with("Missing: gone"), "{}", check.detail);
+}
+
 // duplicate guids
 
 #[test]

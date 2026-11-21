@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 
 use super::{Environment, check, writable};
 use crate::games::{Probe, mod_folders, vdf_values};
-use crate::humankind::module_name::{ModuleName, short_name};
-use crate::humankind::{detect, registry};
+use crate::humankind::module_name::ModuleName;
+use crate::humankind::{detect, load_order, registry};
 use crate::scan::{ModsFolder, mod_dir};
 use crate::{GameId, HealthCheck, Mod, ModLocation, Severity};
 
@@ -59,12 +59,7 @@ fn listed_modules(game_dir: &Path, installed: &[Mod]) -> Option<HealthCheck> {
 
 /// A listed module that isn't installed makes the game reset the whole list at launch.
 pub fn missing_modules(listed: &[String], installed: &[Mod]) -> HealthCheck {
-    let installed: HashSet<&str> = installed.iter().map(|item| item.id.as_str()).collect();
-    let missing: Vec<String> = listed
-        .iter()
-        .map(|entry| short_name(entry))
-        .filter(|name| name != registry::BASE_MODULE && !installed.contains(name.as_str()))
-        .collect();
+    let missing = load_order::missing(listed, installed);
     if missing.is_empty() {
         check(
             "missing-modules",

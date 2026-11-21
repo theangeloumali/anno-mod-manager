@@ -27,8 +27,6 @@ pub enum OrderError {
     StandaloneMisplaced(String),
     #[error("Conversion module '{0}' must come right after the base game and any Standalone")]
     ConversionMisplaced(String),
-    #[error("'{0}' is not in the load order")]
-    NotListed(String),
 }
 
 /// A blank category means the bundle couldn't be read; [`module_type`] treats it as an Extension.
@@ -133,34 +131,6 @@ pub fn disable(order: &[String], module: &str) -> Result<Vec<String>> {
     }
     let mut order = normalize(order);
     order.retain(|name| *name != module);
-    Ok(order)
-}
-
-/// Only Extensions move, and only among themselves; every other module keeps its fixed slot.
-pub fn move_to(
-    order: &[String],
-    module: &str,
-    index: usize,
-    types: &ModuleTypes,
-) -> OrderResult<Vec<String>> {
-    let mut order = normalize(order);
-    validate(&order, types)?;
-    let module = short_name(module.trim());
-    let from = order
-        .iter()
-        .position(|name| *name == module)
-        .ok_or(OrderError::NotListed(module))?;
-    let first_extension = order
-        .iter()
-        .skip(1)
-        .position(|name| module_type(types, name) == ModuleType::Extension)
-        .map_or(order.len(), |position| position + 1);
-    if from < first_extension {
-        return Ok(order);
-    }
-    let target = index.clamp(first_extension, order.len() - 1);
-    let moved = order.remove(from);
-    order.insert(target, moved);
     Ok(order)
 }
 
