@@ -159,8 +159,11 @@ export function ModDetail({
             <p className="font-mono text-label text-copy-dim wrap-anywhere">
               <BreakableText text={mod.id} />
             </p>
-            <p className="font-mono text-label whitespace-nowrap text-copy-dim">
-              {mod.version} · {formatBytes(mod.sizeBytes)}
+            <p className="font-mono text-label text-copy-dim wrap-anywhere">
+              {mod.version} ·{" "}
+              <span className="whitespace-nowrap">
+                {formatBytes(mod.sizeBytes)}
+              </span>
             </p>
           </div>
         </div>

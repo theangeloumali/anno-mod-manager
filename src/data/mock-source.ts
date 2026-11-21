@@ -413,7 +413,7 @@ function seedMods1800(): Mod[] {
       name: "shared_tradingcompany_taludas (Taludas)",
       category: "",
       folder: "shared_tradingcompany_taludas",
-      version: "1.0.2",
+      version: "1.0.2-beta.3+build.20251120.taludas",
       author: "Taludas, Drakkam, Taubenangriff",
       description:
         "# Extra Goods\nExtra Goods implemented by me for use in some of my mods.\n\n- New product: **Trade Licenses**\n- New multi-purpose building: Foreign Trading Company",

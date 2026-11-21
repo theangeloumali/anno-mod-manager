@@ -39,12 +39,13 @@ export const gameExe = (game: GameId) =>
 export const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Something went wrong.";
 
-/** A modinfo description as plain text: markdown headings and bold markers go, line breaks stay. */
+/** A modinfo description as plain text: markdown headings and `**bold**` markers go, line breaks
+ * stay. `__` is left alone: descriptions name files and ModIDs that use it. */
 export function plainDescription(text: string): string {
   return text
     .split("\n")
     .map((line) =>
-      line.replace(/^\s{0,3}#{1,6}\s+/, "").replace(/(\*\*|__)(.+?)\1/g, "$2"),
+      line.replace(/^\s{0,3}#{1,6}\s+/, "").replace(/\*\*(.+?)\*\*/g, "$1"),
     )
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
