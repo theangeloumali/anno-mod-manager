@@ -406,6 +406,31 @@ function seedMods1800(): Mod[] {
       hasOptions: true,
       dependencies: { loadAfter: ["*"] },
     }),
+    // Real mods often have one-token names, no category and markdown descriptions; these
+    // keep the layout honest about them.
+    createMod(game, {
+      id: "taludas-shared-tradingcompany",
+      name: "shared_tradingcompany_taludas (Taludas)",
+      category: "",
+      folder: "shared_tradingcompany_taludas",
+      version: "1.0.2",
+      author: "Taludas, Drakkam, Taubenangriff",
+      description:
+        "# Extra Goods\nExtra Goods implemented by me for use in some of my mods.\n\n- New product: **Trade Licenses**\n- New multi-purpose building: Foreign Trading Company",
+      modioId: 2100010,
+      active: false,
+      sizeBytes: megabytes(3.4),
+    }),
+    createMod(game, {
+      id: "cheat-policy-effect-range-radius-buff-for-tradeunion-townhall-harbourmaster",
+      name: "cheat-policy-effect-range-radius-buff-for-tradeunion-townhall-harbourmaster",
+      category: "",
+      folder: "cheat-policy-effect-range-radius-buff",
+      version: "1.0",
+      modioId: 2100011,
+      sizeBytes: megabytes(0.1),
+      dependencies: { require: ["taludas-shared-tradingcompany"] },
+    }),
   ];
 }
 
@@ -1024,7 +1049,7 @@ function seedDownloads(now: number): StoredJob[] {
       {
         id: "job-roads",
         modioId: 4021003,
-        name: "Roads of Latium",
+        name: "Roads of Latium – Complete Overhaul with Milestones, Waystations and Toll Gates (Cassius)",
         sizeBytes: megabytes(18.4),
         status: "done",
         error: null,
@@ -1083,6 +1108,11 @@ function createState() {
       anno1800: [
         { name: "Default", builtIn: true, activeIds: null },
         { name: "Vanilla", builtIn: true, activeIds: [] },
+        {
+          name: "Saturday multiplayer parity with Livia and the harbour crew",
+          builtIn: false,
+          activeIds: ["shared-production-library-ada"],
+        },
         {
           name: "Endgame Metropolis",
           builtIn: false,
