@@ -4,6 +4,7 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use atelier_core::health::humankind::plugins_dir;
 use atelier_core::{GameId, Mod, ModInfo, ModLocation, Severity, normalize_mod_id};
 
 use crate::fsops::{child_dirs, file_name};
@@ -127,7 +128,7 @@ impl<'a> Classifier<'a> {
 
     fn plugins_dir(&self) -> Option<PathBuf> {
         let game_dir = self.options.game_dir.as_ref()?;
-        Some(game_dir.join("BepInEx").join("plugins"))
+        Some(plugins_dir(game_dir))
     }
 
     fn id_noun(&self) -> &'static str {

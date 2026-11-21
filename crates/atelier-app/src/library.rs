@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::MutexGuard;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use atelier_core::health::humankind::plugins_dir;
 use atelier_core::health::{self, Environment};
 use atelier_core::scan::{self, ModsFolder};
 use atelier_core::{
@@ -438,6 +439,9 @@ impl App {
         roots.push(self.0.data_dir.clone());
         for game in GameId::ALL {
             let install = (self.0.locate)(game).map(|(install, _)| install);
+            if let (GameId::Humankind, Some(install)) = (game, &install) {
+                roots.push(plugins_dir(install));
+            }
             roots.extend(
                 games::mod_folders(game, install.as_deref(), &self.0.documents)
                     .into_iter()

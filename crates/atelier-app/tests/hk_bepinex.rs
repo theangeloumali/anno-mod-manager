@@ -501,3 +501,18 @@ fn installing_bepinex_can_run_as_a_tauri_command() {
     let future = harness.app.install_bepinex(GameId::Humankind);
     assert_send(&future);
 }
+
+#[test]
+fn a_folder_inside_bepinex_plugins_cannot_be_the_game() {
+    let harness = humankind();
+    let plugin = harness.install_dir().join("BepInEx/plugins/Fake");
+    fs::create_dir_all(&plugin).unwrap();
+    fs::write(plugin.join(HUMANKIND.executable()), b"").unwrap();
+
+    let error = harness
+        .app
+        .set_game_path(HUMANKIND, Some(plugin.to_str().unwrap()))
+        .unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+}

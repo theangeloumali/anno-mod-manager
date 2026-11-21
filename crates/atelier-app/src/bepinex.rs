@@ -7,7 +7,7 @@ use std::path::{Component, Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use atelier_core::GameId;
-use atelier_core::health::humankind::bepinex_installed;
+use atelier_core::health::humankind::{bepinex_installed, plugins_dir};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use url::Url;
@@ -405,8 +405,7 @@ fn status(install: &Path) -> BepInExStatus {
     };
     let log_stale = log.is_some()
         && modified(&log_path).is_some_and(|written| {
-            newest_change(&install.join("BepInEx").join("plugins"))
-                .is_some_and(|changed| changed > written)
+            newest_change(&plugins_dir(install)).is_some_and(|changed| changed > written)
         });
     BepInExStatus {
         present,

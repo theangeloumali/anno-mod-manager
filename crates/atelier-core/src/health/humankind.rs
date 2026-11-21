@@ -352,8 +352,13 @@ pub fn bepinex_installed(install: &Path) -> bool {
             .is_file()
 }
 
+/// Where BepInEx loads plugins from; mods write here, so it is never the game folder.
+pub fn plugins_dir(install: &Path) -> PathBuf {
+    install.join("BepInEx").join("plugins")
+}
+
 pub fn modlistguard_installed(install: &Path) -> bool {
-    contains_file(&install.join("BepInEx").join("plugins"), MODLISTGUARD_DLL)
+    contains_file(&plugins_dir(install), MODLISTGUARD_DLL)
 }
 
 /// Searches subfolders too, without following links.
