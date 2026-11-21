@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-use super::module_name::ModuleName;
+use super::module_name::{ModuleName, short_name};
 use super::registry::BASE_MODULE;
 use crate::error::io_at;
 use crate::{Mod, Result};
@@ -318,15 +318,9 @@ fn options(strings: &[Found]) -> Vec<GameOption> {
 fn mods(list: &str) -> Vec<SaveMod> {
     let mut mods: Vec<SaveMod> = Vec::new();
     for entry in list.split(MOD_SEPARATOR).filter(|entry| !entry.is_empty()) {
-        let module = match ModuleName::parse(entry) {
-            Some(parsed) => SaveMod {
-                name: parsed.short_name(),
-                version: Some(parsed.version()),
-            },
-            None => SaveMod {
-                name: entry.to_lowercase(),
-                version: None,
-            },
+        let module = SaveMod {
+            name: short_name(entry),
+            version: ModuleName::parse(entry).map(|parsed| parsed.version()),
         };
         let listed = mods.iter().any(|other| other.name == module.name);
         if module.name != BASE_MODULE && !listed {

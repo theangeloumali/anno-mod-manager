@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::activation::{Snapshots, validate_profile_name};
+use crate::activation::{Snapshots, same_profile_name, validate_profile_name};
 use crate::humankind::load_order::normalize;
 use crate::snapshots::write_with_snapshot;
 use crate::text::read_optional;
@@ -36,7 +36,7 @@ pub fn list(path: &Path) -> Result<Vec<HumankindProfile>> {
 pub fn find(path: &Path, name: &str) -> Result<HumankindProfile> {
     list(path)?
         .into_iter()
-        .find(|profile| same_name(&profile.name, name))
+        .find(|profile| same_profile_name(&profile.name, name))
         .ok_or_else(|| Error::ProfileNotFound(name.to_string()))
 }
 
@@ -53,7 +53,7 @@ pub fn save(
     let saved = match file
         .profiles
         .iter_mut()
-        .find(|profile| same_name(&profile.name, name))
+        .find(|profile| same_profile_name(&profile.name, name))
     {
         Some(existing) => {
             existing.modules = modules;
@@ -76,15 +76,11 @@ pub fn delete(path: &Path, name: &str, snapshots: &Snapshots) -> Result<()> {
     let mut file = read(path)?;
     let before = file.profiles.len();
     file.profiles
-        .retain(|profile| !same_name(&profile.name, name));
+        .retain(|profile| !same_profile_name(&profile.name, name));
     if file.profiles.len() == before {
         return Err(Error::ProfileNotFound(name.to_string()));
     }
     write(path, &file, snapshots)
-}
-
-fn same_name(left: &str, right: &str) -> bool {
-    left.to_lowercase() == right.to_lowercase()
 }
 
 fn read(path: &Path) -> Result<ProfilesFile> {

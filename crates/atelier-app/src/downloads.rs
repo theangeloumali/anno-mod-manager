@@ -558,7 +558,8 @@ impl App {
             ..PreviewOptions::default()
         };
         let preview = self.preview_install_with(game, &[archive.to_owned()], options)?;
-        // A Humankind module already in mod.io's own folder would load twice; say so, install nothing.
+        // Any Humankind item the preview refuses (a copy in mod.io's folder, a bad module) stops
+        // the download with that item's reason; nothing is installed.
         if game == GameId::Humankind
             && let Some(reason) = preview
                 .items
