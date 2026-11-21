@@ -2,7 +2,11 @@
 import { CornerDownRightIcon, LockIcon } from "lucide-react";
 import { useAppStore } from "@/components/app/app-store";
 import { SWITCH_CLASS } from "@/components/app/field-class";
-import { isReadOnly, LocationBadge } from "@/components/app/mod-badges";
+import {
+  categoryPrefix,
+  isReadOnly,
+  LocationBadge,
+} from "@/components/app/mod-badges";
 import { withToast } from "@/components/app/notify";
 import { StateBadge } from "@/components/app/state-badge";
 import { useCurrentGame } from "@/components/app/use-current-game";
@@ -86,6 +90,7 @@ function ModRow({
           onClick={() =>
             selectMod(mod.id, { location: mod.location, folder: mod.folder })
           }
+          title={`${mod.name} · ${mod.id}`}
           className={cn(
             "flex w-full min-w-0 items-center gap-2 text-left",
             isSubMod && "pl-5",
@@ -100,7 +105,7 @@ function ModRow({
           <span className="min-w-0">
             <span className="block truncate text-ui font-semibold text-copy">
               <span className="font-normal text-copy-muted">
-                [{mod.category}]{" "}
+                {categoryPrefix(mod.category)}
               </span>
               {mod.name}
               {isSubMod && <span className="sr-only">, sub-mod</span>}

@@ -1,6 +1,6 @@
 // Created by The Angelo Umali.
 import { FolderOpenIcon, LockIcon } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { Mod, ModLocation } from "@/data/types";
 import { StateBadge } from "./state-badge";
 
@@ -24,6 +24,21 @@ export function LocationBadge({ location }: { location: ModLocation }) {
     </StateBadge>
   );
 }
+
+/** Offers a line break after `_`, `-`, `.` and slashes, so one-token names and ModIDs break
+ * at their own separators; `wrap-anywhere` on the parent stays the fallback. */
+export function BreakableText({ text }: { text: string }) {
+  return text.split(/(?<=[_\-./\\])/).map((part, index) => (
+    <Fragment key={index}>
+      {index > 0 && <wbr />}
+      {part}
+    </Fragment>
+  ));
+}
+
+/** "[Gameplay] " before a mod's name, or nothing when its modinfo gives no category. */
+export const categoryPrefix = (category: string) =>
+  category ? `[${category}] ` : "";
 
 /** The mod's own mod.io logo; gradient + initials when it has none or it fails to load. */
 export function ModBanner({

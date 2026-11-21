@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useAction, type DataSource } from "@/data/source";
 import type { GameId, Issue, IssueKind, Mod } from "@/data/types";
 import { useAppStore } from "./app-store";
+import { BreakableText } from "./mod-badges";
 import { withToast } from "./notify";
 import { StateIcon } from "./state-badge";
 
@@ -39,6 +40,10 @@ async function installDependencyFromModio(
   await source.subscribe(game, match.id);
 }
 
+/** A fix button that names a mod stays one pill: it shrinks to its card and cuts the name to fit;
+ * the issue's message above carries the full name, and the tooltip repeats it. */
+const NAMED_ACTION = "max-w-full shrink";
+
 export function IssueCard({
   issue,
   mods,
@@ -68,6 +73,8 @@ export function IssueCard({
     <Button
       key={modId}
       size="sm"
+      className={NAMED_ACTION}
+      title={`Turn off ${nameOf(modId)}`}
       disabled={isWriteLocked || isBusy}
       onClick={() =>
         withToast(
@@ -77,7 +84,7 @@ export function IssueCard({
       }
     >
       <PowerIcon aria-hidden="true" />
-      Turn off {nameOf(modId)}
+      <span className="min-w-0 truncate">Turn off {nameOf(modId)}</span>
     </Button>
   );
 
@@ -102,6 +109,8 @@ export function IssueCard({
       <Button
         variant="steel"
         size="sm"
+        className={NAMED_ACTION}
+        title={`Turn on ${nameOf(issue.relatedModId)}`}
         disabled={isWriteLocked || isBusy}
         onClick={() =>
           withToast(
@@ -111,7 +120,9 @@ export function IssueCard({
         }
       >
         <PowerIcon aria-hidden="true" />
-        Turn on {nameOf(issue.relatedModId)}
+        <span className="min-w-0 truncate">
+          Turn on {nameOf(issue.relatedModId)}
+        </span>
       </Button>
     ),
     incompatible: [
@@ -143,13 +154,13 @@ export function IssueCard({
         {showModName && (
           <button
             type="button"
-            className="mt-0.5 text-left text-ui font-semibold text-accent underline-offset-4 hover:underline"
+            className="mt-0.5 text-left text-ui font-semibold text-accent underline-offset-4 wrap-anywhere hover:underline"
             onClick={() => {
               selectMod(issue.modId);
               setView("library");
             }}
           >
-            {nameOf(issue.modId)}
+            <BreakableText text={nameOf(issue.modId)} />
           </button>
         )}
         <p className="text-ui text-copy">{issue.message}</p>

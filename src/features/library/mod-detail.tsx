@@ -2,9 +2,11 @@
 import { RefreshCwIcon, SlidersHorizontalIcon, Trash2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/components/app/app-store";
-import { formatBytes } from "@/components/app/format";
+import { formatBytes, plainDescription } from "@/components/app/format";
 import { IssueCard } from "@/components/app/issue-card";
 import {
+  BreakableText,
+  categoryPrefix,
   isReadOnly,
   LocationBadge,
   ModBanner,
@@ -142,14 +144,26 @@ export function ModDetail({
             className="size-16 shrink-0 rounded-field text-panel-title"
           />
           <div className="min-w-0">
-            <h2 className="text-panel-title font-bold leading-tight">
-              {mod.name}
+            {/* Real names and ModIDs can be one long token, so these wrap anywhere, never clip. */}
+            <h2 className="text-panel-title font-bold leading-tight wrap-anywhere">
+              <BreakableText text={mod.name} />
             </h2>
-            <p className="text-ui text-copy-muted">
-              [{mod.category}] {mod.author ? `· by ${mod.author}` : ""}
+            <p className="text-ui text-copy-muted wrap-anywhere">
+              {[
+                categoryPrefix(mod.category).trim(),
+                mod.author && `by ${mod.author}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
-            <p className="truncate font-mono text-label text-copy-dim">
-              {mod.id} · {mod.version} · {formatBytes(mod.sizeBytes)}
+            <p className="font-mono text-label text-copy-dim wrap-anywhere">
+              <BreakableText text={mod.id} />
+            </p>
+            <p className="font-mono text-label text-copy-dim wrap-anywhere">
+              {mod.version} ·{" "}
+              <span className="whitespace-nowrap">
+                {formatBytes(mod.sizeBytes)}
+              </span>
             </p>
           </div>
         </div>
@@ -177,7 +191,9 @@ export function ModDetail({
         )}
 
         {mod.description && (
-          <p className="text-ui text-copy">{mod.description}</p>
+          <p className="whitespace-pre-line text-ui text-copy wrap-anywhere">
+            {plainDescription(mod.description)}
+          </p>
         )}
 
         <section>
@@ -227,6 +243,7 @@ export function ModDetail({
                         type="button"
                         disabled={!dependency}
                         onClick={() => selectMod(dependencyId)}
+                        title={dependency?.name ?? dependencyId}
                         className="min-w-0 truncate text-left text-ui text-copy enabled:text-accent enabled:hover:underline"
                       >
                         {dependency?.name ?? (
@@ -260,7 +277,9 @@ export function ModDetail({
                   key={subMod.id}
                   className="flex items-center justify-between gap-2 text-ui"
                 >
-                  <span className="min-w-0 truncate">{subMod.name}</span>
+                  <span className="min-w-0 truncate" title={subMod.name}>
+                    {subMod.name}
+                  </span>
                   <StateBadge tone={subMod.active ? "ok" : "neutral"}>
                     {subMod.active ? "On" : "Off"}
                   </StateBadge>

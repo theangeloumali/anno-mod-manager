@@ -38,3 +38,20 @@ export const gameExe = (game: GameId) =>
 /** "Anything went wrong" text for a rejected DataSource call. */
 export const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Something went wrong.";
+
+// Matches **Trade Licenses** but not a glob such as a double-star path pattern: the text
+// inside starts and ends with a letter, digit or closing punctuation.
+const BOLD_WORDS = /\*\*([\p{L}\p{N}](?:[^*\n]*?[\p{L}\p{N}.!?)])?)\*\*/gu;
+
+/** A modinfo description as plain text: markdown headings and `**bold**` markers go, line breaks
+ * stay. `__` is left alone: descriptions name files and ModIDs that use it. */
+export function plainDescription(text: string): string {
+  return text
+    .split("\n")
+    .map((line) =>
+      line.replace(/^\s{0,3}#{1,6}\s+/, "").replace(BOLD_WORDS, "$1"),
+    )
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
