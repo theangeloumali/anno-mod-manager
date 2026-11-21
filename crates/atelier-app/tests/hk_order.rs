@@ -354,7 +354,7 @@ fn restoring_an_entry_saves_its_old_list_as_a_profile() {
         ],
     );
     let name = harness.app.restore_history_entry(0).unwrap();
-    assert_eq!(name, "Restored 2026-11-21 03-04-05");
+    assert_eq!(name, "Restored 2026-11-21 03-04-05 UTC");
     assert_eq!(
         harness.app.humankind_profiles().unwrap(),
         vec![profile(&name, false)]
@@ -433,7 +433,7 @@ fn restoring_two_entries_from_the_same_second_keeps_both() {
     let first = harness.app.restore_history_entry(0).unwrap();
     let second = harness.app.restore_history_entry(1).unwrap();
 
-    assert_eq!(first, "Restored 2026-11-21 03-04-05");
-    assert_eq!(second, "Restored 2026-11-21 03-04-05 2");
+    assert_eq!(first, "Restored 2026-11-21 03-04-05 UTC");
+    assert_eq!(second, "Restored 2026-11-21 03-04-05 UTC 2");
     assert_eq!(harness.app.humankind_profiles().unwrap().len(), 2);
 }

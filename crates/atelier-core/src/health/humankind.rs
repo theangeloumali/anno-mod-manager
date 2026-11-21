@@ -399,12 +399,12 @@ pub fn modlistguard(install: &Path) -> HealthCheck {
     let (title, detail) = if modlistguard_installed(install) {
         (
             "ModListGuard is installed",
-            "It backs up the mod list and puts it back when the game resets it.",
+            "It backs up the mod list before the game changes it; Ctrl+F11 on the main menu restores it.",
         )
     } else {
         (
             "ModListGuard is not installed",
-            "Optional BepInEx plugin that backs up the mod list and puts it back when the game resets it.",
+            "Optional BepInEx plugin that backs up the mod list before the game changes it, so a reset can be undone.",
         )
     };
     check("modlistguard", Severity::Ok, title, detail.to_string())

@@ -211,7 +211,7 @@ export const exportHumankindProfile = (hk: HumankindMock, name: string) =>
     .map((module) => `${module}\n`)
     .join("");
 
-/** `2026-11-21T19:42:08.0000000Z` → `Restored 2026-11-21 19-42-08`. */
+/** `2026-11-21T19:42:08.0000000Z` → `Restored 2026-11-21 19-42-08 UTC`. */
 export function restoreHumankindHistory(
   hk: HumankindMock,
   index: number,
@@ -219,7 +219,7 @@ export function restoreHumankindHistory(
   const entry = hk.history[index];
   if (!entry) throw new CoreError("not-found", "That history entry is gone.");
   const stamp = entry.time.slice(0, 19).replace("T", " ").replaceAll(":", "-");
-  const name = `Restored ${stamp}`;
+  const name = `Restored ${stamp} UTC`;
   hk.profiles = hk.profiles.filter((profile) => profile.name !== name);
   hk.profiles.push({ name, modules: normalize(entry.old) });
   return name;

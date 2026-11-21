@@ -79,13 +79,13 @@ function bepinexChecks(
           "modlistguard",
           "ok",
           "ModListGuard is installed",
-          "It backs up the mod list and puts it back when the game resets it.",
+          "It backs up the mod list before the game changes it; Ctrl+F11 on the main menu restores it.",
         )
       : check(
           "modlistguard",
           "ok",
           "ModListGuard is not installed",
-          "Optional BepInEx plugin that backs up the mod list and puts it back when the game resets it.",
+          "Optional BepInEx plugin that backs up the mod list before the game changes it, so a reset can be undone.",
         ),
   ];
 }

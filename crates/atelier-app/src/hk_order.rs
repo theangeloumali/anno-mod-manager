@@ -163,9 +163,15 @@ impl App {
     }
 }
 
-/// `2026-11-21T03:04:05.0000000Z` → `Restored 2026-11-21 03-04-05`; names refuse `:` and `.`.
+/// `2026-11-21T03:04:05.0000000Z` → `Restored 2026-11-21 03-04-05 UTC`; names refuse `:` and `.`.
+/// The history list shows local time, so the name says which clock it uses.
 fn restored_name(time: &str) -> String {
-    let stamp = time.split('.').next().unwrap_or(time).replacen('T', " ", 1);
+    let stamp = time
+        .split('.')
+        .next()
+        .unwrap_or(time)
+        .trim_end_matches('Z')
+        .replacen('T', " ", 1);
     let safe: String = stamp
         .chars()
         .map(|c| {
@@ -176,5 +182,5 @@ fn restored_name(time: &str) -> String {
             }
         })
         .collect();
-    format!("Restored {safe}")
+    format!("Restored {safe} UTC")
 }
