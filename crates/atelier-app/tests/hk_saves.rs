@@ -12,6 +12,7 @@ use zip::write::SimpleFileOptions;
 
 const HUMANKIND: GameId = GameId::Humankind;
 const GUID: &str = "0123456789abcdef0123456789abcdef";
+const BASE: &str = "project mercury";
 const BASE_ONLY: &str = "<RuntimeModuleConfiguration>project mercury</RuntimeModuleConfiguration>";
 
 fn game_dir(harness: &Harness) -> PathBuf {
@@ -29,16 +30,6 @@ fn add_module(harness: &Harness, name: &str, version: &str) {
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join(&long), "module").unwrap();
     fs::write(dir.join(format!("{long}.manifest")), "manifest").unwrap();
-}
-
-fn registry(harness: &Harness) -> PathBuf {
-    game_dir(harness).join("Users/76561190000000001/Registry.xml")
-}
-
-fn write_registry(harness: &Harness) {
-    let path = registry(harness);
-    fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(&path, format!("<Registry>\n  {BASE_ONLY}\n</Registry>\n")).unwrap();
 }
 
 /// A `.ctr` holding a descriptor with the given `\`-separated mod list.
@@ -181,7 +172,7 @@ fn a_corrupt_save_is_refused_with_its_reason() {
 #[test]
 fn making_a_save_loadable_restores_played_versions_then_writes_its_order() {
     let harness = Harness::new();
-    write_registry(&harness);
+    harness.write_humankind_registry(BASE);
     vault(&harness, "Eventful", "0.7");
     add_module(&harness, "Eventful", "0.8");
     add_module(&harness, "Deepsea Reloaded", "1.9");
@@ -197,7 +188,7 @@ fn making_a_save_loadable_restores_played_versions_then_writes_its_order() {
         installed_version(&harness, "eventful").as_deref(),
         Some("0.7")
     );
-    let written = fs::read_to_string(registry(&harness)).unwrap();
+    let written = fs::read_to_string(harness.humankind_registry()).unwrap();
     assert!(
         written.contains(
             "<RuntimeModuleConfiguration>project mercury/eventful/deepsea reloaded</RuntimeModuleConfiguration>"
@@ -209,7 +200,7 @@ fn making_a_save_loadable_restores_played_versions_then_writes_its_order() {
 #[test]
 fn a_version_the_vault_lacks_is_reported_and_the_registry_is_left_alone() {
     let harness = Harness::new();
-    write_registry(&harness);
+    harness.write_humankind_registry(BASE);
     add_module(&harness, "Eventful", "0.8");
     let path = played_with_eventful_and_deepsea(&harness);
 
@@ -235,7 +226,7 @@ fn a_version_the_vault_lacks_is_reported_and_the_registry_is_left_alone() {
         ]
     );
     assert!(
-        fs::read_to_string(registry(&harness))
+        fs::read_to_string(harness.humankind_registry())
             .unwrap()
             .contains(BASE_ONLY)
     );
@@ -244,18 +235,22 @@ fn a_version_the_vault_lacks_is_reported_and_the_registry_is_left_alone() {
 #[test]
 fn a_save_with_no_mods_loads_the_base_game_alone() {
     let harness = Harness::new();
-    write_registry(&harness);
+    harness.write_humankind_registry(BASE);
     add_module(&harness, "Eventful", "0.8");
     let listed =
         "<RuntimeModuleConfiguration>project mercury/eventful</RuntimeModuleConfiguration>";
-    fs::write(registry(&harness), format!("<Registry>{listed}</Registry>")).unwrap();
+    fs::write(
+        harness.humankind_registry(),
+        format!("<Registry>{listed}</Registry>"),
+    )
+    .unwrap();
     let path = write_save(&harness, "vanilla.ctr", "project mercury");
 
     let report = harness.app.make_save_loadable(HUMANKIND, &path).unwrap();
 
     assert!(report.registry_written);
     assert!(
-        fs::read_to_string(registry(&harness))
+        fs::read_to_string(harness.humankind_registry())
             .unwrap()
             .contains(BASE_ONLY)
     );
@@ -283,7 +278,7 @@ fn without_a_registry_nothing_is_restored() {
 #[test]
 fn a_running_game_blocks_making_a_save_loadable() {
     let harness = Harness::new();
-    write_registry(&harness);
+    harness.write_humankind_registry(BASE);
     let path = played_with_eventful_and_deepsea(&harness);
     harness.set_running(true);
 

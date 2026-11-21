@@ -155,6 +155,12 @@ impl App {
             });
         };
         let dir = scan::mod_dir(&self.folders(game), target).ok_or_else(|| not_found(mod_id))?;
+        // Humankind resets a list naming a missing module to vanilla, so the module leaves it
+        // first, unless a Workshop or game-folder copy still provides it.
+        if game == GameId::Humankind && matches.len() == 1 {
+            let writable = self.writable(game);
+            activation::set_active(game, &writable, target, false, &mods, &self.0.snapshots)?;
+        }
         // Kept in the backups for the retention period, so restore_mod can undo this.
         self.0.engine.remove_to_backup(game, &dir)?;
         // A mod.io install sits one level down (`<modId>_<fileId>/<module>`); drop that folder

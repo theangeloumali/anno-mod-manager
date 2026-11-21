@@ -24,24 +24,8 @@ fn add_module(harness: &Harness, name: &str) {
     fs::write(dir.join(format!("{long}.manifest")), "manifest").unwrap();
 }
 
-fn registry(harness: &Harness) -> PathBuf {
-    game_dir(harness).join("Users/76561190000000001/Registry.xml")
-}
-
-fn write_registry(harness: &Harness, modules: &str) {
-    let path = registry(harness);
-    fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(
-        &path,
-        format!(
-            "<Registry>\n  <RuntimeModuleConfiguration>{modules}</RuntimeModuleConfiguration>\n</Registry>\n"
-        ),
-    )
-    .unwrap();
-}
-
 fn registry_text(harness: &Harness) -> String {
-    fs::read_to_string(registry(harness)).unwrap()
+    fs::read_to_string(harness.humankind_registry()).unwrap()
 }
 
 fn names(values: &[&str]) -> Vec<String> {
@@ -53,7 +37,7 @@ fn setup() -> Harness {
     let harness = Harness::new();
     add_module(&harness, "Alpha");
     add_module(&harness, "Beta");
-    write_registry(&harness, BASE);
+    harness.write_humankind_registry(BASE);
     harness
 }
 
@@ -193,7 +177,7 @@ fn module_names_with_xml_characters_are_escaped_in_the_registry() {
 #[test]
 fn launch_blockers_name_listed_modules_that_are_not_installed() {
     let harness = setup();
-    write_registry(&harness, &format!("{BASE}/alpha/gone/Gone"));
+    harness.write_humankind_registry(&format!("{BASE}/alpha/gone/Gone"));
     assert_eq!(
         harness.app.launch_blockers(HUMANKIND).unwrap(),
         names(&["gone"])
@@ -207,7 +191,7 @@ fn launch_is_refused_while_a_listed_module_is_missing() {
         ..Options::default()
     });
     add_module(&harness, "Alpha");
-    write_registry(&harness, &format!("{BASE}/alpha/gone"));
+    harness.write_humankind_registry(&format!("{BASE}/alpha/gone"));
 
     let error = harness.app.launch_game(HUMANKIND).unwrap_err();
 
@@ -215,7 +199,7 @@ fn launch_is_refused_while_a_listed_module_is_missing() {
     assert!(error.message.contains("gone"), "{}", error.message);
     assert!(harness.launches.lock().unwrap().is_empty());
 
-    write_registry(&harness, &format!("{BASE}/alpha"));
+    harness.write_humankind_registry(&format!("{BASE}/alpha"));
     harness.app.launch_game(HUMANKIND).unwrap();
     assert_eq!(harness.launches.lock().unwrap().len(), 1);
 }
@@ -392,9 +376,9 @@ fn restoring_an_entry_that_does_not_exist_is_not_found() {
 #[test]
 fn the_shared_profile_commands_use_humankind_profiles() {
     let harness = setup();
-    write_registry(&harness, &format!("{BASE}/alpha"));
+    harness.write_humankind_registry(&format!("{BASE}/alpha"));
     harness.app.save_profile(HUMANKIND, "Mine").unwrap();
-    write_registry(&harness, BASE);
+    harness.write_humankind_registry(BASE);
 
     let listed = harness.app.list_profiles(HUMANKIND).unwrap();
     assert_eq!(listed, vec![profile("Mine", false)]);
@@ -413,7 +397,7 @@ fn the_shared_profile_commands_use_humankind_profiles() {
 #[test]
 fn the_load_order_is_the_registry_order_set_by_the_player() {
     let harness = setup();
-    write_registry(&harness, &format!("{BASE}/beta/alpha"));
+    harness.write_humankind_registry(&format!("{BASE}/beta/alpha"));
 
     let order = harness.app.load_order(HUMANKIND).unwrap();
 
@@ -426,7 +410,7 @@ fn the_load_order_is_the_registry_order_set_by_the_player() {
 #[test]
 fn exporting_a_humankind_profile_lists_its_modules_in_order() {
     let harness = setup();
-    write_registry(&harness, &format!("{BASE}/beta/alpha"));
+    harness.write_humankind_registry(&format!("{BASE}/beta/alpha"));
     harness.app.save_profile(HUMANKIND, "Mine").unwrap();
 
     let text = harness.app.export_profile(HUMANKIND, "mine").unwrap();

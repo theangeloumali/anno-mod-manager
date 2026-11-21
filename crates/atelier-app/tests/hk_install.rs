@@ -7,6 +7,7 @@ use std::time::Duration;
 use atelier_app::ErrorCode;
 use atelier_core::GameId;
 use atelier_install::InstallItemStatus;
+use atelier_modio::TokenStore;
 use atelier_modio::{DownloadJob, DownloadStatus};
 use common::*;
 use md5::{Digest, Md5};
@@ -240,6 +241,89 @@ fn uninstalling_a_modio_module_leaves_no_empty_folder() {
     harness.app.uninstall_mod(HUMANKIND, "sigma pack").unwrap();
 
     assert!(!page.exists(), "{} was left behind", page.display());
+}
+
+fn registry_text(harness: &Harness) -> String {
+    fs::read_to_string(harness.humankind_registry()).unwrap()
+}
+
+/// Humankind resets a list naming a module that isn't installed to vanilla.
+#[test]
+fn uninstalling_a_module_takes_it_out_of_the_load_order() {
+    let harness = Harness::new();
+    let long = long_name("Sigma Pack", "2.5");
+    install_drop(
+        &harness,
+        &drop_archive(&harness, "Sigma.zip", &module_entries("Sigma", &long)),
+    );
+    harness.write_humankind_registry("project mercury/sigma pack");
+
+    harness.app.uninstall_mod(HUMANKIND, "sigma pack").unwrap();
+
+    assert!(
+        registry_text(&harness)
+            .contains("<RuntimeModuleConfiguration>project mercury</RuntimeModuleConfiguration>"),
+        "{}",
+        registry_text(&harness)
+    );
+}
+
+#[test]
+fn uninstalling_a_module_the_load_order_does_not_list_leaves_the_registry_alone() {
+    let harness = Harness::new();
+    let long = long_name("Sigma Pack", "2.5");
+    write_module(&community(&harness).join("Sigma").join(&long), &long);
+    harness.write_humankind_registry("project mercury");
+    let before = registry_text(&harness);
+
+    harness.app.uninstall_mod(HUMANKIND, "sigma pack").unwrap();
+
+    assert_eq!(registry_text(&harness), before);
+    assert_eq!(folder_of(&harness, "sigma pack"), None);
+}
+
+#[test]
+fn a_module_still_in_the_workshop_stays_in_the_load_order_after_uninstall() {
+    let harness = Harness::with(Options {
+        install: Some(HUMANKIND),
+        ..Options::default()
+    });
+    let long = long_name("Sigma Pack", "2.5");
+    write_module(&community(&harness).join("Sigma").join(&long), &long);
+    write_module(
+        &harness.root.path().join("workshop/content/1124300/3001"),
+        &long,
+    );
+    harness.write_humankind_registry("project mercury/sigma pack");
+
+    harness.app.uninstall_mod(HUMANKIND, "sigma pack").unwrap();
+
+    assert!(registry_text(&harness).contains("project mercury/sigma pack"));
+}
+
+#[tokio::test]
+async fn a_module_removed_by_unsubscribing_leaves_the_load_order() {
+    let server = MockServer::start().await;
+    let long = long_name("Sigma Pack", "2.5");
+    serve_page(&server, zip_entries(&module_entries("Sigma", &long))).await;
+    Mock::given(path(format!("{MODIO_PAGE}/subscribe")))
+        .respond_with(ResponseTemplate::new(201).set_body_json(fixture("message_201.json")))
+        .mount(&server)
+        .await;
+    let harness = harness_for(&server, Some(API_KEY));
+    harness.app.subscribe(HUMANKIND, 4801).await.unwrap();
+    assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Done);
+    harness.write_humankind_registry("project mercury/sigma pack");
+    harness.tokens.save("signed-in-token").unwrap();
+
+    harness.app.unsubscribe(HUMANKIND, 4801).await.unwrap();
+
+    assert_eq!(folder_of(&harness, "sigma pack"), None);
+    assert!(
+        !registry_text(&harness).contains("sigma pack"),
+        "{}",
+        registry_text(&harness)
+    );
 }
 
 #[test]

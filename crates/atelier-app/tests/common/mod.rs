@@ -149,6 +149,26 @@ impl Harness {
         fs::write(data.join("snapshots"), "").unwrap();
     }
 
+    /// Humankind's Registry.xml for the one Steam user the tests play as.
+    pub fn humankind_registry(&self) -> PathBuf {
+        self.root
+            .path()
+            .join("My Documents/Humankind/Users/76561190000000001/Registry.xml")
+    }
+
+    /// `modules` is the game's `/`-separated load order.
+    pub fn write_humankind_registry(&self, modules: &str) {
+        let path = self.humankind_registry();
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            format!(
+                "<Registry>\n  <RuntimeModuleConfiguration>{modules}</RuntimeModuleConfiguration>\n</Registry>\n"
+            ),
+        )
+        .unwrap();
+    }
+
     pub fn drop_path(&self, name: &str) -> PathBuf {
         let dir = self.root.path().join("Drops With Spaces");
         fs::create_dir_all(&dir).unwrap();
