@@ -1,6 +1,7 @@
 //! Thin `#[tauri::command]` wrappers; every rule lives in `atelier-app`.
 //! All are async so they run on Tauri's tokio runtime, which download jobs spawn onto.
 
+mod humankind;
 mod install;
 mod library;
 mod modio;
@@ -58,5 +59,15 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static 
         modio::request_sign_in_code,
         modio::sign_in,
         modio::sign_out,
+        humankind::set_load_order,
+        humankind::launch_blockers,
+        humankind::list_saves,
+        humankind::inspect_save,
+        humankind::make_save_loadable,
+        humankind::mod_list_history,
+        humankind::restore_history_entry,
+        humankind::bepinex_status,
+        humankind::install_bepinex,
+        humankind::uninstall_bepinex,
     ]
 }

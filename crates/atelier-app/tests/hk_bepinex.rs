@@ -471,3 +471,12 @@ fn status_without_a_log_reports_no_plugins() {
     assert!(status.plugins.is_empty());
     assert_eq!(status.version, None);
 }
+
+/// Tauri runs async commands on a multi-threaded runtime, so the future must be Send.
+#[test]
+fn installing_bepinex_can_run_as_a_tauri_command() {
+    fn assert_send<T: Send>(_: &T) {}
+    let harness = Harness::new();
+    let future = harness.app.install_bepinex(GameId::Humankind);
+    assert_send(&future);
+}
