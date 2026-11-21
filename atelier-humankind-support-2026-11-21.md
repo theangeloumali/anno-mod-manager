@@ -224,7 +224,7 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
     - Pruning (`backup.rs:54-70`) never deletes a version that any save on disk lists.
   - Save keeper: one command writes the save's exact list and order to the registry. A missing version is restored from the vault first; anything else is reported, never guessed.
   - Verify: `set -o pipefail; cargo test -p atelier-core -p atelier-install 2>&1 | tail -15` passes, and a fixture `.ctr` copied from `Save Files\Cloud\Cubans Turn 386.ctr` parses to its 14 mods
-- [ ] Phase 4: Profiles, load-order editor, history (H11, H13)
+- [x] Phase 4: Profiles, load-order editor, history (H11, H13)
   - `humankind/load_order.rs`: an ordered list with validation. `project mercury` comes first; at most one Standalone at index 0 and one Conversion after it; then Extensions in the user's order.
     - Enabling a second Standalone or Conversion replaces the first, as in the game (`ModdingMenu.cs:443-472`).
   - **Missing-module guard:** before writing or launching, any listed module that isn't installed blocks the action with a message. That stops the game's wipe at its cause.
@@ -232,7 +232,7 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
   - History: reads `Documents\Humankind\ModListGuard\history.jsonl` when it exists. Each "lost" entry can be restored as a profile.
   - Tauri commands in `src-tauri/src/commands/library.rs`: `set_load_order`, `list_profiles`, `save_profile`, `apply_profile`, `delete_profile`, `mod_list_history`, `restore_history_entry`.
   - Verify: `set -o pipefail; cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app 2>&1 | tail -15` passes, with tests for every ordering rule and the missing-module guard
-- [ ] Phase 5: mod.io and drop-install (H4, H5)
+- [x] Phase 5: mod.io and drop-install (H4, H5)
   - mod.io: match arm `Humankind => 2599` (`crates/atelier-modio/src/client.rs:26-31`), plus `AUTH_GAME` (`auth.rs:11`).
   - Install target `Community\Atelier\<modId>_<modfileId>\`.
   - Install crate: `roots.rs:76-91` recognises a Humankind root (a `<Name>.<guid32>.<n>.<n>` file next to its `.assetbundle`). `classify.rs` and `stage.rs` get Humankind wording and targets. BepInEx plugin zips (a `BepInEx/plugins` tree or a lone `.dll`) are a separate kind that installs to `<install>\BepInEx\plugins\`.
@@ -246,7 +246,7 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
     4. Plant a missing module and confirm Atelier blocks the launch.
   - Restore the backup afterwards.
   - Verify: the before and after `RuntimeModuleConfiguration` values and the Diagnostics lines are recorded in the plan doc's results section
-- [ ] Phase 7: Health and BepInEx (H6, H9, H16 checks)
+- [x] Phase 7: Health and BepInEx (H6, H9, H16 checks)
   - New functions added to `check_environment` (`crates/atelier-core/src/health/mod.rs:21-29`), each a `HealthCheck`:
     - the game was found;
     - `Documents\Humankind` is writable;
