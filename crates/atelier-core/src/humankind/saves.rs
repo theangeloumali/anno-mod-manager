@@ -16,6 +16,8 @@ const SAVE_EXTENSION: &str = "ctr";
 const DESCRIPTOR_ENTRY: &str = "SaveDescriptor.bin";
 /// A real descriptor is about 45 KB; the cap stops a hostile zip from filling memory.
 const MAX_DESCRIPTOR_BYTES: u64 = 4 * 1024 * 1024;
+/// Far above any real key or mod list; a longer run is not a descriptor string.
+const MAX_STRING_UNITS: u32 = 64 * 1024;
 const BUILD_KEY: &str = "ver";
 const MODS_KEY: &str = "rmc";
 const MOD_SEPARATOR: char = '\\';
@@ -257,7 +259,7 @@ fn strings(bytes: &[u8]) -> Vec<Found> {
 fn string_at(bytes: &[u8], at: usize) -> Option<(String, usize)> {
     let size = u32_at(bytes, at)?;
     let count = u32_at(bytes, at.checked_add(4)?)?;
-    if u64::from(size) != 4 + 2 * u64::from(count) {
+    if u64::from(size) != 4 + 2 * u64::from(count) || count > MAX_STRING_UNITS {
         return None;
     }
     let start = at.checked_add(8)?;
@@ -268,10 +270,12 @@ fn string_at(bytes: &[u8], at: usize) -> Option<(String, usize)> {
         .0
         .iter()
         .map(|pair| u16::from_le_bytes(*pair));
-    let text: String = char::decode_utf16(units)
-        .collect::<std::result::Result<_, _>>()
-        .ok()?;
-    (!text.chars().any(char::is_control)).then_some((text, end))
+    // Stops at the first bad unit, so overlapping fake headers can't make the scan quadratic.
+    let mut text = String::new();
+    for decoded in char::decode_utf16(units) {
+        text.push(decoded.ok().filter(|character| !character.is_control())?);
+    }
+    Some((text, end))
 }
 
 fn u32_at(bytes: &[u8], at: usize) -> Option<u32> {

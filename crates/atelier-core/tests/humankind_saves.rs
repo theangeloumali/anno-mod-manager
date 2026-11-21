@@ -198,6 +198,41 @@ fn every_truncation_of_the_real_descriptor_parses_without_panicking() {
     assert!(parse_descriptor(&[0xff; 64]).mods.is_empty());
 }
 
+/// A header every 8 bytes, each claiming a string that runs to the end of the buffer.
+fn header_bomb(len: usize) -> Vec<u8> {
+    let surrogate = |value: u32| {
+        let halves = [value & 0xFFFF, value >> 16];
+        halves.iter().any(|half| (0xD800..=0xDFFF).contains(half))
+    };
+    let mut bytes = [0x41u8, 0x00].repeat(len / 2);
+    let mut at = 0;
+    while at + 8 <= len {
+        let mut count = u32::try_from((len - at - 8) / 2).unwrap();
+        while count > 0 && (surrogate(count) || surrogate(4 + 2 * count)) {
+            count -= 1;
+        }
+        bytes[at..at + 4].copy_from_slice(&(4 + 2 * count).to_le_bytes());
+        bytes[at + 4..at + 8].copy_from_slice(&count.to_le_bytes());
+        at += 8;
+    }
+    bytes
+}
+
+#[test]
+fn a_hostile_descriptor_of_overlapping_headers_parses_quickly() {
+    let bytes = header_bomb(512 * 1024);
+    let started = std::time::Instant::now();
+    parse_descriptor(&bytes);
+    assert!(started.elapsed() < std::time::Duration::from_secs(1));
+}
+
+#[test]
+fn a_string_over_the_length_cap_is_not_read() {
+    let long = "a".repeat(70_000);
+    let parsed = parse_descriptor(&descriptor(&["rmc", &long]));
+    assert!(parsed.mods.is_empty());
+}
+
 #[test]
 fn a_file_that_is_not_a_zip_is_refused() {
     let root = tempfile::tempdir().unwrap();
