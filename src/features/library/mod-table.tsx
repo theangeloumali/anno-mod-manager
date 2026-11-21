@@ -135,6 +135,10 @@ function ModRow({
   );
 }
 
+/** One ModID can sit in two locations, so a sub-mod belongs to the parent copy in its own location. */
+export const isSubModOf = (subMod: Mod, parent: Mod) =>
+  subMod.parentId === parent.id && subMod.location === parent.location;
+
 export function ModTable({
   mods,
   allMods,
@@ -188,9 +192,7 @@ export function ModTable({
             ...allMods
               .filter(
                 (subMod) =>
-                  subMod.parentId === mod.id &&
-                  subMod.location === mod.location &&
-                  isSubModVisible(subMod, mod),
+                  isSubModOf(subMod, mod) && isSubModVisible(subMod, mod),
               )
               .map((subMod) => (
                 <ModRow

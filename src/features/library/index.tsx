@@ -24,7 +24,7 @@ import { useAction, useIssues, useMods } from "@/data/source";
 import type { Mod } from "@/data/types";
 import { issuesForMod } from "./issues-for-mod";
 import { ModDetail } from "./mod-detail";
-import { ModTable } from "./mod-table";
+import { isSubModOf, ModTable } from "./mod-table";
 import { ProfileBar } from "./profile-bar";
 
 type LibraryFilter = "all" | "active" | "inactive" | "issues" | "updates";
@@ -68,9 +68,7 @@ export function LibraryScreen() {
     (mod) =>
       filterTests[filter](mod) &&
       (matchesQuery(mod) ||
-        mods.some(
-          (subMod) => subMod.parentId === mod.id && matchesQuery(subMod),
-        )),
+        mods.some((subMod) => isSubModOf(subMod, mod) && matchesQuery(subMod))),
   );
 
   const selectedMod = findSelectedMod(mods, selectedModId, selectedCopy);
