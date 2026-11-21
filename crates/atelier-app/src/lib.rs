@@ -1,6 +1,7 @@
 //! App state behind the Tauri commands. Every method returns UI-ready, camelCase types
 //! and an [`AppError`] the UI can show as is.
 
+mod bepinex;
 mod collections;
 mod downloads;
 mod error;
@@ -23,6 +24,7 @@ use atelier_install::{EngineConfig, InstallEngine};
 use atelier_modio::{ModioClient, TokenStore};
 use url::Url;
 
+pub use bepinex::{BepInExStatus, LoadedPlugin, ReleaseSource};
 pub use error::{AppError, ErrorCode, Result};
 pub use hk_saves::{SaveInspection, SaveLoadReport};
 pub use modio::{AppAccount, AuthMethod};

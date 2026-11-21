@@ -1,5 +1,6 @@
 //! Environment checks shown on the Health screen, plus the mod-loader log parser.
 
+pub mod humankind;
 pub mod log;
 
 use std::collections::{HashMap, HashSet};
@@ -19,10 +20,15 @@ pub struct Environment<'a> {
 }
 
 pub fn check_environment(env: &Environment) -> Vec<HealthCheck> {
-    let mut checks = vec![game_found(env), mods_writable(env.mods_dir)];
+    let mut checks = vec![game_found(env)];
     match env.game {
-        GameId::Anno1800 => checks.push(legacy_loader_check(env.install_path)),
-        GameId::Anno117 | GameId::Humankind => {}
+        GameId::Anno1800 => {
+            checks.push(writable("mods-writable", "Mods folder", env.mods_dir));
+            checks.push(legacy_loader_check(env.install_path));
+        }
+        GameId::Anno117 => checks.push(writable("mods-writable", "Mods folder", env.mods_dir)),
+        // Community/ only exists after the first install, so its parent is what gets probed.
+        GameId::Humankind => checks.extend(humankind::checks(env)),
     }
     checks.push(duplicate_ids(env.mods));
     checks.push(activation_scheme(env.game, env.mods_dir));
@@ -56,23 +62,23 @@ fn game_found(env: &Environment) -> HealthCheck {
 }
 
 /// Creates and removes a probe file, so permissions are tested rather than guessed.
-fn mods_writable(mods_dir: &Path) -> HealthCheck {
-    let probe = mods_dir.join(WRITE_PROBE);
+fn writable(id: &str, what: &str, dir: &Path) -> HealthCheck {
+    let probe = dir.join(WRITE_PROBE);
     match fs::write(&probe, b"") {
         Ok(()) => {
             let _ = fs::remove_file(&probe);
             check(
-                "mods-writable",
+                id,
                 Severity::Ok,
-                "Mods folder is writable",
-                mods_dir.display().to_string(),
+                &format!("{what} is writable"),
+                dir.display().to_string(),
             )
         }
         Err(error) => check(
-            "mods-writable",
+            id,
             Severity::Warning,
-            "Mods folder is not writable",
-            format!("{}: {error}", mods_dir.display()),
+            &format!("{what} is not writable"),
+            format!("{}: {error}", dir.display()),
         ),
     }
 }

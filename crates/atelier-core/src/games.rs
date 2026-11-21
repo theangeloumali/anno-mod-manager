@@ -271,7 +271,7 @@ fn epic_install(manifests: &Path, game: GameId) -> Option<PathBuf> {
 }
 
 /// Values of `"key" "value"` pairs in Valve KeyValues text; `\\` unescapes to `\`.
-fn vdf_values(text: &str, key: &str) -> Vec<String> {
+pub(crate) fn vdf_values(text: &str, key: &str) -> Vec<String> {
     let tokens = vdf_strings(text);
     tokens
         .windows(2)
