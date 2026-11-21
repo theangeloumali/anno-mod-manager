@@ -154,7 +154,7 @@ function OrderDraft({ saved, mods }: { saved: string[]; mods: Mod[] }) {
         title="Extensions"
         actions={
           <span className="text-label text-copy-dim">
-            Drag, or use the arrows. Later Extensions win a conflict.
+            Drag, or use the arrows. They load top to bottom.
           </span>
         }
       >
