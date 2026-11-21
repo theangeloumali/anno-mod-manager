@@ -29,11 +29,21 @@ const shortDate = new Intl.DateTimeFormat("en-GB", {
 export const formatUnixDate = (seconds: number) =>
   seconds > 0 ? shortDate.format(new Date(seconds * 1000)) : "—";
 
-export const gameShortName = (game: GameId) =>
-  game === "anno117" ? "Anno 117" : "Anno 1800";
+const SHORT_NAMES: Record<GameId, string> = {
+  anno117: "Anno 117",
+  anno1800: "Anno 1800",
+  humankind: "Humankind",
+};
 
-export const gameExe = (game: GameId) =>
-  game === "anno117" ? "Anno117.exe" : "Anno1800.exe";
+const EXECUTABLES: Record<GameId, string> = {
+  anno117: "Anno117.exe",
+  anno1800: "Anno1800.exe",
+  humankind: "Humankind.exe",
+};
+
+export const gameShortName = (game: GameId) => SHORT_NAMES[game];
+
+export const gameExe = (game: GameId) => EXECUTABLES[game];
 
 /** "Anything went wrong" text for a rejected DataSource call. */
 export const errorMessage = (error: unknown) =>

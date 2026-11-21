@@ -1,9 +1,10 @@
 // The UI ↔ core contract. Field names match the Rust structs (serde camelCase) in crates/*.
 
-export type GameId = "anno117" | "anno1800";
+export type GameId = "anno117" | "anno1800" | "humankind";
+export const GAME_IDS: readonly GameId[] = ["anno117", "anno1800", "humankind"];
 export type Store = "steam" | "ubisoft" | "epic" | "manual";
-/** Where the loader found the mod: Documents is ours to write; game and ubi are read-only. */
-export type ModLocation = "documents" | "game" | "ubi";
+/** Where the loader found the mod: Documents is ours to write; the rest are read-only. */
+export type ModLocation = "documents" | "game" | "ubi" | "workshop";
 type ModOrigin = "modio" | "local";
 type Severity = "ok" | "warning" | "error";
 
@@ -15,8 +16,8 @@ export interface GameInfo {
   modsPath: string;
   logPath: string;
   running: boolean;
-  /** 117: "profile" (profile.txt + profiles/) or "legacy" (active-profile.txt); 1800: "activation-json". */
-  activationScheme: "profile" | "legacy" | "activation-json";
+  /** 117: "profile" or "legacy"; 1800: "activation-json"; Humankind: "registry-list" (Registry.xml). */
+  activationScheme: "profile" | "legacy" | "activation-json" | "registry-list";
   /** 1800: the old community mod loader is in place of the game's python35.dll. */
   legacyModLoader: boolean;
 }

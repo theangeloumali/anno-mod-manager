@@ -8,6 +8,7 @@ const LOCATION_LABEL: Record<ModLocation, string> = {
   documents: "Documents",
   game: "Game folder · read-only",
   ubi: "Ubisoft .ubi · read-only",
+  workshop: "Steam Workshop · read-only",
 };
 
 export const isReadOnly = (mod: Pick<Mod, "location">) =>

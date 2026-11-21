@@ -71,6 +71,7 @@ impl From<atelier_core::Error> for AppError {
             | Core::NoProfiles(_)
             | Core::SubMod(_) => ErrorCode::InvalidInput,
             Core::Io { .. } | Core::Json(_) | Core::InvalidModInfo(_) => ErrorCode::Io,
+            Core::Unsupported(_) => ErrorCode::NotSupported,
         };
         Self::new(code, error.to_string())
     }

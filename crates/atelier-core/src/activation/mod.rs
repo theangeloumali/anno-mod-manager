@@ -73,6 +73,7 @@ pub fn detect_scheme(game: GameId, mods_dir: &Path) -> ActivationScheme {
             ActivationScheme::Legacy
         }
         GameId::Anno117 => ActivationScheme::Profile,
+        GameId::Humankind => ActivationScheme::RegistryList,
     }
 }
 
@@ -91,6 +92,7 @@ pub fn read(game: GameId, mods_dir: &Path) -> Result<ActivationState> {
             let effective = name.as_deref().unwrap_or(DEFAULT_PROFILE);
             (name.clone(), profile_rules(mods_dir, effective)?)
         }
+        ActivationScheme::RegistryList => return Err(Error::Unsupported(scheme)),
     };
     Ok(ActivationState {
         scheme,
@@ -149,6 +151,7 @@ pub fn set_active(
                 snapshots,
             )
         }
+        scheme @ ActivationScheme::RegistryList => Err(Error::Unsupported(scheme)),
     }
 }
 

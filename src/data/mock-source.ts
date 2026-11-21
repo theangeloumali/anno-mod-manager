@@ -47,6 +47,10 @@ export const MOCK_DROP_SOURCES: Record<
     pack: "roman-pack-v2.zip",
     otherGame: "exact-numbers-babbage.zip",
   },
+  humankind: {
+    pack: "sigma-pack.zip",
+    otherGame: "industry-pack-v3.zip",
+  },
   anno1800: {
     pack: "industry-pack-v3.zip",
     otherGame: "taludas-increaseharbourarea.zip",
@@ -626,6 +630,7 @@ function mockLogo(name: string, hue: number): string {
 
 function seedModio(): Record<GameId, ModioMod[]> {
   return {
+    humankind: [],
     anno117: [
       modioItem(
         4021002,
@@ -877,6 +882,7 @@ function seedModio(): Record<GameId, ModioMod[]> {
 
 function seedCollections(): Record<GameId, ModioCollection[]> {
   return {
+    humankind: [],
     anno117: [
       {
         id: 71001,
@@ -980,6 +986,16 @@ const GAME_DETAILS: Record<
     activationScheme: "activation-json",
     exe: "Anno1800.exe",
   },
+  humankind: {
+    id: "humankind",
+    displayName: "Humankind",
+    installPath: "D:\\SteamLibrary\\steamapps\\common\\Humankind",
+    store: "steam",
+    modsPath: "C:\\Users\\Player\\Documents\\Humankind\\Community",
+    logPath: "C:\\Users\\Player\\Documents\\Humankind\\Temporary Files",
+    activationScheme: "registry-list",
+    exe: "Humankind.exe",
+  },
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -1074,12 +1090,16 @@ function createState() {
     runningGame: null as GameId | null,
     /** Anno 1800 starts with the old community loader in place, so Health can offer its removal. */
     legacyLoader: true,
-    mods: { anno117: seedMods117(), anno1800: seedMods1800() } as Record<
-      GameId,
-      Mod[]
-    >,
+    mods: {
+      anno117: seedMods117(),
+      anno1800: seedMods1800(),
+      humankind: [],
+    } as Record<GameId, Mod[]>,
     /** Uninstalled mods with their sub-mods, newest last, as the core's backups keep them. */
-    backups: { anno117: [], anno1800: [] } as Record<GameId, Mod[][]>,
+    backups: { anno117: [], anno1800: [], humankind: [] } as Record<
+      GameId,
+      Mod[][]
+    >,
     profiles: {
       anno117: [
         { name: "default", builtIn: true, activeIds: null },
@@ -1123,11 +1143,13 @@ function createState() {
           ],
         },
       ],
+      humankind: [],
     } as Record<GameId, StoredProfile[]>,
-    activeProfile: { anno117: "default", anno1800: "Default" } as Record<
-      GameId,
-      string
-    >,
+    activeProfile: {
+      anno117: "default",
+      anno1800: "Default",
+      humankind: "",
+    } as Record<GameId, string>,
     options: seedOptions(),
     account: {
       signedIn: true,

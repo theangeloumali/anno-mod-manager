@@ -178,6 +178,74 @@ fn detects_steam_ubisoft_and_epic_installs() {
 }
 
 #[test]
+fn humankind_is_a_steam_game_whose_exe_sits_at_the_install_root() {
+    assert_eq!(GameId::ALL.len(), 3);
+    assert!(GameId::ALL.contains(&GameId::Humankind));
+    assert_eq!(GameId::Humankind.display_name(), "Humankind");
+    assert_eq!(GameId::Humankind.executable(), Path::new("Humankind.exe"));
+    assert_eq!(GameId::Humankind.steam_app_id(), 1_124_300);
+    assert_eq!(GameId::Humankind.ubisoft_install_id(), None);
+    assert_eq!(GameId::Anno1800.ubisoft_install_id(), Some(4553));
+    assert_eq!(
+        serde_json::to_value(GameId::Humankind).unwrap(),
+        "humankind"
+    );
+
+    let tmp = tempfile::tempdir().unwrap();
+    let library = tmp.path().join("SteamLibrary");
+    touch(&library.join("steamapps/appmanifest_1124300.acf"));
+    fs::write(
+        library.join("steamapps/appmanifest_1124300.acf"),
+        "\"AppState\" { \"installdir\" \"Humankind\" }",
+    )
+    .unwrap();
+    let install = library.join("steamapps/common/Humankind");
+    touch(&install.join("Humankind.exe"));
+    let steam = Probe {
+        steam_libraries: vec![library],
+        ..Probe::default()
+    };
+    assert_eq!(
+        games::detect_install(GameId::Humankind, &steam),
+        Some((install, Store::Steam))
+    );
+}
+
+#[test]
+fn humankind_mods_come_from_community_the_workshop_and_the_install() {
+    let docs = Path::new("/home/u/Documents");
+    let install = Path::new("/lib/steamapps/common/Humankind");
+    let summary: Vec<_> = games::mod_folders(GameId::Humankind, Some(install), docs)
+        .into_iter()
+        .map(|f| (f.path, f.location))
+        .collect();
+    assert_eq!(
+        summary,
+        [
+            (
+                install.join("Public").join("Modification"),
+                ModLocation::Game
+            ),
+            (
+                Path::new("/lib/steamapps/workshop/content/1124300").to_path_buf(),
+                ModLocation::Workshop
+            ),
+            (
+                docs.join("Humankind").join("Community"),
+                ModLocation::Documents
+            ),
+        ]
+    );
+    let info = games::game_info(GameId::Humankind, None, docs, false);
+    assert_eq!(info.activation_scheme, ActivationScheme::RegistryList);
+    assert_eq!(
+        Path::new(&info.mods_path),
+        docs.join("Humankind").join("Community")
+    );
+    assert!(!info.legacy_mod_loader);
+}
+
+#[test]
 fn builds_mod_folders_and_game_info() {
     let docs = Path::new("/home/u/Documents");
     let install = Path::new("/games/anno117");

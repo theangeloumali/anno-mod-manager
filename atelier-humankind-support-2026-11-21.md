@@ -133,7 +133,7 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
      "files_own": ["crates/atelier-core/src/types.rs", "crates/atelier-core/src/games.rs", "crates/atelier-core/src/scan.rs", "crates/atelier-core/src/modinfo.rs", "crates/atelier-core/src/activation/profiles.rs", "crates/atelier-app/src/library.rs", "crates/atelier-app/src/collections.rs", "crates/atelier-install/src/lib.rs", "src/components/app/format.ts", "src/components/app/game-switcher.tsx", "src/components/app/app-store.ts", "src/data/mock-source.ts"],
      "needs": [{"node": "p0-setup", "artifact": "branch"}],
      "produces": ["game-enum"],
-     "verify": "cargo test --workspace && pnpm build"},
+     "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app && pnpm build"},
     {"id": "p2-hk-core", "kind": "slice", "owner": "ravi", "phase": "2",
      "files_own": ["crates/atelier-core/src/humankind/mod.rs", "crates/atelier-core/src/humankind/detect.rs", "crates/atelier-core/src/humankind/module_name.rs", "crates/atelier-core/src/humankind/bundle.rs", "crates/atelier-core/src/humankind/scan.rs", "crates/atelier-core/src/humankind/registry.rs", "crates/atelier-core/src/activation/mod.rs", "crates/atelier-core/tests/humankind_core.rs"],
      "needs": [{"node": "p1-game-enum", "artifact": "game-enum"}],
@@ -163,7 +163,7 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
      "files_own": ["src-tauri/src/commands/library.rs", "src-tauri/src/commands/install.rs", "src-tauri/src/commands/mod.rs", "src/data/source.ts"],
      "needs": [{"node": "p3-saves-vault", "artifact": "saves-vault"}, {"node": "p4-order-profiles", "artifact": "order-profiles"}, {"node": "p5-modio-install", "artifact": "modio-install"}, {"node": "p7-health-bepinex", "artifact": "health-bepinex"}],
      "produces": ["backend-merged"],
-     "verify": "cargo test --workspace"},
+     "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app"},
     {"id": "p6-live-verify", "kind": "slice", "owner": "primary", "phase": "6",
      "files_own": ["claudedocs/research/05-humankind-live-verify.md"],
      "needs": [{"node": "merge-backend", "artifact": "backend-merged"}],
@@ -177,17 +177,17 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
     {"id": "merge-all", "kind": "merge", "owner": "primary", "phase": "9",
      "needs": [{"node": "p6-live-verify", "artifact": "live-results"}, {"node": "p8-ui", "artifact": "ui"}],
      "produces": ["merged-tree"],
-     "verify": "cargo test --workspace && pnpm build"},
+     "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app && pnpm build"},
     {"id": "review-qa", "kind": "verify", "owner": "maya", "phase": "9",
      "verifies": ["p0-setup", "p1-game-enum", "p2-hk-core", "p3-saves-vault", "p4-order-profiles", "p5-modio-install", "p6-live-verify", "p7-health-bepinex", "p8-ui"],
      "needs": [{"node": "merge-all", "artifact": "merged-tree"}],
      "produces": ["qa-review"],
-     "verify": "cargo test --workspace"},
+     "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app"},
     {"id": "review-sec", "kind": "verify", "owner": "kai", "phase": "9",
      "verifies": ["p2-hk-core", "p3-saves-vault", "p4-order-profiles", "p5-modio-install", "p7-health-bepinex"],
      "needs": [{"node": "merge-all", "artifact": "merged-tree"}],
      "produces": ["sec-review"],
-     "verify": "cargo test --workspace"},
+     "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app"},
     {"id": "close", "kind": "close", "phase": "9",
      "needs": [{"node": "review-qa", "artifact": "qa-review"}, {"node": "review-sec", "artifact": "sec-review"}]}
   ]
@@ -202,12 +202,12 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
   - Copy this plan into the repo, with an `.mmd` sidecar and an HTML twin (`plan-to-html.sh`).
   - Write the dispatch state file.
   - Verify: `git -C /mnt/c/Users/Angelo/Desktop/Work/ZKidz/Anno branch --show-current` prints `feat/humankind-support` and the `.html` twin exists
-- [ ] Phase 1: Make the game list safe to extend (no Humankind behaviour yet)
+- [x] Phase 1: Make the game list safe to extend (no Humankind behaviour yet)
   - TDD. Add `GameId::Humankind`, `Store`-only detection fields, `exe_subpath()` (root for Humankind, `Bin/Win64` for Anno) and `ubisoft_install_id: Option`.
   - Replace each silent comparison in "Silent Anno fallbacks" with an exhaustive `match`, so a new game fails to compile instead of quietly acting like Anno 1800.
   - Generalise `GAMES` (`crates/atelier-app/src/library.rs:18`) and the backup and prune arrays (`crates/atelier-install/src/lib.rs:216`) into `GameId::ALL`.
   - TS side: `GAME_IDS` (`src/components/app/game-switcher.tsx:7`, `src/data/source.ts:249`), the `format.ts:32-36` ternaries become a `Record<GameId,…>`, and the mock data gains Humankind entries.
-  - Verify: `set -o pipefail; cargo test --workspace 2>&1 | tail -15` passes (≥293 tests) and `pnpm build` passes
+  - Verify: `set -o pipefail; cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app 2>&1 | tail -15` passes (≥291 tests, the Linux baseline) and `pnpm build` passes
 - [ ] Phase 2: Humankind core, `crates/atelier-core/src/humankind/` (TDD, fixtures copied from this PC)
   - `detect.rs`: Steam 1124300 via the existing `Probe` (`games.rs:67-94`); `Documents\Humankind`; picks the `Users\<id>` folder whose `Registry.xml` is newest.
   - `module_name.rs`: parses `<Name>.<guid32>.<major>.<minor>`, maps it to the registry's short name, and back. The short-name rule is checked against the live Registry.xml and the database ModListGuard dumped.
@@ -231,7 +231,7 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
   - Profiles live in app storage as JSON under Atelier's data dir: name and ordered short-name list. Apply means snapshot + registry write. "Save current as profile" is included.
   - History: reads `Documents\Humankind\ModListGuard\history.jsonl` when it exists. Each "lost" entry can be restored as a profile.
   - Tauri commands in `src-tauri/src/commands/library.rs`: `set_load_order`, `list_profiles`, `save_profile`, `apply_profile`, `delete_profile`, `mod_list_history`, `restore_history_entry`.
-  - Verify: `set -o pipefail; cargo test --workspace 2>&1 | tail -15` passes, with tests for every ordering rule and the missing-module guard
+  - Verify: `set -o pipefail; cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app 2>&1 | tail -15` passes, with tests for every ordering rule and the missing-module guard
 - [ ] Phase 5: mod.io and drop-install (H4, H5)
   - mod.io: match arm `Humankind => 2599` (`crates/atelier-modio/src/client.rs:26-31`), plus `AUTH_GAME` (`auth.rs:11`).
   - Install target `Community\Atelier\<modId>_<modfileId>\`.
@@ -284,7 +284,7 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
   - Gauge the result.
   - Draw the as-built ASCII diagram.
   - Commit locally and stop (no push).
-  - Verify: `set -o pipefail; cargo test --workspace 2>&1 | tail -15` and `pnpm build` pass, `bash ~/.claude/hooks/dead-code-check.sh` is clean, and every checklist row is Pass or Blocked
+  - Verify: `set -o pipefail; cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app 2>&1 | tail -15` and `pnpm build` pass, `bash ~/.claude/hooks/dead-code-check.sh` is clean, and every checklist row is Pass or Blocked
 
 ## Silent Anno fallbacks to convert in Phase 1
 

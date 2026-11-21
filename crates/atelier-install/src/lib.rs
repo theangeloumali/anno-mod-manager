@@ -213,7 +213,7 @@ impl InstallEngine {
     }
 
     pub fn prune_backups(&self) -> Result<()> {
-        for game in [GameId::Anno117, GameId::Anno1800] {
+        for game in GameId::ALL {
             backup::prune(&self.game_backups(game), self.config.retention_days)?;
         }
         Ok(())
@@ -224,6 +224,7 @@ impl InstallEngine {
         let folder = match game {
             GameId::Anno117 => "anno117",
             GameId::Anno1800 => "anno1800",
+            GameId::Humankind => "humankind",
         };
         self.config.backup_dir.join(folder)
     }

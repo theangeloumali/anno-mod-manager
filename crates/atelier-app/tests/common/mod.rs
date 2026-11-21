@@ -160,6 +160,7 @@ pub fn modinfo(id: &str, version: &str, game: GameId) -> String {
     let anno = match game {
         GameId::Anno117 => "\"Anno\": 8,",
         GameId::Anno1800 => "",
+        GameId::Humankind => panic!("Humankind mods have no modinfo.json"),
     };
     format!(
         "{{ {anno} \"ModID\": \"{id}\", \"Version\": \"{version}\", \

@@ -20,8 +20,9 @@ pub struct Environment<'a> {
 
 pub fn check_environment(env: &Environment) -> Vec<HealthCheck> {
     let mut checks = vec![game_found(env), mods_writable(env.mods_dir)];
-    if env.game == GameId::Anno1800 {
-        checks.push(legacy_loader_check(env.install_path));
+    match env.game {
+        GameId::Anno1800 => checks.push(legacy_loader_check(env.install_path)),
+        GameId::Anno117 | GameId::Humankind => {}
     }
     checks.push(duplicate_ids(env.mods));
     checks.push(activation_scheme(env.game, env.mods_dir));

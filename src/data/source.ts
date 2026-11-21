@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 import { mockSource } from "./mock-source.ts";
+import { GAME_IDS } from "./types.ts";
 import type {
   Account,
   AuthMethod,
@@ -246,7 +247,6 @@ const refreshLocalData = (client: QueryClient) =>
   client.invalidateQueries({
     predicate: (query) => query.queryKey[0] !== SCHEDULED_CHECK,
   });
-const GAME_IDS: GameId[] = ["anno117", "anno1800"];
 
 /** Runs the mod.io update check the Settings choice asks for: once at start, or hourly. */
 export function useScheduledUpdateChecks(): void {

@@ -114,10 +114,13 @@ impl<'a> Classifier<'a> {
         match &root.manifest {
             Manifest::Parsed(_) => None,
             Manifest::Broken(reason) => Some(format!("modinfo.json can't be read: {reason}")),
-            Manifest::Inferred if self.game == GameId::Anno117 => {
-                Some("No modinfo.json, which Anno 117 needs to load a mod".into())
-            }
-            Manifest::Inferred => None,
+            Manifest::Inferred => match self.game {
+                GameId::Anno117 => {
+                    Some("No modinfo.json, which Anno 117 needs to load a mod".into())
+                }
+                GameId::Anno1800 => None,
+                GameId::Humankind => Some("This is an Anno mod, not a Humankind one".into()),
+            },
             Manifest::Unrecognised => {
                 Some("No modinfo.json or data folder, so this isn't a mod the game can load".into())
             }

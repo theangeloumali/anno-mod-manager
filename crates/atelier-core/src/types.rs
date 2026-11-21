@@ -7,6 +7,11 @@ use serde::{Deserialize, Serialize};
 pub enum GameId {
     Anno117,
     Anno1800,
+    Humankind,
+}
+
+impl GameId {
+    pub const ALL: [GameId; 3] = [GameId::Anno117, GameId::Anno1800, GameId::Humankind];
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -25,6 +30,8 @@ pub enum ModLocation {
     Documents,
     Game,
     Ubi,
+    /// Steam Workshop content; Steam owns it, so it stays read-only.
+    Workshop,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -72,6 +79,8 @@ pub enum ActivationScheme {
     Profile,
     Legacy,
     ActivationJson,
+    /// Humankind: one ordered module list in the user's Registry.xml.
+    RegistryList,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

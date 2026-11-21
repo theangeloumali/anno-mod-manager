@@ -8,10 +8,10 @@ use atelier_core::{GameId, ModLocation, Store};
 use common::*;
 
 #[test]
-fn no_game_detected_still_lists_both_games_without_an_install() {
+fn no_game_detected_still_lists_every_game_without_an_install() {
     let harness = Harness::new();
     let games = harness.app.list_games().unwrap();
-    assert_eq!(games.len(), 2);
+    assert_eq!(games.len(), 3);
     assert!(games.iter().all(|game| game.install_path.is_none()));
     assert!(games[0].mods_path.contains("Anno 117 - Pax Romana"));
 }

@@ -18,12 +18,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAction, useProfiles } from "@/data/source";
+import type { GameInfo } from "@/data/types";
 
-const PROFILE_FILE_HINT = {
+const PROFILE_FILE_HINT: Record<GameInfo["activationScheme"], string> = {
   profile: "mods\\profile.txt → profiles\\<name>.txt",
   legacy: "mods\\active-profile.txt",
   "activation-json": "mods\\activation.json",
-} as const;
+  "registry-list": "Users\\<id>\\Registry.xml",
+};
 
 export function ProfileBar() {
   const { gameId, game, isWriteLocked } = useCurrentGame();

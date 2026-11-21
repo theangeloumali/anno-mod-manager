@@ -27,6 +27,8 @@ pub enum Error {
     NoProfiles(ActivationScheme),
     #[error("sub-mod '{0}' is switched with its parent")]
     SubMod(String),
+    #[error("the {0:?} activation scheme is not wired up yet")]
+    Unsupported(ActivationScheme),
 }
 
 /// Attaches the path to an I/O error, which `io::Error` alone never says.

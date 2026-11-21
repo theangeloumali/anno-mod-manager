@@ -15,7 +15,6 @@ use atelier_core::{
 use crate::error::{AppError, ErrorCode, Result};
 use crate::{App, lock};
 
-const GAMES: [GameId; 2] = [GameId::Anno117, GameId::Anno1800];
 /// No mod.io file has id 0, so a link set to it always sees the latest file as an update.
 const UNKNOWN_MODFILE: u64 = 0;
 /// How long after a launch writes stay refused while the game's process starts up.
@@ -23,7 +22,7 @@ const LAUNCH_GRACE: Duration = Duration::from_secs(30);
 
 impl App {
     pub fn list_games(&self) -> Result<Vec<GameInfo>> {
-        Ok(GAMES
+        Ok(GameId::ALL
             .into_iter()
             .map(|game| {
                 games::game_info(
@@ -387,13 +386,13 @@ impl App {
     /// Launch runs the executable it finds, and a mod can ship its own Anno117.exe, so no
     /// folder that mods or the app write into may stand in for the game.
     fn mods_can_write(&self, dir: &Path) -> bool {
-        let mut roots: Vec<PathBuf> = GAMES
+        let mut roots: Vec<PathBuf> = GameId::ALL
             .iter()
             .map(|&game| games::documents_game_dir(game, &self.0.documents))
             .collect();
         roots.push(self.0.data_dir.clone());
         roots.extend(
-            GAMES
+            GameId::ALL
                 .iter()
                 .filter_map(|&game| (self.0.locate)(game))
                 .map(|(install, _)| install.join("mods")),
@@ -468,6 +467,7 @@ impl App {
 fn read_only_error(shipped: &Mod) -> AppError {
     let place = match shipped.location {
         ModLocation::Ubi => "Ubisoft-managed .ubi folder",
+        ModLocation::Workshop => "Steam Workshop folder",
         ModLocation::Game | ModLocation::Documents => "game folder",
     };
     AppError::new(
