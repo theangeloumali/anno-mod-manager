@@ -201,6 +201,11 @@ impl<'a> Classifier<'a> {
                 }
                 self.copy_outside_atelier(&module.short_name())
             }
+            // A plugin is a DLL the game runs, so it never arrives unseen through a download.
+            Manifest::Plugin { .. } if self.options.modio_folder.is_some() => Some(
+                "BepInEx plugins run code inside the game, so Atelier won't install one from a download. Download it yourself and drop the file on Atelier to review it first."
+                    .into(),
+            ),
             Manifest::Plugin { .. } => {
                 let Some(game_dir) = &self.options.game_dir else {
                     return Some(

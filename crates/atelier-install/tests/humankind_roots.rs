@@ -408,6 +408,29 @@ fn a_plugin_without_bepinex_installed_asks_for_bepinex_first() {
 }
 
 #[test]
+fn a_modio_download_never_installs_a_plugin() {
+    let sandbox = Sandbox::new();
+    let game = game_dir(&sandbox, true);
+    let files = vec![("BepInEx/plugins/Cool.dll".to_string(), b"MZ".to_vec())];
+    let archive = drop_zip(&sandbox, "CoolPlugin.zip", &files);
+    let options = PreviewOptions {
+        game_dir: Some(game.clone()),
+        modio_folder: Some("123_456".into()),
+        ..PreviewOptions::default()
+    };
+
+    let preview = preview(&sandbox, HUMANKIND, &archive, &options);
+
+    let item = only_item(&preview);
+    assert_eq!(item.status, InstallItemStatus::Invalid);
+    assert!(
+        has_check(item, Severity::Error, "drop the file"),
+        "{item:#?}"
+    );
+    assert!(!game.join("BepInEx/plugins/CoolPlugin").exists());
+}
+
+#[test]
 fn a_plugin_tree_installs_into_bepinex_plugins_named_after_the_archive() {
     let sandbox = Sandbox::new();
     let game = game_dir(&sandbox, true);
