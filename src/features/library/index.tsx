@@ -24,7 +24,7 @@ import { useAction, useIssues, useMods } from "@/data/source";
 import type { Mod } from "@/data/types";
 import { issuesForMod } from "./issues-for-mod";
 import { ModDetail } from "./mod-detail";
-import { ModTable } from "./mod-table";
+import { isSubModOf, ModTable } from "./mod-table";
 import { ProfileBar } from "./profile-bar";
 
 type LibraryFilter = "all" | "active" | "inactive" | "issues" | "updates";
@@ -56,13 +56,19 @@ export function LibraryScreen() {
   };
 
   const query = search.trim().toLowerCase();
+  const matchesQuery = (mod: Mod) =>
+    !query ||
+    `${mod.name} ${mod.id} ${mod.author ?? ""} ${mod.category}`
+      .toLowerCase()
+      .includes(query);
+  // A parent that matches shows all its sub-mods; otherwise only the sub-mods that match.
+  const isSubModVisible = (subMod: Mod, parent: Mod) =>
+    matchesQuery(parent) || matchesQuery(subMod);
   const visibleMods = topLevelMods.filter(
     (mod) =>
       filterTests[filter](mod) &&
-      (!query ||
-        `${mod.name} ${mod.id} ${mod.author ?? ""} ${mod.category}`
-          .toLowerCase()
-          .includes(query)),
+      (matchesQuery(mod) ||
+        mods.some((subMod) => isSubModOf(subMod, mod) && matchesQuery(subMod))),
   );
 
   const selectedMod = findSelectedMod(mods, selectedModId, selectedCopy);
@@ -206,7 +212,12 @@ export function LibraryScreen() {
             </label>
           </div>
           <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
-            <ModTable mods={visibleMods} allMods={mods} issues={issues} />
+            <ModTable
+              mods={visibleMods}
+              allMods={mods}
+              issues={issues}
+              isSubModVisible={isSubModVisible}
+            />
             <ModDetail mod={selectedMod} allMods={mods} issues={issues} />
           </div>
         </>

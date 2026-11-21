@@ -135,14 +135,23 @@ function ModRow({
   );
 }
 
+/** Which copy a sub-mod belongs to: duplicate ModIDs can share a location, but a sub-mod's
+ * folder always sits inside its parent's (`scan.rs` builds it as `<parent>/<child>`). */
+export const isSubModOf = (subMod: Mod, parent: Mod) =>
+  subMod.parentId === parent.id &&
+  subMod.location === parent.location &&
+  subMod.folder.startsWith(`${parent.folder}/`);
+
 export function ModTable({
   mods,
   allMods,
   issues,
+  isSubModVisible,
 }: {
   mods: Mod[];
   allMods: Mod[];
   issues: Issue[];
+  isSubModVisible: (subMod: Mod, parent: Mod) => boolean;
 }) {
   return (
     <div className="min-w-0 overflow-hidden rounded-card border border-line bg-bg-elevated">
@@ -186,8 +195,7 @@ export function ModTable({
             ...allMods
               .filter(
                 (subMod) =>
-                  subMod.parentId === mod.id &&
-                  subMod.location === mod.location,
+                  isSubModOf(subMod, mod) && isSubModVisible(subMod, mod),
               )
               .map((subMod) => (
                 <ModRow

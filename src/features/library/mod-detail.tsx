@@ -102,13 +102,18 @@ export function ModDetail({
   const selectMod = useAppStore((store) => store.selectMod);
   const [isConfirmOpen, setConfirmOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const selectedId = mod?.id;
+  // A copy is its folder: one ModID can sit in two locations.
+  const selectedCopy = mod && `${mod.location}/${mod.folder}`;
 
-  // Under xl the panel stacks below the table, so a selection would otherwise land off-screen.
+  // A new selection opens at the card's top. Under xl the card stacks below the table, so it
+  // would otherwise land off-screen.
   useEffect(() => {
-    if (selectedId && window.matchMedia(STACKED_LAYOUT_QUERY).matches)
-      panelRef.current?.scrollIntoView({ block: "start" });
-  }, [selectedId]);
+    const panel = panelRef.current;
+    if (!selectedCopy || !panel) return;
+    panel.scrollTop = 0;
+    if (window.matchMedia(STACKED_LAYOUT_QUERY).matches)
+      panel.scrollIntoView({ block: "start" });
+  }, [selectedCopy]);
   const uninstall = useAction((source, modId: string) =>
     source.uninstallMod(gameId, modId),
   );
@@ -136,8 +141,17 @@ export function ModDetail({
   const isLocked = isReadOnly(mod);
 
   return (
-    <div ref={panelRef} className="scroll-mt-4">
-      <Panel className="flex flex-col gap-5 xl:sticky xl:top-0" title={null}>
+    // The wrapper sticks (the Panel alone spans its own box, so it never moved), capped to the scroll
+    // area so a tall card scrolls inside it: 6rem of header and status bar, plus 1rem above and below.
+    // Focusable so the keyboard can scroll it; the outline sits inside, where the scroller can't clip it.
+    <div
+      ref={panelRef}
+      role="region"
+      aria-label={`${mod.name} details`}
+      tabIndex={0}
+      className="scroll-mt-4 rounded-card outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring xl:sticky xl:top-4 xl:max-h-[calc(100dvh-8rem)] xl:overflow-y-auto"
+    >
+      <Panel className="flex flex-col gap-5" title={null}>
         <div className="flex gap-4">
           <ModBanner
             name={mod.name}
