@@ -281,25 +281,18 @@ impl InstallEngine {
         fsops::move_dir(mod_dir, &backup)
     }
 
-    pub fn prune_backups(&self) -> Result<()> {
-        self.prune_backups_keeping(&HashSet::new())
-    }
-
-    /// [`Self::prune_backups`], never deleting a version in `kept`.
-    pub fn prune_backups_keeping(&self, kept: &HashSet<KeptVersion>) -> Result<()> {
-        for game in GameId::ALL {
-            let game_kept = kept
-                .iter()
-                .filter(|version| version.game == game)
-                .map(|version| (version.mod_id.clone(), version.version.clone()))
-                .collect();
-            backup::prune(
-                &self.game_backups(game),
-                self.config.retention_days,
-                &game_kept,
-            )?;
-        }
-        Ok(())
+    /// Deletes `game`'s expired backups, never a version in `kept`.
+    pub fn prune_backups(&self, game: GameId, kept: &HashSet<KeptVersion>) -> Result<()> {
+        let game_kept = kept
+            .iter()
+            .filter(|version| version.game == game)
+            .map(|version| (version.mod_id.clone(), version.version.clone()))
+            .collect();
+        backup::prune(
+            &self.game_backups(game),
+            self.config.retention_days,
+            &game_kept,
+        )
     }
 
     /// One folder per game: the same ModID in both games must never share a backup.

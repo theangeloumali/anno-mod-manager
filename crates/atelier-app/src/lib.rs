@@ -12,7 +12,7 @@ mod library;
 mod modio;
 mod state;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex, MutexGuard, RwLock};
@@ -144,17 +144,27 @@ impl App {
     /// Retention changes prune right away; a fresh engine is enough because pruning is stateless.
     pub fn save_settings(&self, settings: Settings) -> Result<()> {
         self.update_persisted(|state| state.settings = settings)?;
-        self.prune_backups()
+        // The settings are saved; a failed prune loses nothing and runs again at the next one.
+        let _ = self.prune_backups();
+        Ok(())
     }
 
     /// Uses the current retention setting; the long-lived engine holds the one from startup.
-    /// Versions a save was played with are never pruned.
+    /// Humankind keeps every backup while its saves can't all be read: one may need any version.
     pub(crate) fn prune_backups(&self) -> Result<()> {
         let retention = self.settings().backup_retention_days;
-        let kept = self.versions_saves_need()?;
-        InstallEngine::new(engine_config(&self.0.data_dir, retention))
-            .prune_backups_keeping(&kept)
-            .map_err(AppError::from)
+        let engine = InstallEngine::new(engine_config(&self.0.data_dir, retention));
+        for game in GameId::ALL {
+            let kept = match game {
+                GameId::Humankind => match self.versions_saves_need() {
+                    Some(kept) => kept,
+                    None => continue,
+                },
+                GameId::Anno117 | GameId::Anno1800 => HashSet::new(),
+            };
+            engine.prune_backups(game, &kept)?;
+        }
+        Ok(())
     }
 
     fn persisted(&self) -> MutexGuard<'_, Persisted> {

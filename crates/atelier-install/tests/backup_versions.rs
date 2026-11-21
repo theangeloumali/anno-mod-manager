@@ -240,7 +240,7 @@ fn pruning_never_deletes_a_kept_version() {
         kept(GameId::Anno1800, "busy", "1.1"),
     ]);
 
-    sandbox.engine.prune_backups_keeping(&keep).unwrap();
+    sandbox.engine.prune_backups(ANNO, &keep).unwrap();
 
     assert_eq!(versions(&sandbox, ANNO, "busy"), ["1.2", "1.0"]);
 }
@@ -258,7 +258,7 @@ fn pruning_keeps_a_humankind_version_a_save_needs() {
     }
     let keep = HashSet::from([kept(HUMANKIND, "eventful", "0.7")]);
 
-    sandbox.engine.prune_backups_keeping(&keep).unwrap();
+    sandbox.engine.prune_backups(HUMANKIND, &keep).unwrap();
 
     assert_eq!(versions(&sandbox, HUMANKIND, "eventful"), ["0.9", "0.7"]);
 }

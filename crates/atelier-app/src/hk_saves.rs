@@ -81,23 +81,29 @@ impl App {
         })
     }
 
-    /// Fails rather than returning less: pruning without the full set could delete a version
+    /// None unless every save was read: pruning without the full set could delete a version
     /// a save still needs.
-    pub(crate) fn versions_saves_need(&self) -> Result<HashSet<KeptVersion>> {
+    pub(crate) fn versions_saves_need(&self) -> Option<HashSet<KeptVersion>> {
         let game = GameId::Humankind;
-        let listing = saves::list_saves(&games::documents_game_dir(game, &self.0.documents))?;
-        Ok(listing
-            .saves
-            .into_iter()
-            .flat_map(|save| save.descriptor.mods)
-            .filter_map(|module| {
-                Some(KeptVersion {
-                    game,
-                    version: module.version?,
-                    mod_id: module.name,
+        let listing =
+            saves::list_saves(&games::documents_game_dir(game, &self.0.documents)).ok()?;
+        if !listing.skipped.is_empty() {
+            return None;
+        }
+        Some(
+            listing
+                .saves
+                .into_iter()
+                .flat_map(|save| save.descriptor.mods)
+                .filter_map(|module| {
+                    Some(KeptVersion {
+                        game,
+                        version: module.version?,
+                        mod_id: module.name,
+                    })
                 })
-            })
-            .collect())
+                .collect(),
+        )
     }
 
     /// The path comes from the UI, so it must resolve inside Save Files.

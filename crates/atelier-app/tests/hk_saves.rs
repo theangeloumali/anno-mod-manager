@@ -334,3 +334,50 @@ fn pruning_still_expires_versions_no_save_needs() {
 
     assert_eq!(backup_dirs(&harness), ["0.8-2000"]);
 }
+
+/// An expired Anno backup beside its newer copy; pruning removes the expired one.
+fn expired_anno_backup(harness: &Harness) -> PathBuf {
+    let dir = harness.root.path().join("data/backups/anno117/old-mod");
+    fs::create_dir_all(dir.join("2.0-3000")).unwrap();
+    let expired = dir.join("1.0-1000");
+    fs::create_dir_all(&expired).unwrap();
+    expired
+}
+
+#[test]
+fn a_save_that_cannot_be_read_keeps_every_humankind_backup() {
+    let harness = Harness::new();
+    for slot in ["0.7-1000", "0.8-2000"] {
+        old_backup(&harness, slot);
+    }
+    let broken = game_dir(&harness).join("Save Files/broken.ctr");
+    fs::create_dir_all(broken.parent().unwrap()).unwrap();
+    fs::write(&broken, "garbage").unwrap();
+    let anno = expired_anno_backup(&harness);
+
+    harness.app.save_settings(harness.app.settings()).unwrap();
+
+    assert_eq!(backup_dirs(&harness), ["0.7-1000", "0.8-2000"]);
+    assert!(!anno.exists(), "Anno's backups are still pruned");
+}
+
+#[cfg(unix)]
+#[test]
+fn saves_that_cannot_be_listed_keep_every_humankind_backup() {
+    use std::os::unix::fs::PermissionsExt;
+    let harness = Harness::new();
+    for slot in ["0.7-1000", "0.8-2000"] {
+        old_backup(&harness, slot);
+    }
+    let save_files = game_dir(&harness).join("Save Files");
+    fs::create_dir_all(&save_files).unwrap();
+    fs::set_permissions(&save_files, fs::Permissions::from_mode(0o000)).unwrap();
+    let anno = expired_anno_backup(&harness);
+
+    let saved = harness.app.save_settings(harness.app.settings());
+    fs::set_permissions(&save_files, fs::Permissions::from_mode(0o755)).unwrap();
+
+    saved.unwrap();
+    assert_eq!(backup_dirs(&harness), ["0.7-1000", "0.8-2000"]);
+    assert!(!anno.exists(), "Anno's backups are still pruned");
+}
