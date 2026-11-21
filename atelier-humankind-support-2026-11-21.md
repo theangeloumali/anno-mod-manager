@@ -72,11 +72,11 @@ It also carries the cheap reuse wins: detection, library, mod.io, drop-install a
 
 ## Approaches
 
-| Approach                   | What it means                                                                                                                                                                                                                                                                         | Trade-off                                                                                                        |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Approach                   | What it means                                                                                                                                                                                                                                                                | Trade-off                                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | **A. Enum-first (chosen)** | Add `GameId::Humankind` and new enum variants (`ActivationScheme::RegistryList`, `ModLocation::Workshop`). Turn every silent `==` into an exhaustive `match`, so the compiler guards the next game too. Humankind logic lives in a new `atelier-core/src/humankind/` module. | Smallest churn, and the 293 tests stay valid. Gives the same compile-time safety a trait would.                  |
-| B. `GameAdapter` trait     | The 2026-11-20 audit's suggestion: move Anno behind a trait, then implement Humankind.                                                                                                                                                                                                | Rewrites every call site and test fixture for no extra safety. Today's per-game config is already a match table. |
-| C. A separate app          | Fork Atelier.                                                                                                                                                                                                                                                                         | Duplicates the mod.io sync, install transaction and backups. Rejected in the proposals doc.                      |
+| B. `GameAdapter` trait     | The 2026-11-20 audit's suggestion: move Anno behind a trait, then implement Humankind.                                                                                                                                                                                       | Rewrites every call site and test fixture for no extra safety. Today's per-game config is already a match table. |
+| C. A separate app          | Fork Atelier.                                                                                                                                                                                                                                                                | Duplicates the mod.io sync, install transaction and backups. Rejected in the proposals doc.                      |
 
 **Why A instead of the audit's B:** the audit was written before anyone checked for an adapter seam. None exists; the existing seam is `impl GameId` plus injected closures (`crates/atelier-app/src/lib.rs:34-35`). Extending that seam is the reuse-first path.
 
@@ -125,71 +125,417 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
 {
   "profile": "T3",
   "nodes": [
-    {"id": "p0-setup", "kind": "slice", "owner": "primary", "phase": "0",
-     "files_own": ["atelier-humankind-support-2026-11-21.md", "atelier-humankind-support-2026-11-21.mmd"],
-     "produces": ["branch"],
-     "verify": "test \"$(git branch --show-current)\" = feat/humankind-support"},
-    {"id": "p1-game-enum", "kind": "slice", "owner": "primary", "phase": "1",
-     "files_own": ["crates/atelier-core/src/types.rs", "crates/atelier-core/src/games.rs", "crates/atelier-core/src/scan.rs", "crates/atelier-core/src/modinfo.rs", "crates/atelier-core/src/activation/profiles.rs", "crates/atelier-app/src/library.rs", "crates/atelier-app/src/collections.rs", "crates/atelier-install/src/lib.rs", "src/components/app/format.ts", "src/components/app/game-switcher.tsx", "src/components/app/app-store.ts", "src/data/mock-source.ts"],
-     "needs": [{"node": "p0-setup", "artifact": "branch"}],
-     "produces": ["game-enum"],
-     "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app && pnpm build"},
-    {"id": "p2-hk-core", "kind": "slice", "owner": "ravi", "phase": "2",
-     "files_own": ["crates/atelier-core/src/humankind/mod.rs", "crates/atelier-core/src/humankind/detect.rs", "crates/atelier-core/src/humankind/module_name.rs", "crates/atelier-core/src/humankind/bundle.rs", "crates/atelier-core/src/humankind/scan.rs", "crates/atelier-core/src/humankind/registry.rs", "crates/atelier-core/src/activation/mod.rs", "crates/atelier-core/tests/humankind_core.rs"],
-     "needs": [{"node": "p1-game-enum", "artifact": "game-enum"}],
-     "produces": ["humankind-core"],
-     "verify": "cargo test -p atelier-core"},
-    {"id": "p3-saves-vault", "kind": "slice", "owner": "ravi", "phase": "3",
-     "files_own": ["crates/atelier-core/src/humankind/saves.rs", "crates/atelier-install/src/backup.rs", "crates/atelier-core/tests/humankind_saves.rs", "crates/atelier-install/tests/backup_versions.rs"],
-     "needs": [{"node": "p2-hk-core", "artifact": "humankind-core"}],
-     "produces": ["saves-vault"],
-     "verify": "cargo test -p atelier-core -p atelier-install"},
-    {"id": "p4-order-profiles", "kind": "slice", "owner": "ravi", "phase": "4",
-     "files_own": ["crates/atelier-core/src/humankind/load_order.rs", "crates/atelier-core/src/humankind/profiles.rs", "crates/atelier-core/src/humankind/history.rs", "crates/atelier-core/tests/humankind_load_order.rs"],
-     "needs": [{"node": "p2-hk-core", "artifact": "humankind-core"}],
-     "produces": ["order-profiles"],
-     "verify": "cargo test -p atelier-core"},
-    {"id": "p5-modio-install", "kind": "slice", "owner": "ravi", "phase": "5",
-     "files_own": ["crates/atelier-modio/src/client.rs", "crates/atelier-modio/src/auth.rs", "crates/atelier-install/src/roots.rs", "crates/atelier-install/src/classify.rs", "crates/atelier-install/src/stage.rs", "crates/atelier-install/tests/humankind_roots.rs"],
-     "needs": [{"node": "p2-hk-core", "artifact": "humankind-core"}],
-     "produces": ["modio-install"],
-     "verify": "cargo test -p atelier-modio -p atelier-install"},
-    {"id": "p7-health-bepinex", "kind": "slice", "owner": "ravi", "phase": "7",
-     "files_own": ["crates/atelier-core/src/health/mod.rs", "crates/atelier-core/src/health/humankind.rs", "crates/atelier-app/src/bepinex.rs", "crates/atelier-core/tests/humankind_health.rs"],
-     "needs": [{"node": "p2-hk-core", "artifact": "humankind-core"}],
-     "produces": ["health-bepinex"],
-     "verify": "cargo test -p atelier-core -p atelier-app"},
-    {"id": "merge-backend", "kind": "merge", "owner": "primary", "phase": "4",
-     "files_own": ["src-tauri/src/commands/library.rs", "src-tauri/src/commands/install.rs", "src-tauri/src/commands/mod.rs", "src/data/source.ts"],
-     "needs": [{"node": "p3-saves-vault", "artifact": "saves-vault"}, {"node": "p4-order-profiles", "artifact": "order-profiles"}, {"node": "p5-modio-install", "artifact": "modio-install"}, {"node": "p7-health-bepinex", "artifact": "health-bepinex"}],
-     "produces": ["backend-merged"],
-     "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app"},
-    {"id": "p6-live-verify", "kind": "slice", "owner": "primary", "phase": "6",
-     "files_own": ["claudedocs/research/05-humankind-live-verify.md"],
-     "needs": [{"node": "merge-backend", "artifact": "backend-merged"}],
-     "produces": ["live-results"],
-     "verify": "test -s claudedocs/research/05-humankind-live-verify.md"},
-    {"id": "p8-ui", "kind": "slice", "owner": "lena", "phase": "8",
-     "files_own": ["src/features/load-order/index.tsx", "src/features/library/profile-bar.tsx", "src/features/saves/index.tsx", "src/features/health/index.tsx", "src/features/onboarding/first-run-wizard.tsx", "src/features/collections/index.tsx", "src/components/app/mod-badges.tsx"],
-     "needs": [{"node": "merge-backend", "artifact": "backend-merged"}],
-     "produces": ["ui"],
-     "verify": "pnpm build"},
-    {"id": "merge-all", "kind": "merge", "owner": "primary", "phase": "9",
-     "needs": [{"node": "p6-live-verify", "artifact": "live-results"}, {"node": "p8-ui", "artifact": "ui"}],
-     "produces": ["merged-tree"],
-     "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app && pnpm build"},
-    {"id": "review-qa", "kind": "verify", "owner": "maya", "phase": "9",
-     "verifies": ["p0-setup", "p1-game-enum", "p2-hk-core", "p3-saves-vault", "p4-order-profiles", "p5-modio-install", "p6-live-verify", "p7-health-bepinex", "p8-ui"],
-     "needs": [{"node": "merge-all", "artifact": "merged-tree"}],
-     "produces": ["qa-review"],
-     "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app"},
-    {"id": "review-sec", "kind": "verify", "owner": "kai", "phase": "9",
-     "verifies": ["p2-hk-core", "p3-saves-vault", "p4-order-profiles", "p5-modio-install", "p7-health-bepinex"],
-     "needs": [{"node": "merge-all", "artifact": "merged-tree"}],
-     "produces": ["sec-review"],
-     "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app"},
-    {"id": "close", "kind": "close", "phase": "9",
-     "needs": [{"node": "review-qa", "artifact": "qa-review"}, {"node": "review-sec", "artifact": "sec-review"}]}
+    {
+      "id": "p0-setup",
+      "kind": "slice",
+      "owner": "primary",
+      "phase": "0",
+      "files_own": [
+        "atelier-humankind-support-2026-11-21.md",
+        "atelier-humankind-support-2026-11-21.mmd"
+      ],
+      "produces": [
+        "branch"
+      ],
+      "verify": "test \"$(git branch --show-current)\" = feat/humankind-support"
+    },
+    {
+      "id": "p1-game-enum",
+      "kind": "slice",
+      "owner": "primary",
+      "phase": "1",
+      "files_own": [
+        "crates/atelier-core/src/types.rs",
+        "crates/atelier-core/src/games.rs",
+        "crates/atelier-core/src/scan.rs",
+        "crates/atelier-core/src/modinfo.rs",
+        "crates/atelier-core/src/activation/profiles.rs",
+        "crates/atelier-app/src/library.rs",
+        "crates/atelier-app/src/collections.rs",
+        "crates/atelier-install/src/lib.rs",
+        "src/components/app/format.ts",
+        "src/components/app/game-switcher.tsx",
+        "src/components/app/app-store.ts",
+        "src/data/mock-source.ts"
+      ],
+      "needs": [
+        {
+          "node": "p0-setup",
+          "artifact": "branch"
+        }
+      ],
+      "produces": [
+        "game-enum"
+      ],
+      "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app && pnpm build"
+    },
+    {
+      "id": "p2-hk-core",
+      "kind": "slice",
+      "owner": "ravi",
+      "phase": "2",
+      "files_own": [
+        "crates/atelier-core/src/humankind/mod.rs",
+        "crates/atelier-core/src/humankind/detect.rs",
+        "crates/atelier-core/src/humankind/module_name.rs",
+        "crates/atelier-core/src/humankind/bundle.rs",
+        "crates/atelier-core/src/humankind/scan.rs",
+        "crates/atelier-core/src/humankind/registry.rs",
+        "crates/atelier-core/src/activation/mod.rs",
+        "crates/atelier-core/tests/humankind_core.rs"
+      ],
+      "needs": [
+        {
+          "node": "p1-game-enum",
+          "artifact": "game-enum"
+        }
+      ],
+      "produces": [
+        "humankind-core"
+      ],
+      "verify": "cargo test -p atelier-core"
+    },
+    {
+      "id": "p3-saves-vault",
+      "kind": "slice",
+      "owner": "ravi",
+      "phase": "3",
+      "files_own": [
+        "crates/atelier-core/src/humankind/saves.rs",
+        "crates/atelier-install/src/backup.rs",
+        "crates/atelier-core/tests/humankind_saves.rs",
+        "crates/atelier-install/tests/backup_versions.rs"
+      ],
+      "needs": [
+        {
+          "node": "p2-hk-core",
+          "artifact": "humankind-core"
+        }
+      ],
+      "produces": [
+        "saves-vault"
+      ],
+      "verify": "cargo test -p atelier-core -p atelier-install"
+    },
+    {
+      "id": "p4-order-profiles",
+      "kind": "slice",
+      "owner": "ravi",
+      "phase": "4",
+      "files_own": [
+        "crates/atelier-core/src/humankind/load_order.rs",
+        "crates/atelier-core/src/humankind/profiles.rs",
+        "crates/atelier-core/src/humankind/history.rs",
+        "crates/atelier-core/tests/humankind_load_order.rs"
+      ],
+      "needs": [
+        {
+          "node": "p2-hk-core",
+          "artifact": "humankind-core"
+        }
+      ],
+      "produces": [
+        "order-profiles"
+      ],
+      "verify": "cargo test -p atelier-core"
+    },
+    {
+      "id": "p5-modio-install",
+      "kind": "slice",
+      "owner": "ravi",
+      "phase": "5",
+      "files_own": [
+        "crates/atelier-modio/src/client.rs",
+        "crates/atelier-modio/src/auth.rs",
+        "crates/atelier-install/src/roots.rs",
+        "crates/atelier-install/src/classify.rs",
+        "crates/atelier-install/src/stage.rs",
+        "crates/atelier-install/tests/humankind_roots.rs"
+      ],
+      "needs": [
+        {
+          "node": "p2-hk-core",
+          "artifact": "humankind-core"
+        }
+      ],
+      "produces": [
+        "modio-install"
+      ],
+      "verify": "cargo test -p atelier-modio -p atelier-install"
+    },
+    {
+      "id": "p7-health-bepinex",
+      "kind": "slice",
+      "owner": "ravi",
+      "phase": "7",
+      "files_own": [
+        "crates/atelier-core/src/health/mod.rs",
+        "crates/atelier-core/src/health/humankind.rs",
+        "crates/atelier-app/src/bepinex.rs",
+        "crates/atelier-core/tests/humankind_health.rs"
+      ],
+      "needs": [
+        {
+          "node": "p2-hk-core",
+          "artifact": "humankind-core"
+        }
+      ],
+      "produces": [
+        "health-bepinex"
+      ],
+      "verify": "cargo test -p atelier-core -p atelier-app"
+    },
+    {
+      "id": "merge-backend",
+      "kind": "merge",
+      "owner": "primary",
+      "phase": "4",
+      "files_own": [
+        "src-tauri/src/commands/library.rs",
+        "src-tauri/src/commands/install.rs",
+        "src-tauri/src/commands/mod.rs",
+        "src/data/source.ts"
+      ],
+      "needs": [
+        {
+          "node": "p3-saves-vault",
+          "artifact": "saves-vault"
+        },
+        {
+          "node": "p4-order-profiles",
+          "artifact": "order-profiles"
+        },
+        {
+          "node": "p5-modio-install",
+          "artifact": "modio-install"
+        },
+        {
+          "node": "p7-health-bepinex",
+          "artifact": "health-bepinex"
+        }
+      ],
+      "produces": [
+        "backend-merged"
+      ],
+      "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app"
+    },
+    {
+      "id": "p6-live-verify",
+      "kind": "slice",
+      "owner": "primary",
+      "phase": "6",
+      "files_own": [
+        "claudedocs/research/05-humankind-live-verify.md"
+      ],
+      "needs": [
+        {
+          "node": "merge-backend",
+          "artifact": "backend-merged"
+        }
+      ],
+      "produces": [
+        "live-results"
+      ],
+      "verify": "test -s claudedocs/research/05-humankind-live-verify.md"
+    },
+    {
+      "id": "p8-ui",
+      "kind": "slice",
+      "owner": "lena",
+      "phase": "8",
+      "files_own": [
+        "src/features/load-order/index.tsx",
+        "src/features/library/profile-bar.tsx",
+        "src/features/saves/index.tsx",
+        "src/features/health/index.tsx",
+        "src/features/onboarding/first-run-wizard.tsx",
+        "src/features/collections/index.tsx",
+        "src/components/app/mod-badges.tsx"
+      ],
+      "needs": [
+        {
+          "node": "merge-backend",
+          "artifact": "backend-merged"
+        }
+      ],
+      "produces": [
+        "ui"
+      ],
+      "verify": "pnpm build"
+    },
+    {
+      "id": "merge-all",
+      "kind": "merge",
+      "owner": "primary",
+      "phase": "9",
+      "needs": [
+        {
+          "node": "p6-live-verify",
+          "artifact": "live-results"
+        },
+        {
+          "node": "p8-ui",
+          "artifact": "ui"
+        }
+      ],
+      "produces": [
+        "merged-tree"
+      ],
+      "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app && pnpm build"
+    },
+    {
+      "id": "review-qa",
+      "kind": "verify",
+      "owner": "maya",
+      "phase": "9",
+      "verifies": [
+        "p0-setup",
+        "p1-game-enum",
+        "p2-hk-core",
+        "p3-saves-vault",
+        "p4-order-profiles",
+        "p5-modio-install",
+        "p6-live-verify",
+        "p7-health-bepinex",
+        "p8-ui"
+      ],
+      "needs": [
+        {
+          "node": "merge-all",
+          "artifact": "merged-tree"
+        }
+      ],
+      "produces": [
+        "qa-review"
+      ],
+      "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app"
+    },
+    {
+      "id": "review-sec",
+      "kind": "verify",
+      "owner": "kai",
+      "phase": "9",
+      "verifies": [
+        "p2-hk-core",
+        "p3-saves-vault",
+        "p4-order-profiles",
+        "p5-modio-install",
+        "p7-health-bepinex"
+      ],
+      "needs": [
+        {
+          "node": "merge-all",
+          "artifact": "merged-tree"
+        }
+      ],
+      "produces": [
+        "sec-review"
+      ],
+      "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app"
+    },
+    {
+      "id": "fix-backend",
+      "kind": "slice",
+      "owner": "ravi",
+      "phase": "9",
+      "files_own": [
+        "crates/atelier-app/src/hk_saves.rs",
+        "crates/atelier-app/src/hk_order.rs",
+        "crates/atelier-app/src/lib.rs",
+        "crates/atelier-app/src/downloads.rs"
+      ],
+      "needs": [
+        {
+          "node": "review-qa",
+          "artifact": "qa-review"
+        },
+        {
+          "node": "review-sec",
+          "artifact": "sec-review"
+        }
+      ],
+      "produces": [
+        "backend-fixes"
+      ],
+      "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app"
+    },
+    {
+      "id": "fix-ui",
+      "kind": "slice",
+      "owner": "lena",
+      "phase": "9",
+      "files_own": [
+        "src/data/mock-humankind.ts",
+        "src/data/humankind-order.ts",
+        "src/data/mock-humankind-seeds.ts",
+        "tests/ui/mock-humankind.test.ts"
+      ],
+      "needs": [
+        {
+          "node": "review-qa",
+          "artifact": "qa-review"
+        },
+        {
+          "node": "review-sec",
+          "artifact": "sec-review"
+        }
+      ],
+      "produces": [
+        "ui-fixes"
+      ],
+      "verify": "pnpm test"
+    },
+    {
+      "id": "merge-fixes",
+      "kind": "merge",
+      "owner": "primary",
+      "phase": "9",
+      "needs": [
+        {
+          "node": "fix-backend",
+          "artifact": "backend-fixes"
+        },
+        {
+          "node": "fix-ui",
+          "artifact": "ui-fixes"
+        }
+      ],
+      "produces": [
+        "fixed-tree"
+      ],
+      "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app && pnpm test && pnpm build"
+    },
+    {
+      "id": "reverify",
+      "kind": "verify",
+      "owner": "maya",
+      "phase": "9",
+      "verifies": [
+        "fix-backend",
+        "fix-ui"
+      ],
+      "needs": [
+        {
+          "node": "merge-fixes",
+          "artifact": "fixed-tree"
+        }
+      ],
+      "produces": [
+        "re-review"
+      ],
+      "verify": "cargo test -p atelier-core -p atelier-modio -p atelier-install -p atelier-app"
+    },
+    {
+      "id": "close",
+      "kind": "close",
+      "phase": "9",
+      "needs": [
+        {
+          "node": "reverify",
+          "artifact": "re-review"
+        }
+      ]
+    }
   ]
 }
 ```
@@ -275,6 +621,7 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
 - [ ] Phase 9: Close
   - Run /simplify.
   - Wave 2 review: @maya + @kai on the whole diff, then the Codex pass if logged in.
+  - Fix every Wave 2 finding (backend @ravi, UI @lena, test first), then @maya re-checks the fixes.
   - Reuse audit.
   - Run `dead-code-check.sh`, and prettier on every changed file.
   - Add a `CHANGELOG`/README line: Atelier now manages Anno and Humankind.
