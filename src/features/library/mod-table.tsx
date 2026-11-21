@@ -135,9 +135,12 @@ function ModRow({
   );
 }
 
-/** One ModID can sit in two locations, so a sub-mod belongs to the parent copy in its own location. */
+/** Which copy a sub-mod belongs to: duplicate ModIDs can share a location, but a sub-mod's
+ * folder always sits inside its parent's (`scan.rs` builds it as `<parent>/<child>`). */
 export const isSubModOf = (subMod: Mod, parent: Mod) =>
-  subMod.parentId === parent.id && subMod.location === parent.location;
+  subMod.parentId === parent.id &&
+  subMod.location === parent.location &&
+  subMod.folder.startsWith(`${parent.folder}/`);
 
 export function ModTable({
   mods,
