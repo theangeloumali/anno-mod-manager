@@ -198,10 +198,10 @@ fn registry_write_snapshots_the_old_file() {
 }
 
 #[test]
-fn base_module_is_forced_first_and_duplicates_dropped() {
+fn base_module_is_forced_first_and_duplicates_dropped_as_short_names() {
     let tmp = tempfile::tempdir().unwrap();
     let path = registry_file(&game_dir(tmp.path()));
-    let list = names(&["deepsea reloaded", "project mercury", "deepsea reloaded"]);
+    let list = names(&[DEEPSEA_LONG, "project mercury", "deepsea reloaded"]);
     registry::write_modules(&path, &list, &snapshots(tmp.path())).unwrap();
     let expected = names(&["project mercury", "deepsea reloaded"]);
     assert_eq!(registry::read_modules(&path).unwrap(), expected);

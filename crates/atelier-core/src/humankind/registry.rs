@@ -4,7 +4,7 @@ use std::io::ErrorKind;
 use std::ops::Range;
 use std::path::Path;
 
-use super::module_name::short_name;
+use super::load_order;
 use crate::activation::Snapshots;
 use crate::error::io_at;
 use crate::snapshots::write_with_snapshot;
@@ -49,7 +49,7 @@ pub fn write_modules(path: &Path, modules: &[String], snapshots: &Snapshots) -> 
     let bytes = read_capped(path)?.ok_or_else(|| io_at(path)(ErrorKind::NotFound.into()))?;
     let invalid = || Error::InvalidRegistry(path.to_path_buf());
     let text = String::from_utf8(bytes).map_err(|_| invalid())?;
-    let value = escape(&base_first(modules).join(SEPARATOR));
+    let value = escape(&load_order::normalize(modules).join(SEPARATOR));
     let element = format!("{ELEMENT_START}>{value}{CLOSE_TAG}");
     let updated = match find_value(&text) {
         Some(Value::Between(range)) => splice(&text, range, &value),
@@ -57,20 +57,6 @@ pub fn write_modules(path: &Path, modules: &[String], snapshots: &Snapshots) -> 
         None => insert_element(&text, &element).ok_or_else(invalid)?,
     };
     write_with_snapshot(path, &updated, snapshots)
-}
-
-/// `project mercury` first, then each module once, matched by short name.
-fn base_first(modules: &[String]) -> Vec<String> {
-    let mut seen = vec![BASE_MODULE.to_string()];
-    let mut ordered = vec![BASE_MODULE.to_string()];
-    for entry in modules {
-        let short = short_name(entry);
-        if !seen.contains(&short) {
-            seen.push(short);
-            ordered.push(entry.clone());
-        }
-    }
-    ordered
 }
 
 fn find_value(text: &str) -> Option<Value> {
