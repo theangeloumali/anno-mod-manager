@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use atelier_app::ErrorCode;
 use atelier_core::GameId;
 use atelier_core::humankind::saves::ModStatus;
-use common::Harness;
+use common::{Harness, Options};
 use zip::write::SimpleFileOptions;
 
 const HUMANKIND: GameId = GameId::Humankind;
@@ -380,4 +380,34 @@ fn saves_that_cannot_be_listed_keep_every_humankind_backup() {
     saved.unwrap();
     assert_eq!(backup_dirs(&harness), ["0.7-1000", "0.8-2000"]);
     assert!(!anno.exists(), "Anno's backups are still pruned");
+}
+
+#[test]
+fn a_workshop_copy_blocks_restoring_and_is_named() {
+    let harness = Harness::with(Options {
+        install: Some(HUMANKIND),
+        ..Options::default()
+    });
+    harness.write_humankind_registry(BASE);
+    vault(&harness, "Eventful", "0.7");
+    vault(&harness, "Deepsea Reloaded", "1.9");
+    let long = long_name("Eventful", "0.9");
+    let workshop = harness.root.path().join("workshop/content/1124300/3001");
+    fs::create_dir_all(&workshop).unwrap();
+    fs::write(workshop.join(&long), "module").unwrap();
+    let path = played_with_eventful_and_deepsea(&harness);
+
+    let error = harness
+        .app
+        .make_save_loadable(HUMANKIND, &path)
+        .unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::ReadOnly);
+    assert!(error.message.contains("Steam Workshop folder"), "{error:?}");
+    // Refused before anything is restored, including the mod the Workshop doesn't hold.
+    assert_eq!(installed_version(&harness, "deepsea reloaded"), None);
+    assert_eq!(
+        installed_version(&harness, "eventful").as_deref(),
+        Some("0.9")
+    );
 }

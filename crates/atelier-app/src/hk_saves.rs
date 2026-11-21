@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use atelier_core::humankind::saves::{self, ModCheck, ModStatus, Save, SaveList, SaveMod};
 use atelier_core::humankind::{detect, order};
-use atelier_core::{GameId, Mod, games, scan};
+use atelier_core::{GameId, Mod, ModLocation, games, scan};
 use atelier_install::KeptVersion;
 use serde::Serialize;
 
@@ -53,8 +53,23 @@ impl App {
             return Err(atelier_core::Error::RegistryNotFound(game_dir).into());
         }
         let installed = self.scan(game)?;
+        let checks = saves::check_mods(&save.descriptor.mods, &installed);
+        if let Some(copy) = checks
+            .iter()
+            .find_map(|check| read_only_copy(check, &installed))
+        {
+            return Err(AppError::new(
+                ErrorCode::ReadOnly,
+                format!(
+                    "{} is in the {}, which Atelier can't change, so the version this save was \
+                     played with wasn't put back. Remove that copy first.",
+                    copy.name,
+                    copy.location.place()
+                ),
+            ));
+        }
         let mut restored = Vec::new();
-        for check in saves::check_mods(&save.descriptor.mods, &installed) {
+        for check in checks {
             if self.restore_played_version(game, &check, &installed)? {
                 restored.push(check.module);
             }
@@ -156,6 +171,17 @@ impl App {
             Err(error) => Err(error.into()),
         }
     }
+}
+
+/// A Workshop or game-folder copy of a mod the save needs at another version: a restored copy
+/// would load beside it.
+fn read_only_copy<'a>(check: &ModCheck, installed: &'a [Mod]) -> Option<&'a Mod> {
+    if check.status == ModStatus::Exact || check.module.version.is_none() {
+        return None;
+    }
+    installed
+        .iter()
+        .find(|item| item.id == check.module.name && item.location != ModLocation::Documents)
 }
 
 fn humankind_dir(game: GameId, documents: &Path) -> Result<PathBuf> {
