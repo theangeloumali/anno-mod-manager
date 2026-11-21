@@ -24,6 +24,7 @@ import {
   useMods,
 } from "@/data/source";
 import type { LogEntry } from "@/data/types";
+import { BepinexCard } from "./bepinex-card";
 
 const LOG_TONE: Record<LogEntry["level"], StateTone> = {
   info: "neutral",
@@ -107,6 +108,7 @@ export function HealthScreen() {
             ))}
           </ul>
         </Panel>
+        {gameId === "humankind" && <BepinexCard />}
       </div>
       <Panel
         title="Mod loader log"

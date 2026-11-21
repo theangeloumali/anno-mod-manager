@@ -19,6 +19,7 @@ import { HealthScreen } from "@/features/health";
 import { LibraryScreen } from "@/features/library";
 import { LoadOrderScreen } from "@/features/load-order";
 import { FirstRunWizard } from "@/features/onboarding/first-run-wizard";
+import { SavesScreen } from "@/features/saves";
 import { SettingsScreen } from "@/features/settings";
 import { TweaksScreen } from "@/features/tweaks";
 
@@ -26,6 +27,7 @@ const SCREENS: Record<ViewId, ComponentType> = {
   library: LibraryScreen,
   "load-order": LoadOrderScreen,
   tweaks: TweaksScreen,
+  saves: SavesScreen,
   browse: BrowseScreen,
   collections: CollectionsScreen,
   downloads: DownloadsScreen,

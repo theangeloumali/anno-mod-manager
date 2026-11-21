@@ -6,6 +6,7 @@ import {
   LayersIcon,
   ListOrderedIcon,
   PackageIcon,
+  SaveIcon,
   SettingsIcon,
   SlidersHorizontalIcon,
   type LucideIcon,
@@ -50,6 +51,9 @@ export function SidebarNav() {
           countLabel: "mods",
         },
         { view: "load-order", label: "Load order", icon: ListOrderedIcon },
+        ...(game === "humankind"
+          ? [{ view: "saves" as const, label: "Saves", icon: SaveIcon }]
+          : []),
         {
           view: "tweaks",
           label: "Tweaks",

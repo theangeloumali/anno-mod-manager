@@ -22,6 +22,7 @@ import {
 import { useAction } from "@/data/source";
 import type { Issue, Mod } from "@/data/types";
 import { cn } from "@/lib/utils";
+import { HumankindModChips } from "./humankind-badges";
 import { issuesForMod } from "./issues-for-mod";
 
 function ModStatus({ mod, issues }: { mod: Mod; issues: Issue[] }) {
@@ -58,6 +59,7 @@ function ModRow({
   const toggle = useAction((source, active: boolean) =>
     source.setModActive(gameId, mod.id, active),
   );
+  const isHumankind = gameId === "humankind";
   const isSelected =
     selectedModId === mod.id &&
     (!selectedCopy ||
@@ -104,17 +106,20 @@ function ModRow({
           )}
           <span className="min-w-0">
             <span className="block truncate text-ui font-semibold text-copy">
-              <span className="font-normal text-copy-muted">
-                {categoryPrefix(mod.category)}
-              </span>
+              {!isHumankind && (
+                <span className="font-normal text-copy-muted">
+                  {categoryPrefix(mod.category)}
+                </span>
+              )}
               {mod.name}
               {isSubMod && <span className="sr-only">, sub-mod</span>}
             </span>
             <span className="block truncate font-mono text-label text-copy-dim">
               {mod.id}
             </span>
+            {isHumankind && <HumankindModChips mod={mod} />}
           </span>
-          {isReadOnly(mod) && (
+          {isReadOnly(mod) && !isHumankind && (
             <LockIcon
               aria-label="Read-only"
               className="size-3.5 shrink-0 text-accent xl:hidden"

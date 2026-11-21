@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAction, useProfiles } from "@/data/source";
 import type { GameInfo } from "@/data/types";
+import { HistorySheet } from "./history-sheet";
 
 const PROFILE_FILE_HINT: Record<GameInfo["activationScheme"], string> = {
   profile: "mods\\profile.txt → profiles\\<name>.txt",
@@ -29,7 +30,7 @@ const PROFILE_FILE_HINT: Record<GameInfo["activationScheme"], string> = {
 
 export function ProfileBar() {
   const { gameId, game, isWriteLocked } = useCurrentGame();
-  const { data: profiles = [] } = useProfiles(gameId);
+  const { data: profiles = [], isSuccess: hasProfiles } = useProfiles(gameId);
   const [isSaveOpen, setSaveOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const switchProfile = useAction((source, name: string) =>
@@ -45,6 +46,9 @@ export function ProfileBar() {
     source.exportProfile(gameId, name),
   );
   const activeProfile = profiles.find((profile) => profile.active);
+  const isRegistryList = game?.activationScheme === "registry-list";
+  // Humankind's profiles live in Atelier's own storage, so editing them is safe mid-game.
+  const isProfileEditLocked = isWriteLocked && !isRegistryList;
 
   const copyExport = async () => {
     if (!activeProfile) return;
@@ -64,18 +68,27 @@ export function ProfileBar() {
         className="md:w-64"
         value={activeProfile?.name ?? ""}
         isDisabled={isWriteLocked}
-        choices={profiles.map((profile) => ({
-          value: profile.name,
-          label: profile.builtIn ? `${profile.name} (built in)` : profile.name,
-        }))}
+        choices={[
+          // The live list can match no saved profile; name that instead of a blank field.
+          ...(isRegistryList && hasProfiles && !activeProfile
+            ? [{ value: "", label: "Unsaved list" }]
+            : []),
+          ...profiles.map((profile) => ({
+            value: profile.name,
+            label: profile.builtIn
+              ? `${profile.name} (built in)`
+              : profile.name,
+          })),
+        ]}
         onChange={(name) =>
+          name &&
           withToast(switchProfile.mutateAsync([name]), `Switched to ${name}`)
         }
       />
       <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
-          disabled={isWriteLocked}
+          disabled={isProfileEditLocked}
           onClick={() => setSaveOpen(true)}
         >
           <SaveIcon aria-hidden="true" />
@@ -89,7 +102,7 @@ export function ProfileBar() {
           <Button
             size="sm"
             variant="quiet"
-            disabled={isWriteLocked}
+            disabled={isProfileEditLocked}
             onClick={() =>
               withToast(
                 deleteProfile.mutateAsync([activeProfile.name]),
@@ -101,6 +114,7 @@ export function ProfileBar() {
             Delete
           </Button>
         )}
+        {isRegistryList && <HistorySheet />}
       </div>
       {game && (
         <p className="text-label text-copy-dim md:ml-auto md:text-right">

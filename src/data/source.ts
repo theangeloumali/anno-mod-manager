@@ -10,10 +10,12 @@ import { GAME_IDS } from "./types.ts";
 import type {
   Account,
   AuthMethod,
+  BepInExStatus,
   DownloadJob,
   GameId,
   GameInfo,
   HealthCheck,
+  HistoryEntry,
   InstallPreview,
   InstallResult,
   Issue,
@@ -27,6 +29,9 @@ import type {
   ModOption,
   Profile,
   ReportKind,
+  SaveInspection,
+  SaveList,
+  SaveLoadReport,
   Settings,
 } from "./types.ts";
 
@@ -105,6 +110,19 @@ export interface DataSource {
   launchGame(game: GameId): Promise<void>;
   /** Resolves the old loader's backup path, or null when no loader DLL was left to keep. */
   removeLegacyLoader(game: GameId): Promise<string | null>;
+  /** Humankind: writes the mod list in this order and resolves to what was written. */
+  setLoadOrder(game: GameId, order: string[]): Promise<string[]>;
+  /** Listed modules that aren't installed; the game wipes the whole list over any one. */
+  launchBlockers(game: GameId): Promise<string[]>;
+  listSaves(game: GameId): Promise<SaveList>;
+  inspectSave(game: GameId, path: string): Promise<SaveInspection>;
+  makeSaveLoadable(game: GameId, path: string): Promise<SaveLoadReport>;
+  modListHistory(): Promise<HistoryEntry[]>;
+  /** Saves the list from before that change as a profile and resolves to its name. */
+  restoreHistoryEntry(index: number): Promise<string>;
+  bepinexStatus(game: GameId): Promise<BepInExStatus>;
+  installBepinex(game: GameId): Promise<BepInExStatus>;
+  uninstallBepinex(game: GameId): Promise<BepInExStatus>;
 }
 
 let activeSource: DataSource = mockSource;
@@ -132,6 +150,11 @@ const keys = {
   account: ["account"] as const,
   connectivity: ["connectivity"] as const,
   settings: ["settings"] as const,
+  blockers: (game: GameId) => ["launch-blockers", game] as const,
+  saves: (game: GameId) => ["saves", game] as const,
+  save: (game: GameId, path: string) => ["save", game, path] as const,
+  history: ["mod-list-history"] as const,
+  bepinex: (game: GameId) => ["bepinex", game] as const,
 };
 
 /** How often the game list is re-read, so "running" follows the game without an app action. */
@@ -219,6 +242,34 @@ export const useSettings = () =>
   useQuery({
     queryKey: keys.settings,
     queryFn: () => activeSource.getSettings(),
+  });
+export const useLaunchBlockers = (game: GameId, isEnabled: boolean) =>
+  useQuery({
+    queryKey: keys.blockers(game),
+    queryFn: () => activeSource.launchBlockers(game),
+    enabled: isEnabled,
+  });
+export const useSaves = (game: GameId) =>
+  useQuery({
+    queryKey: keys.saves(game),
+    queryFn: () => activeSource.listSaves(game),
+  });
+export const useSaveInspection = (game: GameId, path: string | null) =>
+  useQuery({
+    queryKey: keys.save(game, path ?? ""),
+    queryFn: () => activeSource.inspectSave(game, path ?? ""),
+    enabled: path !== null,
+  });
+export const useModListHistory = (isEnabled: boolean) =>
+  useQuery({
+    queryKey: keys.history,
+    queryFn: () => activeSource.modListHistory(),
+    enabled: isEnabled,
+  });
+export const useBepinexStatus = (game: GameId) =>
+  useQuery({
+    queryKey: keys.bepinex(game),
+    queryFn: () => activeSource.bepinexStatus(game),
   });
 
 /** Downloads install in the background, so a finished one must refresh what the screens show. */

@@ -5,9 +5,11 @@ import { toCoreError } from "./core-error.ts";
 import type { DataSource } from "./source.ts";
 import type {
   Account,
+  BepInExStatus,
   DownloadJob,
   GameInfo,
   HealthCheck,
+  HistoryEntry,
   InstallPreview,
   InstallResult,
   Issue,
@@ -19,6 +21,9 @@ import type {
   ModioPage,
   ModOption,
   Profile,
+  SaveInspection,
+  SaveList,
+  SaveLoadReport,
   Settings,
 } from "./types.ts";
 
@@ -102,4 +107,19 @@ export const ipcSource: DataSource = {
   launchGame: (game) => call("launch_game", { game }),
   removeLegacyLoader: (game) =>
     call<string | null>("remove_legacy_loader", { game }),
+  setLoadOrder: (game, order) =>
+    call<string[]>("set_load_order", { game, order }),
+  launchBlockers: (game) => call<string[]>("launch_blockers", { game }),
+  listSaves: (game) => call<SaveList>("list_saves", { game }),
+  inspectSave: (game, path) =>
+    call<SaveInspection>("inspect_save", { game, path }),
+  makeSaveLoadable: (game, path) =>
+    call<SaveLoadReport>("make_save_loadable", { game, path }),
+  modListHistory: () => call<HistoryEntry[]>("mod_list_history"),
+  restoreHistoryEntry: (index) =>
+    call<string>("restore_history_entry", { index }),
+  bepinexStatus: (game) => call<BepInExStatus>("bepinex_status", { game }),
+  installBepinex: (game) => call<BepInExStatus>("install_bepinex", { game }),
+  uninstallBepinex: (game) =>
+    call<BepInExStatus>("uninstall_bepinex", { game }),
 };

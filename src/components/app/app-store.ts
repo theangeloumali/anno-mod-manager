@@ -26,6 +26,7 @@ export type ViewId =
   | "library"
   | "load-order"
   | "tweaks"
+  | "saves"
   | "browse"
   | "collections"
   | "downloads"
@@ -63,13 +64,16 @@ export const useAppStore = create<AppState>((set) => ({
   previewSources: [],
   isWizardOpen: false,
   isMobileNavOpen: false,
+  // Saves is Humankind's screen alone; leaving the game leaves it.
   setGame: (game) =>
-    set({
+    set((state) => ({
       game,
       selectedModId: null,
       selectedModCopy: null,
       tweaksModId: null,
-    }),
+      view:
+        state.view === "saves" && game !== "humankind" ? "library" : state.view,
+    })),
   setView: (view) => set({ view, isMobileNavOpen: false }),
   selectMod: (selectedModId, copy) =>
     set({ selectedModId, selectedModCopy: copy ?? null }),

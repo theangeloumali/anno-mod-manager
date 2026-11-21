@@ -2,6 +2,28 @@
 // Stateful in-memory DataSource for the v2 mock-up. ModIDs and folders follow the real install (research 04).
 import { CoreError } from "./core-error.ts";
 import { LEGACY_LOADER_CHECK } from "./health.ts";
+import {
+  applyHumankindProfile,
+  createHumankindMock,
+  deleteHumankindProfile,
+  exportHumankindProfile,
+  humankindBepinex,
+  humankindLoadOrder,
+  humankindMods,
+  humankindProfiles,
+  inspectHumankindSave,
+  installHumankindBepinex,
+  makeHumankindSaveLoadable,
+  MISSING_MODULE,
+  missingModules,
+  restoreHumankindHistory,
+  saveHumankindProfile,
+  setHumankindModActive,
+  uninstallHumankindBepinex,
+  writeHumankindOrder,
+  type BepInExKind,
+} from "./mock-humankind.ts";
+import { humankindHealthChecks } from "./mock-humankind-health.ts";
 import type { DataSource } from "./source.ts";
 import type {
   Account,
@@ -36,6 +58,10 @@ export interface MockScenario {
   signedOut: boolean;
   offline: boolean;
   noApiKey: boolean;
+  hkNoInstall: boolean;
+  hkNoRegistry: boolean;
+  hkNoHistory: boolean;
+  hkMissingModule: boolean;
 }
 
 /** Drop sources the "Mock-up states" menu can simulate, per game. */
@@ -1078,6 +1104,7 @@ function seedDownloads(now: number): StoredJob[] {
 
 function createState() {
   const gamePaths: Partial<Record<GameId, string>> = {};
+  const hk = createHumankindMock();
   return {
     scenario: {
       emptyLibrary: false,
@@ -1085,7 +1112,12 @@ function createState() {
       signedOut: false,
       offline: false,
       noApiKey: false,
+      hkNoInstall: false,
+      hkNoRegistry: false,
+      hkNoHistory: false,
+      hkMissingModule: true,
     } as MockScenario,
+    hk,
     gamePaths,
     runningGame: null as GameId | null,
     /** Anno 1800 starts with the old community loader in place, so Health can offer its removal. */
@@ -1093,7 +1125,7 @@ function createState() {
     mods: {
       anno117: seedMods117(),
       anno1800: seedMods1800(),
-      humankind: [],
+      humankind: humankindMods(hk),
     } as Record<GameId, Mod[]>,
     /** Uninstalled mods with their sub-mods, newest last, as the core's backups keep them. */
     backups: { anno117: [], anno1800: [], humankind: [] } as Record<
@@ -1197,8 +1229,35 @@ const refuseSignedOut = (action: string) =>
   refuse(`Sign in to mod.io to ${action}.`, "not-signed-in");
 
 const exeName = (game: GameId) => GAME_DETAILS[game].exe;
-const shortGameName = (game: GameId) =>
-  game === "anno117" ? "Anno 117" : "Anno 1800";
+const SHORT_GAME_NAMES: Record<GameId, string> = {
+  anno117: "Anno 117",
+  anno1800: "Anno 1800",
+  humankind: "Humankind",
+};
+const shortGameName = (game: GameId) => SHORT_GAME_NAMES[game];
+
+/** Runs a Humankind mock step; its CoreError becomes the same delayed rejection as refuse. */
+function attempt<T>(run: () => T): Promise<T> {
+  try {
+    return respond(run());
+  } catch (error) {
+    if (error instanceof CoreError) return refuse(error.message, error.code);
+    throw error;
+  }
+}
+
+function guardedAttempt<T>(game: GameId, run: () => T): Promise<T> {
+  const blocked = writeBlockedReason(game);
+  return blocked ? refuse(blocked, "game-running") : attempt(run);
+}
+
+const HUMANKIND_ONLY = () =>
+  refuse("Only Humankind has this.", "not-supported");
+const hkInstallPath = () =>
+  state.scenario.hkNoInstall
+    ? null
+    : (state.gamePaths.humankind ?? GAME_DETAILS.humankind.installPath);
+const hkMods = () => state.mods.humankind;
 
 /** Writes to the mods folder are blocked while that game runs (PRODUCT.md constraint). */
 function writeBlockedReason(game: GameId): string | null {
@@ -1888,7 +1947,16 @@ function removeToBackups(game: GameId, modId: string): void {
 }
 
 export function mockScenario(): MockScenario {
-  return { ...state.scenario, gameRunning: state.runningGame !== null };
+  return {
+    ...state.scenario,
+    gameRunning: state.runningGame !== null,
+    hkMissingModule: state.hk.order.includes(MISSING_MODULE),
+  };
+}
+
+export const mockBepinex = (): BepInExKind => state.hk.bepinex;
+export function setMockBepinex(kind: BepInExKind): void {
+  state.hk.bepinex = kind;
 }
 
 /** Flips a "Mock-up states" switch; the caller refreshes React Query afterwards. */
@@ -1911,6 +1979,12 @@ export function setMockScenario(
     };
   }
   if (patch.noApiKey !== undefined) state.apiKeySet = !patch.noApiKey;
+  if (patch.hkNoRegistry !== undefined)
+    state.hk.registryFound = !patch.hkNoRegistry;
+  if (patch.hkMissingModule !== undefined) {
+    const order = state.hk.order.filter((name) => name !== MISSING_MODULE);
+    state.hk.order = patch.hkMissingModule ? [...order, MISSING_MODULE] : order;
+  }
   if (patch.signedOut === false && !state.account.signedIn)
     state.account = {
       signedIn: true,
@@ -1934,9 +2008,11 @@ export const mockSource: DataSource = {
       (Object.keys(GAME_DETAILS) as GameId[]).map((game) => {
         const { exe: _exe, ...info } = GAME_DETAILS[game];
         const chosenPath = state.gamePaths[game];
+        const noInstall = game === "humankind" && state.scenario.hkNoInstall;
         return {
           ...info,
           ...(chosenPath && { installPath: chosenPath, store: "manual" }),
+          ...(noInstall && { installPath: null, store: null }),
           running: state.runningGame === game,
           legacyModLoader: game === "anno1800" && state.legacyLoader,
         };
@@ -1963,6 +2039,10 @@ export const mockSource: DataSource = {
     if (blocked) return refuse(blocked, "game-running");
     const mod = findMod(game, modId);
     if (!mod) return refuse(`No mod with ID ${modId}.`, "not-found");
+    if (game === "humankind")
+      return attempt(() =>
+        setHumankindModActive(state.hk, hkMods(), modId, active),
+      );
     mod.active = active;
     return respond(undefined);
   },
@@ -1998,18 +2078,29 @@ export const mockSource: DataSource = {
 
   listIssues: (game) => respond(computeIssues(game)),
 
-  loadOrder: (game) => respond(computeLoadOrder(visibleMods(game))),
-
-  listProfiles: (game) =>
+  loadOrder: (game) =>
     respond(
-      state.profiles[game].map((profile) => ({
-        name: profile.name,
-        builtIn: profile.builtIn,
-        active: profile.name === state.activeProfile[game],
-      })),
+      game === "humankind"
+        ? humankindLoadOrder(state.hk)
+        : computeLoadOrder(visibleMods(game)),
     ),
 
+  listProfiles: (game) =>
+    game === "humankind"
+      ? respond(humankindProfiles(state.hk))
+      : respond(
+          state.profiles[game].map((profile) => ({
+            name: profile.name,
+            builtIn: profile.builtIn,
+            active: profile.name === state.activeProfile[game],
+          })),
+        ),
+
   switchProfile: (game, name) => {
+    if (game === "humankind")
+      return guardedAttempt(game, () =>
+        applyHumankindProfile(state.hk, hkMods(), name),
+      );
     const blocked = writeBlockedReason(game);
     if (blocked) return refuse(blocked, "game-running");
     const target = state.profiles[game].find(
@@ -2029,6 +2120,9 @@ export const mockSource: DataSource = {
   },
 
   saveProfile: (game, name) => {
+    // Humankind profiles live in Atelier, so saving one is allowed while the game runs.
+    if (game === "humankind")
+      return attempt(() => saveHumankindProfile(state.hk, name));
     const blocked = writeBlockedReason(game);
     if (blocked) return refuse(blocked, "game-running");
     const activeIds = state.mods[game]
@@ -2046,6 +2140,8 @@ export const mockSource: DataSource = {
   },
 
   deleteProfile: (game, name) => {
+    if (game === "humankind")
+      return attempt(() => deleteHumankindProfile(state.hk, name));
     const profile = state.profiles[game].find(
       (candidate) => candidate.name === name,
     );
@@ -2061,6 +2157,8 @@ export const mockSource: DataSource = {
   },
 
   exportProfile: (game, name) => {
+    if (game === "humankind")
+      return attempt(() => exportHumankindProfile(state.hk, name));
     const profile = state.profiles[game].find(
       (candidate) => candidate.name === name,
     );
@@ -2430,7 +2528,12 @@ export const mockSource: DataSource = {
 
   connectivity: () => respond(!state.scenario.offline),
 
-  healthChecks: (game) => respond(buildHealthChecks(game)),
+  healthChecks: (game) =>
+    respond(
+      game === "humankind"
+        ? humankindHealthChecks(state.hk, hkMods(), hkInstallPath())
+        : buildHealthChecks(game),
+    ),
 
   loaderLog: (game) => respond(buildLog(game)),
 
@@ -2522,6 +2625,13 @@ export const mockSource: DataSource = {
   launchGame: (game) => {
     if (state.runningGame === game)
       return refuse(`${exeName(game)} is already running.`, "game-running");
+    const missing =
+      game === "humankind" ? missingModules(state.hk, hkMods()) : [];
+    if (missing.length > 0)
+      return refuse(
+        `not installed: ${missing.join(", ")}; Humankind would reset the mod list to vanilla`,
+        "not-found",
+      );
     state.runningGame = game;
     const session = ++mockSession;
     // The pretend session closes on its own, as a real game does, so the polling has something to see.
@@ -2546,4 +2656,50 @@ export const mockSource: DataSource = {
       "C:\\Users\\you\\AppData\\Roaming\\com.theangeloumali.annomodmanager\\backups\\old-mod-loader\\1795162494\\python35.dll",
     );
   },
+
+  setLoadOrder: (game, order) =>
+    game === "humankind"
+      ? guardedAttempt(game, () =>
+          writeHumankindOrder(state.hk, hkMods(), order),
+        )
+      : HUMANKIND_ONLY(),
+
+  launchBlockers: (game) =>
+    respond(game === "humankind" ? missingModules(state.hk, hkMods()) : []),
+
+  listSaves: (game) =>
+    game === "humankind" ? respond(state.hk.saves) : HUMANKIND_ONLY(),
+
+  inspectSave: (game, path) =>
+    game === "humankind"
+      ? attempt(() => inspectHumankindSave(state.hk, hkMods(), path))
+      : HUMANKIND_ONLY(),
+
+  makeSaveLoadable: (game, path) =>
+    game === "humankind"
+      ? guardedAttempt(game, () =>
+          makeHumankindSaveLoadable(state.hk, hkMods(), path),
+        )
+      : HUMANKIND_ONLY(),
+
+  modListHistory: () =>
+    respond(state.scenario.hkNoHistory ? [] : state.hk.history),
+
+  restoreHistoryEntry: (index) =>
+    attempt(() => restoreHumankindHistory(state.hk, index)),
+
+  bepinexStatus: (game) =>
+    game === "humankind"
+      ? respond(humankindBepinex(state.hk))
+      : HUMANKIND_ONLY(),
+
+  installBepinex: (game) =>
+    game === "humankind"
+      ? guardedAttempt(game, () => installHumankindBepinex(state.hk))
+      : HUMANKIND_ONLY(),
+
+  uninstallBepinex: (game) =>
+    game === "humankind"
+      ? guardedAttempt(game, () => uninstallHumankindBepinex(state.hk))
+      : HUMANKIND_ONLY(),
 };
