@@ -92,7 +92,10 @@ impl App {
     }
 
     pub fn load_order(&self, game: GameId) -> Result<LoadOrder> {
-        Ok(load_order::compute(&self.scan(game)?))
+        match game {
+            GameId::Humankind => self.humankind_load_order(),
+            GameId::Anno117 | GameId::Anno1800 => Ok(load_order::compute(&self.scan(game)?)),
+        }
     }
 
     pub fn set_mod_active(&self, game: GameId, mod_id: &str, active: bool) -> Result<()> {
@@ -214,10 +217,18 @@ impl App {
     }
 
     pub fn list_profiles(&self, game: GameId) -> Result<Vec<Profile>> {
-        Ok(activation::list_profiles(&self.documents_mods(game))?)
+        match game {
+            GameId::Humankind => self.humankind_profiles(),
+            GameId::Anno117 | GameId::Anno1800 => {
+                Ok(activation::list_profiles(&self.documents_mods(game))?)
+            }
+        }
     }
 
     pub fn switch_profile(&self, game: GameId, name: &str) -> Result<()> {
+        if game == GameId::Humankind {
+            return self.apply_humankind_profile(name);
+        }
         let _writes = self.write_guard(game)?;
         Ok(activation::switch_profile(
             &self.writable(game),
@@ -227,6 +238,9 @@ impl App {
     }
 
     pub fn save_profile(&self, game: GameId, name: &str) -> Result<()> {
+        if game == GameId::Humankind {
+            return self.save_humankind_profile(name);
+        }
         let _writes = self.write_guard(game)?;
         let mods = self.scan(game)?;
         Ok(activation::save_profile(
@@ -238,6 +252,9 @@ impl App {
     }
 
     pub fn delete_profile(&self, game: GameId, name: &str) -> Result<()> {
+        if game == GameId::Humankind {
+            return self.delete_humankind_profile(name);
+        }
         let _writes = self.write_guard(game)?;
         Ok(activation::delete_profile(
             &self.writable(game),
@@ -247,6 +264,9 @@ impl App {
     }
 
     pub fn export_profile(&self, game: GameId, name: &str) -> Result<String> {
+        if game == GameId::Humankind {
+            return self.export_humankind_profile(name);
+        }
         Ok(activation::export_profile(
             &self.documents_mods(game),
             name,

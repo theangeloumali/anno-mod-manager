@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use atelier_core::humankind::history::{self, HistoryEntry};
 use atelier_core::humankind::{detect, load_order, profiles, registry};
-use atelier_core::{GameId, Profile, games};
+use atelier_core::{GameId, LoadOrder, LoadOrderEntry, LoadReason, Phase, Profile, games};
 
 use crate::error::{AppError, ErrorCode, Result};
 use crate::{App, lock};
@@ -92,6 +92,37 @@ impl App {
             &self.0.snapshots,
         )?;
         Ok(saved.name)
+    }
+
+    /// One short name per line, in load order, for pasting to a friend.
+    pub(crate) fn export_humankind_profile(&self, name: &str) -> Result<String> {
+        let profile = profiles::find(&self.hk_profiles_file(), name)?;
+        Ok(profile
+            .modules
+            .iter()
+            .map(|module| format!("{module}\n"))
+            .collect())
+    }
+
+    /// The registry's order after the base game; the player set it, so nothing is computed.
+    pub(crate) fn humankind_load_order(&self) -> Result<LoadOrder> {
+        let entries = self
+            .hk_current_order()?
+            .into_iter()
+            .filter(|module| module != registry::BASE_MODULE)
+            .enumerate()
+            .map(|(index, mod_id)| LoadOrderEntry {
+                position: index + 1,
+                mod_id,
+                phase: Phase::Normal,
+                reason: LoadReason::Player,
+                after: Vec::new(),
+            })
+            .collect();
+        Ok(LoadOrder {
+            entries,
+            cycles: Vec::new(),
+        })
     }
 
     /// Listed modules that aren't installed; Humankind resets the list to vanilla over any.

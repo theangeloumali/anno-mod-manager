@@ -192,6 +192,8 @@ pub enum LoadReason {
     LoadAfter,
     Late,
     Alphabetical,
+    /// Humankind: the player set this order; nothing computes it.
+    Player,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

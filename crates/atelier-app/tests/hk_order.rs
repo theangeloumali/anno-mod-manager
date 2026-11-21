@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use atelier_app::ErrorCode;
-use atelier_core::{GameId, Profile};
+use atelier_core::{GameId, LoadReason, Profile};
 use common::{Harness, Options};
 
 const HUMANKIND: GameId = GameId::Humankind;
@@ -340,4 +340,52 @@ fn restoring_an_entry_that_does_not_exist_is_not_found() {
     let harness = setup();
     let error = harness.app.restore_history_entry(0).unwrap_err();
     assert_eq!(error.code, ErrorCode::NotFound);
+}
+
+// the shared profile and load-order commands
+
+#[test]
+fn the_shared_profile_commands_use_humankind_profiles() {
+    let harness = setup();
+    write_registry(&harness, &format!("{BASE}/alpha"));
+    harness.app.save_profile(HUMANKIND, "Mine").unwrap();
+    write_registry(&harness, BASE);
+
+    let listed = harness.app.list_profiles(HUMANKIND).unwrap();
+    assert_eq!(listed, vec![profile("Mine", false)]);
+    harness.app.switch_profile(HUMANKIND, "Mine").unwrap();
+    assert!(registry_text(&harness).contains(&format!("{BASE}/alpha")));
+    harness.app.delete_profile(HUMANKIND, "Mine").unwrap();
+    assert!(harness.app.list_profiles(HUMANKIND).unwrap().is_empty());
+    assert!(
+        !game_dir(&harness)
+            .join("Community")
+            .join("profiles")
+            .exists()
+    );
+}
+
+#[test]
+fn the_load_order_is_the_registry_order_set_by_the_player() {
+    let harness = setup();
+    write_registry(&harness, &format!("{BASE}/beta/alpha"));
+
+    let order = harness.app.load_order(HUMANKIND).unwrap();
+
+    let ids: Vec<&str> = order.entries.iter().map(|e| e.mod_id.as_str()).collect();
+    assert_eq!(ids, ["beta", "alpha"]);
+    assert!(order.entries.iter().all(|e| e.reason == LoadReason::Player));
+    assert_eq!(order.entries[0].position, 1);
+}
+
+#[test]
+fn exporting_a_humankind_profile_lists_its_modules_in_order() {
+    let harness = setup();
+    write_registry(&harness, &format!("{BASE}/beta/alpha"));
+    harness.app.save_profile(HUMANKIND, "Mine").unwrap();
+
+    let text = harness.app.export_profile(HUMANKIND, "mine").unwrap();
+
+    assert_eq!(text, "project mercury\nbeta\nalpha\n");
+    assert!(harness.app.export_profile(HUMANKIND, "Nope").is_err());
 }
