@@ -330,6 +330,11 @@ impl App {
     }
 
     pub fn loader_log(&self, game: GameId) -> Result<Vec<LogEntry>> {
+        match game {
+            // Humankind writes HTML diagnostics, not an Anno mod-loader log; reading them is H10.
+            GameId::Humankind => return Ok(Vec::new()),
+            GameId::Anno117 | GameId::Anno1800 => {}
+        }
         let path = games::documents_game_dir(game, &self.0.documents)
             .join("log")
             .join("mod-loader.log");

@@ -437,3 +437,13 @@ fn restoring_two_entries_from_the_same_second_keeps_both() {
     assert_eq!(second, "Restored 2026-11-21 03-04-05 UTC 2");
     assert_eq!(harness.app.humankind_profiles().unwrap().len(), 2);
 }
+
+#[test]
+fn humankind_has_no_anno_mod_loader_log() {
+    let harness = setup();
+    let log = game_dir(&harness).join("log").join("mod-loader.log");
+    fs::create_dir_all(log.parent().unwrap()).unwrap();
+    fs::write(&log, "[2026-11-19 13:54:37.100] [info] Search mods...\n").unwrap();
+
+    assert!(harness.app.loader_log(HUMANKIND).unwrap().is_empty());
+}

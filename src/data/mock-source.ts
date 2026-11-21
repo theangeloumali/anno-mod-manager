@@ -2576,7 +2576,8 @@ export const mockSource: DataSource = {
         : buildHealthChecks(game),
     ),
 
-  loaderLog: (game) => respond(buildLog(game)),
+  // As the core: Humankind has no Anno mod-loader log.
+  loaderLog: (game) => respond(game === "humankind" ? [] : buildLog(game)),
 
   account: () => respond({ ...state.account, hasApiKey: state.apiKeySet }),
 
