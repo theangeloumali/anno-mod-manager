@@ -27,8 +27,12 @@ pub enum Error {
     NoProfiles(ActivationScheme),
     #[error("sub-mod '{0}' is switched with its parent")]
     SubMod(String),
-    #[error("the {0:?} activation scheme is not wired up yet")]
-    Unsupported(ActivationScheme),
+    #[error("no Users/<id>/Registry.xml under {0}; start Humankind once to create it")]
+    RegistryNotFound(PathBuf),
+    #[error("{0} is not a Registry.xml Atelier can edit (not UTF-8, or no </Registry> end tag)")]
+    InvalidRegistry(PathBuf),
+    #[error("'{0}' is the base game and stays on")]
+    BaseModule(String),
 }
 
 /// Attaches the path to an I/O error, which `io::Error` alone never says.

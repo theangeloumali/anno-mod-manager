@@ -35,8 +35,13 @@ pub struct ScanResult {
 pub fn scan(game: GameId, folders: &[ModsFolder]) -> Result<ScanResult> {
     let mut result = ScanResult::default();
     for folder in folders {
-        for dir in mod_candidates(game, &folder.path)? {
-            scan_top_level(game, folder, &dir, &mut result)?;
+        match game {
+            GameId::Humankind => crate::humankind::scan::scan_folder(folder, &mut result)?,
+            GameId::Anno117 | GameId::Anno1800 => {
+                for dir in mod_candidates(game, &folder.path)? {
+                    scan_top_level(game, folder, &dir, &mut result)?;
+                }
+            }
         }
     }
     Ok(result)
@@ -113,7 +118,7 @@ fn inferred_info() -> ModInfo {
     }
 }
 
-fn skip(result: &mut ScanResult, dir: &Path, reason: SkipReason) {
+pub(crate) fn skip(result: &mut ScanResult, dir: &Path, reason: SkipReason) {
     result.skipped.push(SkippedFolder {
         path: dir.to_path_buf(),
         reason,
@@ -179,7 +184,7 @@ fn build_mod(
     })
 }
 
-fn dir_size(dir: &Path) -> Result<u64> {
+pub(crate) fn dir_size(dir: &Path) -> Result<u64> {
     let mut total = 0;
     for entry in fs::read_dir(dir).map_err(io_at(dir))? {
         let entry = entry.map_err(io_at(dir))?;
@@ -193,7 +198,7 @@ fn dir_size(dir: &Path) -> Result<u64> {
     Ok(total)
 }
 
-fn file_name(path: &Path) -> String {
+pub(crate) fn file_name(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default()

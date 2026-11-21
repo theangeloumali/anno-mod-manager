@@ -12,6 +12,8 @@ use std::path::{Path, PathBuf};
 use serde_json::{Map, Value};
 
 use crate::error::io_at;
+use crate::humankind;
+use crate::humankind::module_name::short_name;
 use crate::scan::ModsFolder;
 pub use crate::snapshots::Snapshots;
 use crate::snapshots::{ensure_writable, write_with_snapshot};
@@ -37,6 +39,8 @@ enum Rules {
     AllOff,
     File(ProfileFile),
     DisabledIds(HashSet<String>),
+    /// Humankind's ordered Registry.xml list, as short names; listed means on.
+    RegistryList(Vec<String>),
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +58,15 @@ impl ActivationState {
             Rules::AllOff => false,
             Rules::File(file) => file.is_active(mod_id),
             Rules::DisabledIds(disabled) => !disabled.contains(mod_id) && !folder.starts_with('-'),
+            Rules::RegistryList(modules) => modules.iter().any(|module| module == mod_id),
+        }
+    }
+
+    /// Humankind's load order, base game first; `None` for the Anno schemes.
+    pub fn registry_modules(&self) -> Option<&[String]> {
+        match &self.rules {
+            Rules::RegistryList(modules) => Some(modules),
+            _ => None,
         }
     }
 
@@ -92,7 +105,7 @@ pub fn read(game: GameId, mods_dir: &Path) -> Result<ActivationState> {
             let effective = name.as_deref().unwrap_or(DEFAULT_PROFILE);
             (name.clone(), profile_rules(mods_dir, effective)?)
         }
-        ActivationScheme::RegistryList => return Err(Error::Unsupported(scheme)),
+        ActivationScheme::RegistryList => (None, Rules::RegistryList(read_registry(mods_dir)?)),
     };
     Ok(ActivationState {
         scheme,
@@ -151,8 +164,48 @@ pub fn set_active(
                 snapshots,
             )
         }
-        scheme @ ActivationScheme::RegistryList => Err(Error::Unsupported(scheme)),
+        ActivationScheme::RegistryList => set_in_registry(dir, target, active, snapshots),
     }
+}
+
+/// `mods_dir` is `Documents/Humankind/Community`; the registry sits beside it under `Users/`.
+fn registry_path(mods_dir: &Path) -> Result<Option<PathBuf>> {
+    match mods_dir.parent() {
+        Some(game_dir) => humankind::detect::registry_path(game_dir),
+        None => Ok(None),
+    }
+}
+
+/// Without a registry the game has never run, so only the base game would load.
+fn read_registry(mods_dir: &Path) -> Result<Vec<String>> {
+    let modules = match registry_path(mods_dir)? {
+        Some(path) => humankind::registry::read_modules(&path)?,
+        None => vec![humankind::registry::BASE_MODULE.to_string()],
+    };
+    Ok(modules.iter().map(|entry| short_name(entry)).collect())
+}
+
+/// On appends to the end of the load order; off drops every entry naming the module.
+fn set_in_registry(
+    mods_dir: &Path,
+    target: &Mod,
+    active: bool,
+    snapshots: &Snapshots,
+) -> Result<()> {
+    let game_dir = mods_dir.parent().unwrap_or(mods_dir);
+    let path = registry_path(mods_dir)?.ok_or_else(|| Error::RegistryNotFound(game_dir.into()))?;
+    let wanted = short_name(&target.id);
+    if !active && wanted == humankind::registry::BASE_MODULE {
+        return Err(Error::BaseModule(target.id.clone()));
+    }
+    let mut modules = humankind::registry::read_modules(&path)?;
+    let listed = modules.iter().any(|entry| short_name(entry) == wanted);
+    match (active, listed) {
+        (true, false) => modules.push(target.id.clone()),
+        (false, true) => modules.retain(|entry| short_name(entry) != wanted),
+        _ => return Ok(()),
+    }
+    humankind::registry::write_modules(&path, &modules, snapshots)
 }
 
 fn edit_profile_file(
