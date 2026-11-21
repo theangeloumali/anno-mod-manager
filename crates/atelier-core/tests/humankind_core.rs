@@ -295,6 +295,188 @@ fn broken_bundles_are_errors_not_panics() {
     ));
 }
 
+// Synthetic bundles: the smallest UnityFS layout the reader accepts, to shape hostile objects.
+
+/// A type-tree node: (level, flags, name, byte_size, meta_flags).
+type Node = (u8, u8, &'static str, i32, i32);
+const ALIGNED: i32 = 0x4000;
+
+fn string_field(name: &'static str) -> [Node; 4] {
+    [
+        (1, 0, name, -1, ALIGNED),
+        (2, 1, "Array", -1, 0),
+        (3, 0, "size", 4, 0),
+        (3, 0, "data", 1, 0),
+    ]
+}
+
+/// A RuntimeModule tree with `extra` fields placed before the three the reader needs.
+fn module_nodes(extra: &[Node]) -> Vec<Node> {
+    let mut nodes = vec![(0, 0, "Base", -1, 0)];
+    nodes.extend_from_slice(extra);
+    nodes.push((1, 0, "RuntimeModuleType", 4, 0));
+    nodes.extend(string_field("Author"));
+    nodes.extend(string_field("Description"));
+    nodes
+}
+
+fn string_value(text: &str, aligned: bool) -> Vec<u8> {
+    let mut bytes = (text.len() as i32).to_le_bytes().to_vec();
+    bytes.extend_from_slice(text.as_bytes());
+    if aligned {
+        bytes.resize(bytes.len().next_multiple_of(4), 0);
+    }
+    bytes
+}
+
+fn module_value(description_aligned: bool) -> Vec<u8> {
+    let mut object = 2i32.to_le_bytes().to_vec();
+    object.extend(string_value("me", true));
+    object.extend(string_value("d", description_aligned));
+    object
+}
+
+/// `hostile_data_offset` sets the serialized file's data offset and claims a huge node size.
+fn synthetic_bundle(nodes: &[Node], object: &[u8], hostile_data_offset: Option<u64>) -> Vec<u8> {
+    let mut strings = Vec::new();
+    let mut tree = Vec::new();
+    for &(level, flags, name, byte_size, meta_flags) in nodes {
+        let name_offset = strings.len() as u32;
+        strings.extend_from_slice(name.as_bytes());
+        strings.push(0);
+        tree.extend_from_slice(&[0, 0, level, flags, 0, 0, 0, 0]);
+        tree.extend_from_slice(&name_offset.to_le_bytes());
+        tree.extend_from_slice(&byte_size.to_le_bytes());
+        tree.extend_from_slice(&0i32.to_le_bytes());
+        tree.extend_from_slice(&meta_flags.to_le_bytes());
+        tree.extend_from_slice(&[0; 8]);
+    }
+    let mut metadata = b"2020.3.0f1\0".to_vec();
+    metadata.extend_from_slice(&[0, 0, 0, 0, 1]);
+    metadata.extend_from_slice(&1i32.to_le_bytes());
+    metadata.extend_from_slice(&114i32.to_le_bytes());
+    metadata.extend_from_slice(&[0; 3 + 32]);
+    metadata.extend_from_slice(&(nodes.len() as i32).to_le_bytes());
+    metadata.extend_from_slice(&(strings.len() as i32).to_le_bytes());
+    metadata.extend(tree);
+    metadata.extend(strings);
+    metadata.extend_from_slice(&0i32.to_le_bytes());
+    metadata.extend_from_slice(&1i32.to_le_bytes());
+    metadata.resize(metadata.len().next_multiple_of(4), 0);
+    metadata.extend_from_slice(&[0; 8]);
+    metadata.extend_from_slice(&0u64.to_le_bytes());
+    metadata.extend_from_slice(&(object.len() as u32).to_le_bytes());
+    metadata.extend_from_slice(&0i32.to_le_bytes());
+
+    let data_offset = 48 + metadata.len() as u64;
+    let mut serialized = vec![0; 8];
+    serialized.extend_from_slice(&22u32.to_be_bytes());
+    serialized.extend_from_slice(&[0; 8]);
+    serialized.extend_from_slice(&(metadata.len() as u32).to_be_bytes());
+    serialized.extend_from_slice(&[0; 8]);
+    serialized.extend_from_slice(&hostile_data_offset.unwrap_or(data_offset).to_be_bytes());
+    serialized.extend_from_slice(&[0; 8]);
+    serialized.extend(metadata);
+    serialized.extend_from_slice(object);
+    let node_size = hostile_data_offset.map_or(serialized.len() as u64, |_| u64::MAX);
+
+    let mut info = vec![0; 16];
+    info.extend_from_slice(&1i32.to_be_bytes());
+    info.extend_from_slice(&[0; 10]);
+    info.extend_from_slice(&1i32.to_be_bytes());
+    info.extend_from_slice(&0u64.to_be_bytes());
+    info.extend_from_slice(&node_size.to_be_bytes());
+    info.extend_from_slice(&4u32.to_be_bytes());
+    info.extend_from_slice(b"CAB-test\0");
+    let mut bundle = b"UnityFS\0".to_vec();
+    bundle.extend_from_slice(&8u32.to_be_bytes());
+    bundle.extend_from_slice(b"5.x.x\x002020.3.0f1\0");
+    bundle.extend_from_slice(&[0; 8]);
+    bundle.extend_from_slice(&(info.len() as u32).to_be_bytes());
+    bundle.extend_from_slice(&(info.len() as u32).to_be_bytes());
+    bundle.extend_from_slice(&0u32.to_be_bytes());
+    bundle.resize(bundle.len().next_multiple_of(16), 0);
+    bundle.extend(info);
+    bundle.extend(serialized);
+    bundle
+}
+
+fn read_synthetic(bundle: &[u8]) -> Result<bundle::ModuleInfo, BundleError> {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("synthetic.assetbundle");
+    fs::write(&path, bundle).unwrap();
+    bundle::read_module_info(&path)
+}
+
+#[test]
+fn synthetic_bundle_reads_as_a_module() {
+    let bundle = synthetic_bundle(&module_nodes(&[]), &module_value(true), None);
+    let info = read_synthetic(&bundle).unwrap();
+    assert_eq!(info.module_type, ModuleType::Extension);
+    assert_eq!(
+        (info.author.as_str(), info.description.as_str()),
+        ("me", "d")
+    );
+}
+
+#[test]
+fn alignment_past_the_object_end_is_malformed_not_a_panic() {
+    let bundle = synthetic_bundle(&module_nodes(&[]), &module_value(false), None);
+    let error = read_synthetic(&bundle).unwrap_err();
+    assert!(matches!(error, BundleError::Malformed), "{error:?}");
+}
+
+#[test]
+fn array_of_zero_size_elements_is_malformed() {
+    let junk = [
+        (1, 1, "Junk", -1, 0),
+        (2, 0, "size", 4, 0),
+        (2, 0, "data", 0, 0),
+    ];
+    let mut object = 3i32.to_le_bytes().to_vec();
+    object.extend(module_value(true));
+    let error = read_synthetic(&synthetic_bundle(&module_nodes(&junk), &object, None)).unwrap_err();
+    assert!(matches!(error, BundleError::Malformed), "{error:?}");
+}
+
+#[test]
+fn walking_too_many_nodes_is_malformed() {
+    // 10k elements of a 200-leaf zero-size struct: no byte check stops it, only the node budget.
+    let mut junk = vec![
+        (1, 1, "Junk", -1, 0),
+        (2, 0, "size", 4, 0),
+        (2, 0, "data", -1, 0),
+    ];
+    junk.extend(std::iter::repeat_n((3, 0, "leaf", 0, 0), 200));
+    let count = 10_000;
+    let mut object = (count as i32).to_le_bytes().to_vec();
+    object.extend(module_value(true));
+    object.resize(object.len() + count, 0);
+    let error = read_synthetic(&synthetic_bundle(&module_nodes(&junk), &object, None)).unwrap_err();
+    assert!(matches!(error, BundleError::Malformed), "{error:?}");
+}
+
+#[test]
+fn object_offset_overflow_is_malformed_not_a_panic() {
+    let bundle = synthetic_bundle(&module_nodes(&[]), &module_value(true), Some(u64::MAX - 64));
+    let error = read_synthetic(&bundle).unwrap_err();
+    assert!(matches!(error, BundleError::Malformed), "{error:?}");
+}
+
+#[test]
+fn malformed_bundle_leaves_the_type_blank_in_a_scan() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("hostile");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join(DEEPSEA_LONG), b"").unwrap();
+    let bundle = synthetic_bundle(&module_nodes(&[]), &module_value(false), None);
+    let bundle_name = format!("{}.assetbundle", DEEPSEA_LONG.to_lowercase());
+    fs::write(dir.join(bundle_name), bundle).unwrap();
+    let result = scan::scan(GameId::Humankind, &[documents(tmp.path())]).unwrap();
+    assert_eq!(result.mods.len(), 1);
+    assert_eq!(result.mods[0].category, "");
+}
+
 #[test]
 fn module_type_follows_the_game_enum() {
     assert_eq!(ModuleType::from_raw(0), Some(ModuleType::Standalone));

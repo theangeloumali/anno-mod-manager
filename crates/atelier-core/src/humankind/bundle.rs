@@ -25,6 +25,8 @@ const OBJECT_ENTRY_SIZE: usize = 24;
 const ARRAY_FLAG: u8 = 1;
 const ALIGN_FLAG: i32 = 0x4000;
 const COMMON_STRING: u32 = 0x8000_0000;
+/// Zero-size elements nested in arrays consume no bytes, so only a node budget bounds the walk.
+const MAX_WALKED_NODES: usize = 1 << 20;
 const MODULE_TYPE_FIELD: &str = "RuntimeModuleType";
 const AUTHOR_FIELD: &str = "Author";
 const DESCRIPTION_FIELD: &str = "Description";
@@ -130,7 +132,7 @@ fn serialized_files(bundle: &mut BundleFile) -> BundleResult<Vec<(u64, u64)>> {
     let unpacked_size = u64::from(cursor.u32()?);
     let flags = cursor.u32()?;
     if format >= 7 {
-        cursor.align(16);
+        cursor.align(16)?;
     }
     let header_end = cursor.position as u64;
     let (info_offset, mut data_start) = if flags & BLOCKS_INFO_AT_END != 0 {
@@ -222,7 +224,8 @@ fn read_runtime_module(
         .checked_add(object_start)
         .filter(|offset| offset.saturating_add(object_size) <= size)
         .ok_or(BundleError::Malformed)?;
-    let object = bundle.read(start + object_offset, object_size)?;
+    let object_at = start.checked_add(object_offset);
+    let object = bundle.read(object_at.ok_or(BundleError::Malformed)?, object_size)?;
     tree.read_module(&object, big_endian).map(Some)
 }
 
@@ -248,7 +251,7 @@ fn find_module_object(
         return Ok(None);
     };
     for _ in 0..cursor.count(OBJECT_ENTRY_SIZE)? {
-        cursor.align(4);
+        cursor.align(4)?;
         cursor.skip(8)?;
         let byte_start = cursor.u64()?;
         let byte_size = u64::from(cursor.u32()?);
@@ -331,10 +334,12 @@ impl TypeTree {
     fn read_module(&self, object: &[u8], big_endian: bool) -> BundleResult<ModuleInfo> {
         let mut cursor = Cursor::new(object, big_endian);
         let (mut module_type, mut author, mut description) = (None, None, None);
+        let mut budget = MAX_WALKED_NODES;
         for &field in self.root_fields() {
             let start = cursor.position;
-            self.walk(field, &mut cursor)?;
-            let mut value = Cursor::new(&object[start..cursor.position], big_endian);
+            self.walk(field, &mut cursor, &mut budget)?;
+            let bytes = object.get(start..cursor.position);
+            let mut value = Cursor::new(bytes.ok_or(BundleError::Malformed)?, big_endian);
             match self.nodes[field].name.as_deref() {
                 Some(MODULE_TYPE_FIELD) => {
                     let raw = value.i32()?;
@@ -358,16 +363,20 @@ impl TypeTree {
     }
 
     /// Advances past one serialized value of node `index`, following Unity's array and align rules.
-    fn walk(&self, index: usize, cursor: &mut Cursor) -> BundleResult<()> {
+    fn walk(&self, index: usize, cursor: &mut Cursor, budget: &mut usize) -> BundleResult<()> {
+        *budget = budget.checked_sub(1).ok_or(BundleError::Malformed)?;
         let node = &self.nodes[index];
         let children = &self.children[index];
         if node.flags & ARRAY_FLAG != 0 {
             let element = *children.get(1).ok_or(BundleError::Malformed)?;
             let count = cursor.count(1)?;
             let element_node = &self.nodes[element];
-            let plain = self.children[element].is_empty()
-                && element_node.byte_size > 0
-                && element_node.meta_flags & ALIGN_FLAG == 0;
+            let is_leaf = self.children[element].is_empty();
+            if is_leaf && element_node.byte_size <= 0 && count > 0 {
+                return Err(BundleError::Malformed);
+            }
+            let plain =
+                is_leaf && element_node.byte_size > 0 && element_node.meta_flags & ALIGN_FLAG == 0;
             if plain {
                 let element_size = element_node.byte_size as usize;
                 cursor.skip(
@@ -377,18 +386,18 @@ impl TypeTree {
                 )?;
             } else {
                 for _ in 0..count {
-                    self.walk(element, cursor)?;
+                    self.walk(element, cursor, budget)?;
                 }
             }
         } else if children.is_empty() {
             cursor.skip(usize::try_from(node.byte_size).map_err(|_| BundleError::Malformed)?)?;
         } else {
             for &child in children {
-                self.walk(child, cursor)?;
+                self.walk(child, cursor, budget)?;
             }
         }
         if node.meta_flags & ALIGN_FLAG != 0 {
-            cursor.align(4);
+            cursor.align(4)?;
         }
         Ok(())
     }
@@ -452,9 +461,11 @@ impl<'a> Cursor<'a> {
         let end = self
             .position
             .checked_add(len)
-            .filter(|end| *end <= self.bytes.len())
             .ok_or(BundleError::Malformed)?;
-        let slice = &self.bytes[self.position..end];
+        let slice = self
+            .bytes
+            .get(self.position..end)
+            .ok_or(BundleError::Malformed)?;
         self.position = end;
         Ok(slice)
     }
@@ -467,8 +478,12 @@ impl<'a> Cursor<'a> {
         self.take(len).map(|_| ())
     }
 
-    fn align(&mut self, to: usize) {
-        self.position = self.position.next_multiple_of(to);
+    fn align(&mut self, to: usize) -> BundleResult<()> {
+        let aligned = self.position.checked_next_multiple_of(to);
+        self.position = aligned
+            .filter(|end| *end <= self.bytes.len())
+            .ok_or(BundleError::Malformed)?;
+        Ok(())
     }
 
     read_number!(u8, u8);
