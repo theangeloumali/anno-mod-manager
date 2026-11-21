@@ -70,7 +70,7 @@ fn setting_the_load_order_writes_short_names_base_first() {
     let harness = setup();
     let written = harness
         .app
-        .set_load_order(HUMANKIND, names(&["Beta", "alpha", "beta"]))
+        .set_load_order(HUMANKIND, names(&["Beta", "alpha"]))
         .unwrap();
     assert_eq!(written, names(&[BASE, "beta", "alpha"]));
     assert!(registry_text(&harness).contains(&format!(
@@ -82,6 +82,40 @@ fn setting_the_load_order_writes_short_names_base_first() {
             .count(),
         1
     );
+}
+
+/// The UI lists only mods, so a missing base game is added; anything else wrong is reported.
+#[test]
+fn a_given_order_is_checked_as_given_not_silently_fixed() {
+    let harness = setup();
+    let before = registry_text(&harness);
+    for (order, problem) in [
+        (names(&["beta", "Beta"]), "listed twice"),
+        (names(&["alpha", BASE]), "must come first"),
+    ] {
+        let error = harness.app.set_load_order(HUMANKIND, order).unwrap_err();
+        assert_eq!(error.code, ErrorCode::InvalidInput);
+        assert!(error.message.contains(problem), "{}", error.message);
+    }
+    assert_eq!(registry_text(&harness), before);
+}
+
+#[test]
+fn a_profile_saved_out_of_order_is_reported_when_applied() {
+    let harness = setup();
+    let file = harness.root.path().join("data/humankind/profiles.json");
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    let odd = format!(r#"{{"profiles":[{{"name":"Odd","modules":["alpha","{BASE}"]}}]}}"#);
+    fs::write(&file, odd).unwrap();
+    let before = registry_text(&harness);
+    let error = harness.app.apply_humankind_profile("Odd").unwrap_err();
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert!(
+        error.message.contains("must come first"),
+        "{}",
+        error.message
+    );
+    assert_eq!(registry_text(&harness), before);
 }
 
 #[test]

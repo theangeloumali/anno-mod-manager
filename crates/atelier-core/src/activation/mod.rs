@@ -13,7 +13,6 @@ use serde_json::{Map, Value};
 
 use crate::error::io_at;
 use crate::humankind;
-use crate::humankind::module_name::short_name;
 use crate::scan::ModsFolder;
 pub use crate::snapshots::Snapshots;
 use crate::snapshots::{ensure_writable, write_with_snapshot};
@@ -106,7 +105,10 @@ pub fn read(game: GameId, mods_dir: &Path) -> Result<ActivationState> {
             let effective = name.as_deref().unwrap_or(DEFAULT_PROFILE);
             (name.clone(), profile_rules(mods_dir, effective)?)
         }
-        ActivationScheme::RegistryList => (None, Rules::RegistryList(read_registry(mods_dir)?)),
+        ActivationScheme::RegistryList => (
+            None,
+            Rules::RegistryList(humankind::order::read(humankind_dir(mods_dir))?),
+        ),
     };
     Ok(ActivationState {
         scheme,
@@ -173,20 +175,8 @@ pub fn set_active(
 }
 
 /// `mods_dir` is `Documents/Humankind/Community`; the registry sits beside it under `Users/`.
-fn registry_path(mods_dir: &Path) -> Result<Option<PathBuf>> {
-    match mods_dir.parent() {
-        Some(game_dir) => humankind::detect::registry_path(game_dir),
-        None => Ok(None),
-    }
-}
-
-/// Without a registry the game has never run, so only the base game would load.
-fn read_registry(mods_dir: &Path) -> Result<Vec<String>> {
-    let modules = match registry_path(mods_dir)? {
-        Some(path) => humankind::registry::read_modules(&path)?,
-        None => vec![humankind::registry::BASE_MODULE.to_string()],
-    };
-    Ok(modules.iter().map(|entry| short_name(entry)).collect())
+fn humankind_dir(mods_dir: &Path) -> &Path {
+    mods_dir.parent().unwrap_or(mods_dir)
 }
 
 /// On appends to the end of the load order; off drops every entry naming the module.
@@ -197,24 +187,19 @@ fn set_in_registry(
     installed: &[Mod],
     snapshots: &Snapshots,
 ) -> Result<()> {
-    let game_dir = mods_dir.parent().unwrap_or(mods_dir);
-    let path = registry_path(mods_dir)?.ok_or_else(|| Error::RegistryNotFound(game_dir.into()))?;
-    let wanted = short_name(&target.id);
-    if !active && wanted == humankind::registry::BASE_MODULE {
-        return Err(Error::BaseModule(target.id.clone()));
-    }
-    let current = humankind::load_order::normalize(&humankind::registry::read_modules(&path)?);
+    let game_dir = humankind_dir(mods_dir);
+    let current = humankind::order::read(game_dir)?;
     // Through the load-order rules, so a second Standalone or Conversion replaces the first.
     let modules = if active {
         let types = humankind::load_order::module_types(installed);
-        humankind::load_order::enable(&current, &wanted, &types)
+        humankind::load_order::enable(&current, &target.id, &types)
     } else {
-        humankind::load_order::disable(&current, &wanted)?
+        humankind::load_order::disable(&current, &target.id)?
     };
     if modules == current {
         return Ok(());
     }
-    humankind::registry::write_modules(&path, &modules, snapshots)
+    humankind::order::write(game_dir, &modules, installed, snapshots).map(drop)
 }
 
 fn edit_profile_file(

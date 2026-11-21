@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use atelier_core::humankind::history::{self, HistoryEntry};
-use atelier_core::humankind::{detect, load_order, profiles, registry};
+use atelier_core::humankind::{load_order, order, profiles, registry};
 use atelier_core::{GameId, LoadOrder, LoadOrderEntry, LoadReason, Phase, Profile, games};
 
 use crate::error::{AppError, ErrorCode, Result};
@@ -139,27 +139,16 @@ impl App {
     /// The caller holds `write_guard`, so the scan and the write see the same mods.
     fn hk_write_order(&self, order: &[String]) -> Result<Vec<String>> {
         let installed = self.scan(HUMANKIND)?;
-        let order = load_order::normalize(order);
-        load_order::validate(&order, &load_order::module_types(&installed))
-            .map_err(atelier_core::Error::from)?;
-        let missing = load_order::missing(&order, &installed);
-        if !missing.is_empty() {
-            return Err(atelier_core::Error::MissingModules(missing).into());
-        }
-        let game_dir = self.hk_game_dir();
-        let path = detect::registry_path(&game_dir)?
-            .ok_or(atelier_core::Error::RegistryNotFound(game_dir))?;
-        registry::write_modules(&path, &order, &self.0.snapshots)?;
-        Ok(order)
+        Ok(order::write(
+            &self.hk_game_dir(),
+            order,
+            &installed,
+            &self.0.snapshots,
+        )?)
     }
 
-    /// The base game alone until the game has written a registry.
     fn hk_current_order(&self) -> Result<Vec<String>> {
-        let modules = match detect::registry_path(&self.hk_game_dir())? {
-            Some(path) => registry::read_modules(&path)?,
-            None => Vec::new(),
-        };
-        Ok(load_order::normalize(&modules))
+        Ok(order::read(&self.hk_game_dir())?)
     }
 
     fn hk_game_dir(&self) -> PathBuf {

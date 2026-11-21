@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use atelier_core::humankind::saves::{self, ModCheck, ModStatus, Save, SaveList, SaveMod};
-use atelier_core::humankind::{detect, registry};
+use atelier_core::humankind::{detect, order};
 use atelier_core::{GameId, Mod, games, scan};
 use atelier_install::KeptVersion;
 use serde::Serialize;
@@ -48,8 +48,10 @@ impl App {
         let _writes = self.write_guard(game)?;
         let save = self.read_save(game, path)?;
         let game_dir = humankind_dir(game, &self.0.documents)?;
-        let registry_path = detect::registry_path(&game_dir)?
-            .ok_or(atelier_core::Error::RegistryNotFound(game_dir))?;
+        // Checked before anything is restored, so a game that never ran is left untouched.
+        if detect::registry_path(&game_dir)?.is_none() {
+            return Err(atelier_core::Error::RegistryNotFound(game_dir).into());
+        }
         let installed = self.scan(game)?;
         let mut restored = Vec::new();
         for check in saves::check_mods(&save.descriptor.mods, &installed) {
@@ -57,19 +59,20 @@ impl App {
                 restored.push(check.module);
             }
         }
-        let missing: Vec<ModCheck> = saves::check_mods(&save.descriptor.mods, &self.scan(game)?)
+        let installed = self.scan(game)?;
+        let missing: Vec<ModCheck> = saves::check_mods(&save.descriptor.mods, &installed)
             .into_iter()
             .filter(|check| check.status != ModStatus::Exact)
             .collect();
         let registry_written = missing.is_empty();
         if registry_written {
-            let order: Vec<String> = save
+            let modules: Vec<String> = save
                 .descriptor
                 .mods
                 .iter()
                 .map(|module| module.name.clone())
                 .collect();
-            registry::write_modules(&registry_path, &order, &self.0.snapshots)?;
+            order::write(&game_dir, &modules, &installed, &self.0.snapshots)?;
         }
         Ok(SaveLoadReport {
             restored,

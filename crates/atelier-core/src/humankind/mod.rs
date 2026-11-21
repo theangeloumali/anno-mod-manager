@@ -5,6 +5,7 @@ pub mod detect;
 pub mod history;
 pub mod load_order;
 pub mod module_name;
+pub mod order;
 pub mod profiles;
 pub mod registry;
 pub mod saves;

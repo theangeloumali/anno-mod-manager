@@ -662,13 +662,14 @@ fn switching_on_appends_and_off_removes() {
     let game = game_dir(tmp.path());
     let community = documents(&game.join("Community"));
     let store = snapshots(tmp.path());
+    let installed = [module("sigma pack"), module("deepsea reloaded")];
     for id in ["sigma pack", "deepsea reloaded", "sigma pack"] {
         activation::set_active(
             GameId::Humankind,
             &community,
             &module(id),
             true,
-            &[],
+            &installed,
             &store,
         )
         .unwrap();
@@ -682,7 +683,7 @@ fn switching_on_appends_and_off_removes() {
         &community,
         &module("sigma pack"),
         false,
-        &[],
+        &installed,
         &store,
     )
     .unwrap();
@@ -729,6 +730,80 @@ fn base_game_module_cannot_be_switched_off() {
     )
     .unwrap_err();
     assert!(matches!(error, Error::BaseModule(_)), "{error:?}");
+}
+
+#[test]
+fn switching_on_is_refused_while_the_list_names_a_module_that_is_not_installed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let game = game_dir(tmp.path());
+    let path = registry_file(&game);
+    let store = snapshots(tmp.path());
+    registry::write_modules(&path, &names(&["project mercury", "ghost"]), &store).unwrap();
+    let before = fs::read(&path).unwrap();
+    let installed = [module("sigma pack")];
+    let error = activation::set_active(
+        GameId::Humankind,
+        &documents(&game.join("Community")),
+        &installed[0],
+        true,
+        &installed,
+        &store,
+    )
+    .unwrap_err();
+    assert!(
+        matches!(&error, Error::MissingModules(missing) if *missing == names(&["ghost"])),
+        "{error:?}"
+    );
+    assert_eq!(fs::read(&path).unwrap(), before);
+}
+
+#[test]
+fn switching_on_is_refused_when_the_list_breaks_the_load_order_rules() {
+    let tmp = tempfile::tempdir().unwrap();
+    let game = game_dir(tmp.path());
+    let path = registry_file(&game);
+    let store = snapshots(tmp.path());
+    let standalone = |id: &str| Mod {
+        game: GameId::Humankind,
+        folder: format!("mod.io/1_1/{id}"),
+        ..test_mod(id, "Standalone", id)
+    };
+    let installed = [
+        standalone("old world"),
+        standalone("new world"),
+        module("sigma pack"),
+    ];
+    let list = names(&["project mercury", "old world", "new world"]);
+    registry::write_modules(&path, &list, &store).unwrap();
+    let error = activation::set_active(
+        GameId::Humankind,
+        &documents(&game.join("Community")),
+        &installed[2],
+        true,
+        &installed,
+        &store,
+    )
+    .unwrap_err();
+    assert!(matches!(error, Error::LoadOrder(_)), "{error:?}");
+    assert_eq!(registry::read_modules(&path).unwrap(), list);
+}
+
+/// Off with no registry is already the case, so an uninstall goes ahead.
+#[test]
+fn switching_off_without_a_registry_changes_nothing() {
+    let tmp = tempfile::tempdir().unwrap();
+    let community = documents(&tmp.path().join("Humankind/Community"));
+    let target = module("sigma pack");
+    activation::set_active(
+        GameId::Humankind,
+        &community,
+        &target,
+        false,
+        std::slice::from_ref(&target),
+        &snapshots(tmp.path()),
+    )
+    .unwrap();
+    assert!(!tmp.path().join("Humankind/Users").exists());
 }
 
 #[test]
