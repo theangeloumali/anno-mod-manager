@@ -139,10 +139,12 @@ export function ModTable({
   mods,
   allMods,
   issues,
+  isSubModVisible,
 }: {
   mods: Mod[];
   allMods: Mod[];
   issues: Issue[];
+  isSubModVisible: (subMod: Mod, parent: Mod) => boolean;
 }) {
   return (
     <div className="min-w-0 overflow-hidden rounded-card border border-line bg-bg-elevated">
@@ -187,7 +189,8 @@ export function ModTable({
               .filter(
                 (subMod) =>
                   subMod.parentId === mod.id &&
-                  subMod.location === mod.location,
+                  subMod.location === mod.location &&
+                  isSubModVisible(subMod, mod),
               )
               .map((subMod) => (
                 <ModRow

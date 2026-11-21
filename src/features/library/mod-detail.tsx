@@ -136,8 +136,13 @@ export function ModDetail({
   const isLocked = isReadOnly(mod);
 
   return (
-    <div ref={panelRef} className="scroll-mt-4">
-      <Panel className="flex flex-col gap-5 xl:sticky xl:top-0" title={null}>
+    // The wrapper sticks (the Panel alone spans its own box, so it never moved), capped to the scroll
+    // area so a tall card scrolls inside it: 6rem of header and status bar, plus 1rem above and below.
+    <div
+      ref={panelRef}
+      className="scroll-mt-4 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-8rem)] xl:overflow-y-auto"
+    >
+      <Panel className="flex flex-col gap-5" title={null}>
         <div className="flex gap-4">
           <ModBanner
             name={mod.name}
