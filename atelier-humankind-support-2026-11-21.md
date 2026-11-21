@@ -258,7 +258,7 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
     - Uninstall removes only the files it listed.
     - "Plugins loaded" comes from `BepInEx/LogOutput.log`.
   - Verify: `set -o pipefail; cargo test -p atelier-core -p atelier-app 2>&1 | tail -15` passes
-- [ ] Phase 8: UI (React + shadcn/Base UI; impeccable + ui-ux-pro-max loaded first)
+- [x] Phase 8: UI (React + shadcn/Base UI; impeccable + ui-ux-pro-max loaded first)
   - The game switcher and onboarding gain Humankind (`src/features/onboarding/first-run-wizard.tsx:38-57`).
   - Library: source badges (Community, mod.io, Workshop, Official, BepInEx) in `src/components/app/mod-badges.tsx`, a module-type chip, and a read-only lock on Workshop and Official.
   - Load order (`src/features/load-order/index.tsx`): for Humankind it becomes an editor.
