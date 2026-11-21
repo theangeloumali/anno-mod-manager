@@ -418,3 +418,22 @@ fn exporting_a_humankind_profile_lists_its_modules_in_order() {
     assert_eq!(text, "project mercury\nbeta\nalpha\n");
     assert!(harness.app.export_profile(HUMANKIND, "Nope").is_err());
 }
+
+#[test]
+fn restoring_two_entries_from_the_same_second_keeps_both() {
+    let harness = setup();
+    write_history(
+        &harness,
+        &[
+            r#"{"time":"2026-11-21T03:04:05.1000000Z","reason":"reset","culprit":null,"old":"project mercury\/alpha","new":"project mercury"}"#,
+            r#"{"time":"2026-11-21T03:04:05.2000000Z","reason":"reset","culprit":null,"old":"project mercury\/beta","new":"project mercury"}"#,
+        ],
+    );
+
+    let first = harness.app.restore_history_entry(0).unwrap();
+    let second = harness.app.restore_history_entry(1).unwrap();
+
+    assert_eq!(first, "Restored 2026-11-21 03-04-05");
+    assert_eq!(second, "Restored 2026-11-21 03-04-05 2");
+    assert_eq!(harness.app.humankind_profiles().unwrap().len(), 2);
+}

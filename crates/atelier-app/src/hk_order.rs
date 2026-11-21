@@ -6,6 +6,7 @@ use atelier_core::humankind::history::{self, HistoryEntry};
 use atelier_core::humankind::{load_order, order, profiles, registry};
 use atelier_core::{GameId, LoadOrder, LoadOrderEntry, LoadReason, Phase, Profile, games};
 
+use crate::collections::unique_name;
 use crate::error::{AppError, ErrorCode, Result};
 use crate::{App, lock};
 
@@ -85,12 +86,14 @@ impl App {
                 )
             })?;
         let _writes = lock(&self.0.writes);
-        let saved = profiles::save(
-            &self.hk_profiles_file(),
-            &restored_name(&entry.time),
-            &entry.old,
-            &self.0.snapshots,
-        )?;
+        let file = self.hk_profiles_file();
+        // Entries a second apart share a stamp; a taken name gets a number, never overwritten.
+        let taken: Vec<String> = profiles::list(&file)?
+            .into_iter()
+            .map(|profile| profile.name)
+            .collect();
+        let name = unique_name(&restored_name(&entry.time), &taken);
+        let saved = profiles::save(&file, &name, &entry.old, &self.0.snapshots)?;
         Ok(saved.name)
     }
 
