@@ -733,6 +733,34 @@ fn base_game_module_cannot_be_switched_off() {
 }
 
 #[test]
+fn switching_off_works_while_the_list_names_a_module_that_is_not_installed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let game = game_dir(tmp.path());
+    let path = registry_file(&game);
+    let store = snapshots(tmp.path());
+    registry::write_modules(
+        &path,
+        &names(&["project mercury", "ghost", "sigma pack"]),
+        &store,
+    )
+    .unwrap();
+    let installed = [module("sigma pack")];
+    activation::set_active(
+        GameId::Humankind,
+        &documents(&game.join("Community")),
+        &installed[0],
+        false,
+        &installed,
+        &store,
+    )
+    .unwrap();
+    assert_eq!(
+        registry::read_modules(&path).unwrap(),
+        names(&["project mercury", "ghost"])
+    );
+}
+
+#[test]
 fn switching_on_is_refused_while_the_list_names_a_module_that_is_not_installed() {
     let tmp = tempfile::tempdir().unwrap();
     let game = game_dir(tmp.path());

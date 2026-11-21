@@ -188,14 +188,13 @@ fn set_in_registry(
     snapshots: &Snapshots,
 ) -> Result<()> {
     let game_dir = humankind_dir(mods_dir);
+    if !active {
+        return humankind::order::remove(game_dir, &target.id, snapshots).map(drop);
+    }
     let current = humankind::order::read(game_dir)?;
     // Through the load-order rules, so a second Standalone or Conversion replaces the first.
-    let modules = if active {
-        let types = humankind::load_order::module_types(installed);
-        humankind::load_order::enable(&current, &target.id, &types)
-    } else {
-        humankind::load_order::disable(&current, &target.id)?
-    };
+    let types = humankind::load_order::module_types(installed);
+    let modules = humankind::load_order::enable(&current, &target.id, &types);
     if modules == current {
         return Ok(());
     }

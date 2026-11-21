@@ -269,6 +269,28 @@ fn uninstalling_a_module_takes_it_out_of_the_load_order() {
 }
 
 #[test]
+fn uninstalling_works_while_the_load_order_names_a_module_that_is_gone() {
+    let harness = Harness::new();
+    let long = long_name("Sigma Pack", "2.5");
+    install_drop(
+        &harness,
+        &drop_archive(&harness, "Sigma.zip", &module_entries("Sigma", &long)),
+    );
+    harness.write_humankind_registry("project mercury/ghost/sigma pack");
+
+    harness.app.uninstall_mod(HUMANKIND, "sigma pack").unwrap();
+
+    assert!(
+        registry_text(&harness).contains(
+            "<RuntimeModuleConfiguration>project mercury/ghost</RuntimeModuleConfiguration>"
+        ),
+        "{}",
+        registry_text(&harness)
+    );
+    assert_eq!(folder_of(&harness, "sigma pack"), None);
+}
+
+#[test]
 fn uninstalling_a_module_the_load_order_does_not_list_leaves_the_registry_alone() {
     let harness = Harness::new();
     let long = long_name("Sigma Pack", "2.5");

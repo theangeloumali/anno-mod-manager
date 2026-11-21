@@ -38,6 +38,19 @@ pub fn write(
     Ok(order)
 }
 
+/// Dropping a module never adds a missing one, so a stale entry elsewhere mustn't block it.
+pub fn remove(game_dir: &Path, module: &str, snapshots: &Snapshots) -> Result<Vec<String>> {
+    let current = read(game_dir)?;
+    let order = load_order::disable(&current, module)?;
+    if order == current {
+        return Ok(order);
+    }
+    let path = detect::registry_path(game_dir)?
+        .ok_or_else(|| Error::RegistryNotFound(game_dir.to_path_buf()))?;
+    registry::write_modules(&path, &order, snapshots)?;
+    Ok(order)
+}
+
 /// The UI lists only mods, so a missing base game goes first; one listed elsewhere is an error.
 fn with_base(order: &[String]) -> Vec<String> {
     let names: Vec<String> = order

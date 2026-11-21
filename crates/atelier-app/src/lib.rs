@@ -154,6 +154,8 @@ impl App {
     pub(crate) fn prune_backups(&self) -> Result<()> {
         let retention = self.settings().backup_retention_days;
         let engine = InstallEngine::new(engine_config(&self.0.data_dir, retention));
+        // Each game is pruned on its own, so one game's error doesn't keep the others' old copies.
+        let mut first_error = None;
         for game in GameId::ALL {
             let kept = match game {
                 GameId::Humankind => match self.versions_saves_need() {
@@ -162,9 +164,11 @@ impl App {
                 },
                 GameId::Anno117 | GameId::Anno1800 => HashSet::new(),
             };
-            engine.prune_backups(game, &kept)?;
+            if let Err(error) = engine.prune_backups(game, &kept) {
+                first_error.get_or_insert(error);
+            }
         }
-        Ok(())
+        first_error.map_or(Ok(()), |error| Err(error.into()))
     }
 
     fn persisted(&self) -> MutexGuard<'_, Persisted> {
