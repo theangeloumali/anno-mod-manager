@@ -409,6 +409,26 @@ fn read_synthetic(bundle: &[u8]) -> Result<bundle::ModuleInfo, BundleError> {
 }
 
 #[test]
+fn a_bundle_claiming_a_huge_block_info_is_refused_before_unpacking() {
+    // 8 MB of zeros packs to ~32 KB, inside the LZ4 ratio check but past the size cap.
+    let unpacked = vec![0u8; 8 * 1024 * 1024];
+    let packed = lz4_flex::block::compress(&unpacked);
+    let mut bundle = b"UnityFS\0".to_vec();
+    bundle.extend_from_slice(&8u32.to_be_bytes());
+    bundle.extend_from_slice(b"5.x.x\x002020.3.0f1\0");
+    bundle.extend_from_slice(&[0; 8]);
+    bundle.extend_from_slice(&(packed.len() as u32).to_be_bytes());
+    bundle.extend_from_slice(&(unpacked.len() as u32).to_be_bytes());
+    bundle.extend_from_slice(&2u32.to_be_bytes());
+    bundle.resize(bundle.len().next_multiple_of(16), 0);
+    bundle.extend(packed);
+    assert!(matches!(
+        read_synthetic(&bundle),
+        Err(BundleError::Malformed)
+    ));
+}
+
+#[test]
 fn synthetic_bundle_reads_as_a_module() {
     let bundle = synthetic_bundle(&module_nodes(&[]), &module_value(true), None);
     let info = read_synthetic(&bundle).unwrap();

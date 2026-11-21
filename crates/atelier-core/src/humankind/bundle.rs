@@ -11,6 +11,8 @@ const LZ4: u32 = 2;
 const LZ4_HC: u32 = 3;
 /// LZ4 never expands past 255:1, so a bigger claim is a corrupt header, not an allocation to make.
 const LZ4_MAX_RATIO: u64 = 255;
+/// Real block infos are under 200 bytes; the cap bounds what a hostile header can allocate.
+const MAX_BLOCK_INFO_BYTES: u64 = 4 * 1024 * 1024;
 const BLOCKS_INFO_AT_END: u32 = 0x80;
 const PAD_BEFORE_DATA: u32 = 0x200;
 const SERIALIZED_FILE_NODE: u32 = 4;
@@ -175,7 +177,9 @@ fn unpack(packed: Vec<u8>, unpacked_size: u64, compression: u32) -> BundleResult
     match compression {
         0 => Ok(packed),
         LZ4 | LZ4_HC => {
-            if unpacked_size > packed.len() as u64 * LZ4_MAX_RATIO + 16 {
+            if unpacked_size > MAX_BLOCK_INFO_BYTES
+                || unpacked_size > packed.len() as u64 * LZ4_MAX_RATIO + 16
+            {
                 return Err(BundleError::Malformed);
             }
             let size = usize::try_from(unpacked_size).map_err(|_| BundleError::Malformed)?;
