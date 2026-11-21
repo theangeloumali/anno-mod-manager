@@ -9,6 +9,7 @@ use atelier_core::GameId;
 use common::{Harness, Options, zip_bytes};
 use serde_json::json;
 use sha2::{Digest, Sha256};
+use socket2::{Domain, Socket, Type};
 use url::Url;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -186,11 +187,18 @@ async fn a_used_up_github_rate_limit_is_reported_as_such() {
 
 #[tokio::test]
 async fn no_network_is_reported_as_offline() {
-    let port = std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
+    // Bound but never listening: connections are refused, and no parallel test's mock server
+    // can take the port, as it could once a dropped listener freed it.
+    let reserved = Socket::new(Domain::IPV4, Type::STREAM, None).unwrap();
+    reserved
+        .bind(
+            &"127.0.0.1:0"
+                .parse::<std::net::SocketAddr>()
+                .unwrap()
+                .into(),
+        )
+        .unwrap();
+    let port = reserved.local_addr().unwrap().as_socket().unwrap().port();
     let harness = humankind();
     let unreachable = ReleaseSource {
         release_url: Url::parse(&format!("http://127.0.0.1:{port}{RELEASE_PATH}")).unwrap(),
