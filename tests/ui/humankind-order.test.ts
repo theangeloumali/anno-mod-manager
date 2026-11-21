@@ -5,8 +5,10 @@ import {
   enableModule,
   joinOrder,
   moduleKind,
+  moveExtension,
   orderProblem,
   splitOrder,
+  withExtensions,
 } from "../../src/data/humankind-order.ts";
 
 const KINDS: Record<string, string> = {
@@ -60,4 +62,24 @@ test("orderProblem names the first broken rule", () => {
     orderProblem(["sigma", "dynasties"], kindOf) ?? "",
     /both Conversion modules/,
   );
+});
+
+test("moving an extension shifts the others and leaves the order valid", () => {
+  assert.deepEqual(moveExtension(["a", "b", "c"], 0, 2), ["b", "c", "a"]);
+  assert.deepEqual(moveExtension(["a", "b", "c"], 2, 0), ["c", "a", "b"]);
+});
+
+test("a move past either end is refused as null", () => {
+  assert.equal(moveExtension(["a", "b"], 0, -1), null);
+  assert.equal(moveExtension(["a", "b"], 1, 2), null);
+});
+
+test("rewriting the Extensions leaves a second Conversion where it was", () => {
+  const order = ["sigma", "dynasties", "prussia", "nukes"];
+  assert.deepEqual(withExtensions(order, ["nukes", "prussia"], kindOf), [
+    "sigma",
+    "dynasties",
+    "nukes",
+    "prussia",
+  ]);
 });

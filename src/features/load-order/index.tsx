@@ -8,6 +8,7 @@ import { useCurrentGame } from "@/components/app/use-current-game";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useLoadOrder, useMods } from "@/data/source";
 import type { LoadOrderEntry, Mod } from "@/data/types";
+import { HumankindOrderEditor } from "./humankind-editor";
 
 function whyText(entry: LoadOrderEntry, nameOf: (modId: string) => string) {
   if (entry.reason === "late")
@@ -24,7 +25,13 @@ function ruleText(entry: LoadOrderEntry) {
   return null;
 }
 
+/** Humankind's order is the player's to set; Anno's is predicted from each mod's rules. */
 export function LoadOrderScreen() {
+  const { gameId } = useCurrentGame();
+  return gameId === "humankind" ? <HumankindOrderEditor /> : <PredictedOrder />;
+}
+
+function PredictedOrder() {
   const { gameId, shortName } = useCurrentGame();
   const { data: order } = useLoadOrder(gameId);
   const { data: mods = [] } = useMods(gameId);

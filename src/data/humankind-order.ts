@@ -65,3 +65,27 @@ export function orderProblem(order: string[], kindOf: KindOf): string | null {
     return `Conversion module '${conversion}' must come right after the base game and any Standalone`;
   return null;
 }
+
+/** The extensions with one moved from `from` to `to`, or null when `to` is past either end. */
+export function moveExtension(
+  extensions: string[],
+  from: number,
+  to: number,
+): string[] | null {
+  const moved = extensions[from];
+  if (moved === undefined || to < 0 || to >= extensions.length) return null;
+  const rest = extensions.filter((_, index) => index !== from);
+  return [...rest.slice(0, to), moved, ...rest.slice(to)];
+}
+
+/** Writes `extensions` into the order's Extension slots, leaving every other module where it is. */
+export function withExtensions(
+  order: string[],
+  extensions: string[],
+  kindOf: KindOf,
+): string[] {
+  const queue = [...extensions];
+  return order.map((name) =>
+    kindOf(name) === "Extension" ? (queue.shift() ?? name) : name,
+  );
+}
