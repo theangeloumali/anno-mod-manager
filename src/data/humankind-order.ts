@@ -89,3 +89,15 @@ export function withExtensions(
     kindOf(name) === "Extension" ? (queue.shift() ?? name) : name,
   );
 }
+
+/** Null while the order breaks a rule, as move_to refuses then, or when `to` is past either end. */
+export function moveExtensionInOrder(
+  order: string[],
+  from: number,
+  to: number,
+  kindOf: KindOf,
+): string[] | null {
+  if (orderProblem(order, kindOf)) return null;
+  const next = moveExtension(splitOrder(order, kindOf).extensions, from, to);
+  return next && withExtensions(order, next, kindOf);
+}

@@ -25,19 +25,26 @@ import type {
 const BASE_MODULE = "project mercury";
 export type BepInExKind = "atelier" | "manual" | "absent";
 
-export function createHumankindMock() {
-  return {
-    /** Registry.xml's list after the base game, as short names. */
-    order: seedOrder(),
-    registryFound: true,
-    installFound: true,
-    profiles: seedProfiles(),
-    history: seedHistory(),
-    saves: seedSaves(),
-    bepinex: "atelier" as BepInExKind,
-  };
+export interface HumankindMock {
+  /** Registry.xml's list after the base game, as short names. */
+  order: string[];
+  registryFound: boolean;
+  installFound: boolean;
+  profiles: ReturnType<typeof seedProfiles>;
+  history: ReturnType<typeof seedHistory>;
+  saves: ReturnType<typeof seedSaves>;
+  bepinex: BepInExKind;
 }
-export type HumankindMock = ReturnType<typeof createHumankindMock>;
+
+export const createHumankindMock = (): HumankindMock => ({
+  order: seedOrder(),
+  registryFound: true,
+  installFound: true,
+  profiles: seedProfiles(),
+  history: seedHistory(),
+  saves: seedSaves(),
+  bepinex: "atelier",
+});
 
 export const humankindMods = (hk: HumankindMock): Mod[] =>
   HUMANKIND_MOD_SEEDS.map((seed) => ({
@@ -144,6 +151,19 @@ export function setHumankindModActive(
   storeOrder(hk, mods, order);
 }
 
+/** Humankind resets the whole list when a listed module is gone, so uninstall drops it first. */
+export function forgetHumankindModule(
+  hk: HumankindMock,
+  mods: Mod[],
+  modId: string,
+): void {
+  storeOrder(
+    hk,
+    mods,
+    hk.order.filter((module) => module !== modId),
+  );
+}
+
 const findProfile = (hk: HumankindMock, name: string) => {
   const profile = hk.profiles.find(
     (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
@@ -243,10 +263,14 @@ export function makeHumankindSaveLoadable(
 ): SaveLoadReport {
   const save = findSave(hk, path);
   requireRegistry(hk);
+  // A Workshop or game-folder copy is read-only, so only a Documents copy can be swapped.
+  const isWritable = (name: string) =>
+    mods.find((mod) => mod.id === name)?.location === "documents";
   const restored = checkMods(mods, save.mods)
     .filter(
       (check) =>
         check.status.kind === "otherVersion" &&
+        isWritable(check.name) &&
         BACKED_UP_VERSIONS.has(`${check.name}@${check.version}`),
     )
     .map(({ name, version }) => ({ name, version }));

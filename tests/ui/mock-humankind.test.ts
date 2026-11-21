@@ -10,6 +10,7 @@ import {
   writeHumankindOrder,
 } from "../../src/data/mock-humankind.ts";
 import { MISSING_MODULE } from "../../src/data/mock-humankind-seeds.ts";
+import { mockSource, resetMockData } from "../../src/data/mock-source.ts";
 
 const setup = () => {
   const hk = createHumankindMock();
@@ -71,4 +72,59 @@ test("a save with a missing mod restores what it can and leaves the registry alo
   );
   assert.equal(report.registryWritten, false);
   assert.deepEqual(hk.order, before);
+});
+
+test("a save version only a Workshop copy could provide is reported, not restored", () => {
+  const { hk, mods } = setup();
+  const sigma = mods.find((mod) => mod.id === "sigma pack");
+  assert.ok(sigma);
+  sigma.location = "workshop";
+  const save = hk.saves.saves[0];
+  assert.ok(save);
+  const report = makeHumankindSaveLoadable(hk, mods, save.path);
+  assert.deepEqual(report.restored, []);
+  assert.equal(sigma.version, "3.2");
+  assert.ok(report.missing.some((check) => check.name === "sigma pack"));
+});
+
+const hkOrder = async () =>
+  (await mockSource.loadOrder("humankind")).entries.map((entry) => entry.modId);
+
+test("uninstalling a listed mod drops it from Registry.xml's list", async () => {
+  resetMockData();
+  await mockSource.uninstallMod("humankind", "prussia");
+  assert.equal((await hkOrder()).includes("prussia"), false);
+});
+
+test("uninstalling a mod that isn't listed leaves the list as it was", async () => {
+  resetMockData();
+  await mockSource.setModActive("humankind", "prussia", false);
+  const before = await hkOrder();
+  await mockSource.uninstallMod("humankind", "prussia");
+  assert.deepEqual(await hkOrder(), before);
+});
+
+test("dropping a module that already has a Workshop copy is refused", async () => {
+  resetMockData();
+  const preview = await mockSource.previewInstall("humankind", [
+    "C:\\Downloads\\deepsea-reloaded.zip",
+  ]);
+  const item = preview.items[0];
+  assert.equal(item?.status, "invalid");
+  assert.match(
+    item?.checks[0]?.message ?? "",
+    /Already installed in the Steam Workshop folder; remove that copy first/,
+  );
+});
+
+test("dropping a module that already has a game-folder copy is refused", async () => {
+  resetMockData();
+  const preview = await mockSource.previewInstall("humankind", [
+    "C:\\Downloads\\the-lost-dynasties.zip",
+  ]);
+  assert.equal(preview.items[0]?.status, "invalid");
+  assert.match(
+    preview.items[0]?.checks[0]?.message ?? "",
+    /Already installed in the game folder; remove that copy first/,
+  );
 });

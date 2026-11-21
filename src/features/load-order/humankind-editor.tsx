@@ -9,10 +9,9 @@ import { WriteLockNotice } from "@/components/app/write-lock-notice";
 import { Button } from "@/components/ui/button";
 import {
   moduleKind,
-  moveExtension,
+  moveExtensionInOrder,
   orderProblem,
   splitOrder,
-  withExtensions,
 } from "@/data/humankind-order";
 import { useAction, useLoadOrder, useMods } from "@/data/source";
 import type { Mod } from "@/data/types";
@@ -74,8 +73,12 @@ function OrderDraft({ saved, mods }: { saved: string[]; mods: Mod[] }) {
   const moveTo = (from: number, to: number) => {
     const moved = groups.extensions[from] ?? "";
     const title = titleOf(moved);
-    const next = moveExtension(groups.extensions, from, to);
-    if (!next) {
+    if (problem) {
+      setAnnouncement(`Fix the list before moving ${title}: ${problem}.`);
+      return;
+    }
+    const nextOrder = moveExtensionInOrder(draft, from, to, kindOf);
+    if (!nextOrder) {
       setAnnouncement(
         to < from
           ? `${title} is already the first Extension. ${EXTENSION_RULE}`
@@ -83,8 +86,6 @@ function OrderDraft({ saved, mods }: { saved: string[]; mods: Mod[] }) {
       );
       return;
     }
-    // Rebuilt in place: a split/join would drop a second Standalone or Conversion.
-    const nextOrder = withExtensions(draft, next, kindOf);
     setDraft(nextOrder);
     setAnnouncement(
       `${title} moved to position ${nextOrder.indexOf(moved) + 1} of ${nextOrder.length}.`,
