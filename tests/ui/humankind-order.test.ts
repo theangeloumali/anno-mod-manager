@@ -6,6 +6,7 @@ import {
   joinOrder,
   moduleKind,
   moveExtension,
+  moveExtensionInOrder,
   orderProblem,
   splitOrder,
   withExtensions,
@@ -79,6 +80,23 @@ test("rewriting the Extensions leaves a second Conversion where it was", () => {
   assert.deepEqual(withExtensions(order, ["nukes", "prussia"], kindOf), [
     "sigma",
     "dynasties",
+    "nukes",
+    "prussia",
+  ]);
+});
+
+test("an Extension move is refused while two Standalones are listed, so neither is dropped", () => {
+  const order = ["deepsea", "abyss", "prussia", "nukes"];
+  const kinds = (name: string) =>
+    name === "abyss" ? moduleKind("Standalone") : kindOf(name);
+  assert.equal(moveExtensionInOrder(order, 0, 1, kinds), null);
+});
+
+test("an Extension move keeps a module that isn't installed in the list", () => {
+  const order = ["sigma", "prussia", "historical leaders", "nukes"];
+  assert.deepEqual(moveExtensionInOrder(order, 0, 2, kindOf), [
+    "sigma",
+    "historical leaders",
     "nukes",
     "prussia",
   ]);

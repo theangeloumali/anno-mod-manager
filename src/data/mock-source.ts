@@ -7,6 +7,7 @@ import {
   createHumankindMock,
   deleteHumankindProfile,
   exportHumankindProfile,
+  forgetHumankindModule,
   humankindBepinex,
   humankindLoadOrder,
   humankindMods,
@@ -1105,6 +1106,22 @@ function seedDownloads(now: number): StoredJob[] {
 function createState() {
   const gamePaths: Partial<Record<GameId, string>> = {};
   const hk = createHumankindMock();
+  const mods: Record<GameId, Mod[]> = {
+    anno117: seedMods117(),
+    anno1800: seedMods1800(),
+    humankind: humankindMods(hk),
+  };
+  /** Uninstalled mods with their sub-mods, newest last, as the core's backups keep them. */
+  const backups: Record<GameId, Mod[][]> = {
+    anno117: [],
+    anno1800: [],
+    humankind: [],
+  };
+  const activeProfile: Record<GameId, string> = {
+    anno117: "default",
+    anno1800: "Default",
+    humankind: "",
+  };
   return {
     scenario: {
       emptyLibrary: false,
@@ -1122,16 +1139,8 @@ function createState() {
     runningGame: null as GameId | null,
     /** Anno 1800 starts with the old community loader in place, so Health can offer its removal. */
     legacyLoader: true,
-    mods: {
-      anno117: seedMods117(),
-      anno1800: seedMods1800(),
-      humankind: humankindMods(hk),
-    } as Record<GameId, Mod[]>,
-    /** Uninstalled mods with their sub-mods, newest last, as the core's backups keep them. */
-    backups: { anno117: [], anno1800: [], humankind: [] } as Record<
-      GameId,
-      Mod[][]
-    >,
+    mods,
+    backups,
     profiles: {
       anno117: [
         { name: "default", builtIn: true, activeIds: null },
@@ -1177,11 +1186,7 @@ function createState() {
       ],
       humankind: [],
     } as Record<GameId, StoredProfile[]>,
-    activeProfile: {
-      anno117: "default",
-      anno1800: "Default",
-      humankind: "",
-    } as Record<GameId, string>,
+    activeProfile,
     options: seedOptions(),
     account: {
       signedIn: true,
@@ -1617,6 +1622,28 @@ const PACK_CONTENTS: Record<string, PackSeed[]> = {
       subModIds: [],
     },
   ],
+  "deepsea-reloaded.zip": [
+    {
+      rootPath: "Deepsea Reloaded",
+      modId: "deepsea reloaded",
+      name: "Deepsea Reloaded",
+      category: "Standalone",
+      version: "1.5",
+      targetGame: "humankind",
+      subModIds: [],
+    },
+  ],
+  "the-lost-dynasties.zip": [
+    {
+      rootPath: "The Lost Dynasties",
+      modId: "the lost dynasties",
+      name: "The Lost Dynasties",
+      category: "Conversion",
+      version: "1.0",
+      targetGame: "humankind",
+      subModIds: [],
+    },
+  ],
   "taludas-increaseharbourarea.zip": [
     {
       rootPath: "[Cheat] Increased Harbour Area (Taludas)",
@@ -1672,6 +1699,18 @@ function buildPreviewItem(seed: PackSeed, game: GameId): InstallPreviewItem {
     };
   }
   const installed = findMod(game, item.modId);
+  if (installed && game === "humankind" && installed.location !== "documents")
+    return {
+      ...item,
+      previousVersion: installed.version,
+      status: "invalid",
+      checks: [
+        {
+          level: "error",
+          message: `Already installed in the ${installed.location === "workshop" ? "Steam Workshop" : "game"} folder; remove that copy first so Humankind doesn't load it twice`,
+        },
+      ],
+    };
   if (!installed)
     return {
       ...item,
@@ -2057,6 +2096,7 @@ export const mockSource: DataSource = {
         `${mod.name} lives in the ${mod.location === "ubi" ? "Ubisoft-managed .ubi" : "game"} folder. Atelier only removes mods in Documents.`,
         "read-only",
       );
+    if (game === "humankind") forgetHumankindModule(state.hk, hkMods(), modId);
     removeToBackups(game, modId);
     return respond(undefined);
   },
