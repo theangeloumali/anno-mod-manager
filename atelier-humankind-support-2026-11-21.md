@@ -217,7 +217,7 @@ Deploy: none. Commit locally on `feat/humankind-support`; no push, PR or merge w
   - `registry.rs`: reads and writes `RuntimeModule/RuntimeModuleConfiguration` in Registry.xml. It changes only that value, refuses while the game runs (`core/process.rs:34-48`), and snapshots first.
   - `activation`: a new `ActivationScheme::RegistryList`, wired into `detect_scheme` (`core/activation/mod.rs:67-76`), `read`, `apply` and `set_active`.
   - Verify: `set -o pipefail; cargo test -p atelier-core 2>&1 | tail -15` passes, including a round trip on a copy of the real Registry.xml with byte-identical other keys
-- [ ] Phase 3: Save inspector, version vault, save keeper (H2, H7, H8)
+- [x] Phase 3: Save inspector, version vault, save keeper (H2, H7, H8)
   - `humankind/saves.rs`: lists `Save Files\**\*.ctr` and reads `SaveDescriptor.bin` (the `zip` and `encoding_rs` crates, already dependencies). Returns the game build, the ordered mod list and the options.
   - Per mod it reports: installed exactly, a different version installed, or missing.
   - Vault: backups (`crates/atelier-install/src/backup.rs`) gain a version-keyed restore. Today `restore_mod` takes only the newest (`backup.rs:33-35`).
