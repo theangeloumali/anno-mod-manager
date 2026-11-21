@@ -284,6 +284,30 @@ fn a_game_folder_inside_the_mods_folder_is_refused() {
 }
 
 #[test]
+fn a_humankind_game_folder_inside_any_mod_root_is_refused() {
+    let harness = Harness::with(Options {
+        install: Some(GameId::Humankind),
+        ..Options::default()
+    });
+    let install = harness.install_dir();
+    let workshop = install.parent().unwrap().parent().unwrap();
+    let mod_roots = [
+        install.join("Public").join("Modification"),
+        workshop.join("workshop").join("content").join("1124300"),
+    ];
+    for root in mod_roots {
+        let fake = root.join("Evil");
+        fs::create_dir_all(&fake).unwrap();
+        fs::write(fake.join(GameId::Humankind.executable()), b"not the game").unwrap();
+        let error = harness
+            .app
+            .set_game_path(GameId::Humankind, Some(fake.to_str().unwrap()))
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::InvalidInput, "{}", fake.display());
+    }
+}
+
+#[test]
 fn uninstall_keeps_a_backup_that_restore_puts_back() {
     let harness = Harness::new();
     let dir = harness.add_mod(GameId::Anno117, "Roman Roads", "roman-roads", "1.0.0");

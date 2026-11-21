@@ -391,12 +391,14 @@ impl App {
             .map(|&game| games::documents_game_dir(game, &self.0.documents))
             .collect();
         roots.push(self.0.data_dir.clone());
-        roots.extend(
-            GameId::ALL
-                .iter()
-                .filter_map(|&game| (self.0.locate)(game))
-                .map(|(install, _)| install.join("mods")),
-        );
+        for game in GameId::ALL {
+            let install = (self.0.locate)(game).map(|(install, _)| install);
+            roots.extend(
+                games::mod_folders(game, install.as_deref(), &self.0.documents)
+                    .into_iter()
+                    .map(|folder| folder.path),
+            );
+        }
         let dir = canonical(dir);
         roots.iter().any(|root| dir.starts_with(canonical(root)))
     }
@@ -409,7 +411,7 @@ impl App {
     }
 
     pub(crate) fn documents_mods(&self, game: GameId) -> PathBuf {
-        games::documents_game_dir(game, &self.0.documents).join("mods")
+        games::documents_mods_dir(game, &self.0.documents)
     }
 
     pub(crate) fn writable(&self, game: GameId) -> ModsFolder {
