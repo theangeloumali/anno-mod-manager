@@ -417,7 +417,7 @@ function seedMods1800(): Mod[] {
       author: "Taludas, Drakkam, Taubenangriff",
       description:
         "# Extra Goods\nExtra Goods implemented by me for use in some of my mods.\n\n- New product: **Trade Licenses**\n- New multi-purpose building: Foreign Trading Company",
-      modioId: 2100010,
+      modioId: 2100020,
       active: false,
       sizeBytes: megabytes(3.4),
     }),
@@ -427,7 +427,7 @@ function seedMods1800(): Mod[] {
       category: "",
       folder: "cheat-policy-effect-range-radius-buff",
       version: "1.0",
-      modioId: 2100011,
+      modioId: 2100021,
       sizeBytes: megabytes(0.1),
       dependencies: { require: ["taludas-shared-tradingcompany"] },
     }),
