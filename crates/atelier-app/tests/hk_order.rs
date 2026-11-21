@@ -1,0 +1,323 @@
+mod common;
+
+use std::fs;
+use std::path::PathBuf;
+
+use atelier_app::ErrorCode;
+use atelier_core::{GameId, Profile};
+use common::Harness;
+
+const HUMANKIND: GameId = GameId::Humankind;
+const BASE: &str = "project mercury";
+const GUID: &str = "0123456789abcdef0123456789abcdef";
+
+fn game_dir(harness: &Harness) -> PathBuf {
+    harness.root.path().join("My Documents").join("Humankind")
+}
+
+/// A module whose bundle can't be read, so its type is unverified (an Extension).
+fn add_module(harness: &Harness, name: &str) {
+    let long = format!("{name}.{GUID}.1.0");
+    let dir = game_dir(harness).join("Community").join(name);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join(&long), "module").unwrap();
+    fs::write(dir.join(format!("{long}.manifest")), "manifest").unwrap();
+}
+
+fn registry(harness: &Harness) -> PathBuf {
+    game_dir(harness).join("Users/76561190000000001/Registry.xml")
+}
+
+fn write_registry(harness: &Harness, modules: &str) {
+    let path = registry(harness);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        format!(
+            "<Registry>\n  <RuntimeModuleConfiguration>{modules}</RuntimeModuleConfiguration>\n</Registry>\n"
+        ),
+    )
+    .unwrap();
+}
+
+fn registry_text(harness: &Harness) -> String {
+    fs::read_to_string(registry(harness)).unwrap()
+}
+
+fn names(values: &[&str]) -> Vec<String> {
+    values.iter().map(|value| value.to_string()).collect()
+}
+
+/// Two installed modules and a registry listing only the base game.
+fn setup() -> Harness {
+    let harness = Harness::new();
+    add_module(&harness, "Alpha");
+    add_module(&harness, "Beta");
+    write_registry(&harness, BASE);
+    harness
+}
+
+fn write_history(harness: &Harness, lines: &[&str]) {
+    let path = game_dir(harness).join("ModListGuard/history.jsonl");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, lines.join("\n") + "\n").unwrap();
+}
+
+// set_load_order
+
+#[test]
+fn setting_the_load_order_writes_short_names_base_first() {
+    let harness = setup();
+    let written = harness
+        .app
+        .set_load_order(HUMANKIND, names(&["Beta", "alpha", "beta"]))
+        .unwrap();
+    assert_eq!(written, names(&[BASE, "beta", "alpha"]));
+    assert!(registry_text(&harness).contains(&format!(
+        "<RuntimeModuleConfiguration>{BASE}/beta/alpha</RuntimeModuleConfiguration>"
+    )));
+    assert_eq!(
+        fs::read_dir(harness.root.path().join("data/snapshots"))
+            .unwrap()
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn an_order_with_a_module_that_is_not_installed_is_refused() {
+    let harness = setup();
+    let before = registry_text(&harness);
+    let error = harness
+        .app
+        .set_load_order(HUMANKIND, names(&["alpha", "gone"]))
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::NotFound);
+    assert!(error.message.contains("gone"), "{}", error.message);
+    assert!(error.message.contains("vanilla"), "{}", error.message);
+    assert_eq!(registry_text(&harness), before);
+}
+
+#[test]
+fn the_load_order_is_not_written_while_the_game_runs() {
+    let harness = setup();
+    harness.set_running(true);
+    let error = harness
+        .app
+        .set_load_order(HUMANKIND, names(&["alpha"]))
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::GameRunning);
+}
+
+#[test]
+fn anno_has_no_humankind_load_order() {
+    let harness = setup();
+    let error = harness
+        .app
+        .set_load_order(GameId::Anno117, names(&["alpha"]))
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::NotSupported);
+    assert!(
+        harness
+            .app
+            .launch_blockers(GameId::Anno117)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn no_registry_means_nothing_to_write_to() {
+    let harness = Harness::new();
+    add_module(&harness, "Alpha");
+    let error = harness
+        .app
+        .set_load_order(HUMANKIND, names(&["alpha"]))
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::NotFound);
+    assert!(harness.app.launch_blockers(HUMANKIND).unwrap().is_empty());
+}
+
+#[test]
+fn module_names_with_xml_characters_are_escaped_in_the_registry() {
+    let harness = setup();
+    add_module(&harness, "Comp & <Co>");
+    harness
+        .app
+        .set_load_order(HUMANKIND, names(&["comp & <co>"]))
+        .unwrap();
+    assert!(
+        registry_text(&harness).contains("project mercury/comp &amp; &lt;co&gt;<"),
+        "{}",
+        registry_text(&harness)
+    );
+    assert!(harness.app.launch_blockers(HUMANKIND).unwrap().is_empty());
+}
+
+// launch_blockers
+
+#[test]
+fn launch_blockers_name_listed_modules_that_are_not_installed() {
+    let harness = setup();
+    write_registry(&harness, &format!("{BASE}/alpha/gone/Gone"));
+    assert_eq!(
+        harness.app.launch_blockers(HUMANKIND).unwrap(),
+        names(&["gone"])
+    );
+}
+
+// profiles
+
+fn profile(name: &str, active: bool) -> Profile {
+    Profile {
+        name: name.into(),
+        built_in: false,
+        active,
+    }
+}
+
+#[test]
+fn a_saved_profile_holds_the_current_order_and_shows_as_active() {
+    let harness = setup();
+    harness
+        .app
+        .set_load_order(HUMANKIND, names(&["beta", "alpha"]))
+        .unwrap();
+    harness.app.save_humankind_profile("Coop").unwrap();
+    assert_eq!(
+        harness.app.humankind_profiles().unwrap(),
+        vec![profile("Coop", true)]
+    );
+    harness
+        .app
+        .set_load_order(HUMANKIND, names(&["alpha"]))
+        .unwrap();
+    assert_eq!(
+        harness.app.humankind_profiles().unwrap(),
+        vec![profile("Coop", false)]
+    );
+}
+
+#[test]
+fn applying_a_profile_writes_its_order() {
+    let harness = setup();
+    harness
+        .app
+        .set_load_order(HUMANKIND, names(&["beta", "alpha"]))
+        .unwrap();
+    harness.app.save_humankind_profile("Coop").unwrap();
+    harness.app.set_load_order(HUMANKIND, Vec::new()).unwrap();
+    harness.app.apply_humankind_profile("coop").unwrap();
+    assert!(registry_text(&harness).contains(&format!("{BASE}/beta/alpha<")));
+    assert_eq!(
+        harness.app.humankind_profiles().unwrap(),
+        vec![profile("Coop", true)]
+    );
+}
+
+#[test]
+fn applying_a_profile_whose_mods_are_gone_is_refused() {
+    let harness = setup();
+    harness
+        .app
+        .set_load_order(HUMANKIND, names(&["alpha", "beta"]))
+        .unwrap();
+    harness.app.save_humankind_profile("Coop").unwrap();
+    harness.app.set_load_order(HUMANKIND, Vec::new()).unwrap();
+    fs::remove_dir_all(game_dir(&harness).join("Community/Beta")).unwrap();
+    let before = registry_text(&harness);
+    let error = harness.app.apply_humankind_profile("Coop").unwrap_err();
+    assert_eq!(error.code, ErrorCode::NotFound);
+    assert!(error.message.contains("beta"), "{}", error.message);
+    assert_eq!(registry_text(&harness), before);
+}
+
+#[test]
+fn profile_names_are_checked_and_unique_ignoring_case() {
+    let harness = setup();
+    let error = harness.app.save_humankind_profile("../evil").unwrap_err();
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    harness.app.save_humankind_profile("Coop").unwrap();
+    harness.app.save_humankind_profile("COOP").unwrap();
+    assert_eq!(
+        harness.app.humankind_profiles().unwrap(),
+        vec![profile("Coop", true)]
+    );
+}
+
+#[test]
+fn deleting_a_profile_removes_it() {
+    let harness = setup();
+    harness.app.save_humankind_profile("Coop").unwrap();
+    harness.app.delete_humankind_profile("coop").unwrap();
+    assert!(harness.app.humankind_profiles().unwrap().is_empty());
+    let error = harness.app.delete_humankind_profile("Coop").unwrap_err();
+    assert_eq!(error.code, ErrorCode::NotFound);
+    let error = harness.app.apply_humankind_profile("Coop").unwrap_err();
+    assert_eq!(error.code, ErrorCode::NotFound);
+}
+
+#[test]
+fn profiles_are_kept_in_the_data_folder_not_documents() {
+    let harness = setup();
+    harness.app.save_humankind_profile("Coop").unwrap();
+    assert!(
+        harness
+            .root
+            .path()
+            .join("data/humankind/profiles.json")
+            .is_file()
+    );
+}
+
+// history
+
+#[test]
+fn no_history_file_lists_nothing() {
+    let harness = setup();
+    assert!(harness.app.mod_list_history().unwrap().is_empty());
+}
+
+#[test]
+fn history_lists_newest_first() {
+    let harness = setup();
+    write_history(
+        &harness,
+        &[
+            r#"{"time":"2026-11-20T01:02:03.0000000Z","reason":"older","culprit":null,"old":"project mercury","new":"project mercury"}"#,
+            "garbage",
+            r#"{"time":"2026-11-21T03:04:05.0000000Z","reason":"reset","culprit":null,"old":"project mercury\/alpha\/beta","new":"project mercury"}"#,
+        ],
+    );
+    let history = harness.app.mod_list_history().unwrap();
+    assert_eq!(history.len(), 2);
+    assert_eq!(history[0].reason, "reset");
+    assert_eq!(history[0].old, names(&[BASE, "alpha", "beta"]));
+}
+
+#[test]
+fn restoring_an_entry_saves_its_old_list_as_a_profile() {
+    let harness = setup();
+    write_history(
+        &harness,
+        &[
+            r#"{"time":"2026-11-21T03:04:05.0000000Z","reason":"reset","culprit":null,"old":"project mercury\/beta\/alpha","new":"project mercury"}"#,
+        ],
+    );
+    let name = harness.app.restore_history_entry(0).unwrap();
+    assert_eq!(name, "Restored 2026-11-21 03-04-05");
+    assert_eq!(
+        harness.app.humankind_profiles().unwrap(),
+        vec![profile(&name, false)]
+    );
+    assert!(registry_text(&harness).contains(&format!(">{BASE}<")));
+    harness.app.apply_humankind_profile(&name).unwrap();
+    assert!(registry_text(&harness).contains(&format!("{BASE}/beta/alpha<")));
+}
+
+#[test]
+fn restoring_an_entry_that_does_not_exist_is_not_found() {
+    let harness = setup();
+    let error = harness.app.restore_history_entry(0).unwrap_err();
+    assert_eq!(error.code, ErrorCode::NotFound);
+}

@@ -33,6 +33,14 @@ pub enum Error {
     InvalidRegistry(PathBuf),
     #[error("'{0}' is the base game and stays on")]
     BaseModule(String),
+    #[error(transparent)]
+    LoadOrder(#[from] crate::humankind::load_order::OrderError),
+    /// Humankind resets the whole list to vanilla when a listed module is gone.
+    #[error(
+        "not installed: {}; Humankind would reset the mod list to vanilla",
+        .0.join(", ")
+    )]
+    MissingModules(Vec<String>),
 }
 
 /// Attaches the path to an I/O error, which `io::Error` alone never says.

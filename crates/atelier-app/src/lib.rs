@@ -4,6 +4,7 @@
 mod collections;
 mod downloads;
 mod error;
+mod hk_order;
 mod hk_saves;
 mod install;
 mod library;

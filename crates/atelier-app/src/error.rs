@@ -64,13 +64,16 @@ impl From<atelier_core::Error> for AppError {
         use atelier_core::Error as Core;
         let code = match &error {
             Core::ReadOnly(_) => ErrorCode::ReadOnly,
-            Core::ProfileNotFound(_) | Core::RegistryNotFound(_) => ErrorCode::NotFound,
+            Core::ProfileNotFound(_) | Core::RegistryNotFound(_) | Core::MissingModules(_) => {
+                ErrorCode::NotFound
+            }
             Core::BuiltInProfile(_)
             | Core::ProfileActive(_)
             | Core::InvalidProfileName(_)
             | Core::NoProfiles(_)
             | Core::SubMod(_)
-            | Core::BaseModule(_) => ErrorCode::InvalidInput,
+            | Core::BaseModule(_)
+            | Core::LoadOrder(_) => ErrorCode::InvalidInput,
             Core::Io { .. }
             | Core::Json(_)
             | Core::InvalidModInfo(_)
