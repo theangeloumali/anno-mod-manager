@@ -300,12 +300,12 @@ export interface Settings {
 }
 
 /** One module a Humankind save was played with; version is null when the save didn't pin one. */
-export interface SaveMod {
+interface SaveMod {
   name: string;
   version: string | null;
 }
 
-export interface GameOption {
+interface GameOption {
   key: string;
   value: string;
 }
@@ -321,7 +321,7 @@ export interface Save {
   empireCount: number | null;
 }
 
-export interface SkippedSave {
+interface SkippedSave {
   path: string;
   reason: string;
 }
@@ -331,7 +331,7 @@ export interface SaveList {
   skipped: SkippedSave[];
 }
 
-export type ModStatus =
+type ModStatus =
   | { kind: "exact" }
   | { kind: "otherVersion"; installed: string }
   | { kind: "missing" };
@@ -356,7 +356,7 @@ export interface HistoryEntry {
   new: string[];
 }
 
-export interface LoadedPlugin {
+interface LoadedPlugin {
   name: string;
   version: string;
 }

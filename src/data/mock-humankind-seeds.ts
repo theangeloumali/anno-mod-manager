@@ -10,7 +10,7 @@ export type HumankindModSeed = Pick<
 /** Listed in Registry.xml but not installed: the case where the game resets the list. */
 export const MISSING_MODULE = "historical leaders";
 const DOCUMENTS = "C:\\Users\\Player\\Documents\\Humankind";
-export const SAVE_FILES = `${DOCUMENTS}\\Save Files`;
+const SAVE_FILES = `${DOCUMENTS}\\Save Files`;
 
 export const HUMANKIND_MOD_SEEDS: HumankindModSeed[] = [
   {
