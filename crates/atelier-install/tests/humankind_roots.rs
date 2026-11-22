@@ -351,7 +351,8 @@ fn a_copy_outside_atelier_is_a_duplicate_and_nothing_installs() {
     let sandbox = Sandbox::new();
     let long = long_name("Sigma Pack", "2.5");
     let existing = sandbox.mods().join("mod.io/4801_77001").join(&long);
-    write_tree(&existing, &[(&long, "module")]);
+    let bundle = format!("{}.assetbundle", long.to_lowercase());
+    write_tree(&existing, &[(&long, "module"), (&bundle, "b")]);
     let archive = drop_zip(
         &sandbox,
         "Sigma.zip",
@@ -616,7 +617,8 @@ fn a_workshop_copy_is_a_duplicate_and_nothing_installs() {
     let sandbox = Sandbox::new();
     let long = long_name("Sigma Pack", "2.5");
     let workshop = sandbox.root.path().join("workshop/content/1124300/3001");
-    write_tree(&workshop.join(&long), &[(&long, "module")]);
+    let bundle = format!("{}.assetbundle", long.to_lowercase());
+    write_tree(&workshop.join(&long), &[(&long, "module"), (&bundle, "b")]);
     let folder = atelier_core::scan::ModsFolder {
         path: workshop,
         location: atelier_core::ModLocation::Workshop,

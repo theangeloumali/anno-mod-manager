@@ -386,3 +386,21 @@ fn an_uninstalled_module_is_restored_under_atelier() {
     let folder = folder_of(&harness, "sigma pack").unwrap();
     assert!(folder.starts_with("Atelier/"), "{folder}");
 }
+
+#[test]
+fn uninstalling_a_module_that_shares_its_folder_is_refused() {
+    let harness = Harness::new();
+    let pack = community(&harness).join("Atelier").join("Pack");
+    let sigma = long_name("Sigma Pack", "2.5");
+    let other = format!("Other Mod.{}.1.0", "0123456789abcdef0123456789abcdef");
+    write_module(&pack, &sigma);
+    write_module(&pack, &other);
+
+    let error = harness
+        .app
+        .uninstall_mod(HUMANKIND, "sigma pack")
+        .unwrap_err();
+
+    assert!(error.message.contains("other mod"), "{}", error.message);
+    assert!(pack.join(&sigma).is_file() && pack.join(&other).is_file());
+}

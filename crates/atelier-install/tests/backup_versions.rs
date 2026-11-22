@@ -30,9 +30,14 @@ fn back_up(sandbox: &Sandbox, folder: &str, id: &str, version: &str) {
 fn module_dir(parent: &Path, name: &str, version: &str) -> PathBuf {
     let long = format!("{name}.{GUID}.{version}");
     let dir = parent.join(&long);
+    // With its bundle, as the game needs it; the scan skips a module without one.
     write_tree(
         &dir,
-        &[(&long, "module"), (&format!("{long}.manifest"), "m")],
+        &[
+            (&long, "module"),
+            (&format!("{long}.manifest"), "m"),
+            (&format!("{}.assetbundle", long.to_lowercase()), "b"),
+        ],
     );
     dir
 }

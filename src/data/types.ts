@@ -319,6 +319,8 @@ export interface Save {
   build: string | null;
   /** In load order, the base game left out. */
   mods: SaveMod[];
+  /** False when no mod list could be read: zero mods then means unknown, not vanilla. */
+  modListFound: boolean;
   options: GameOption[];
   worldSize: string | null;
   empireCount: number | null;

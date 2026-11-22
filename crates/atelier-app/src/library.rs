@@ -156,6 +156,21 @@ impl App {
             });
         };
         let dir = scan::mod_dir(&self.folders(game), target).ok_or_else(|| not_found(mod_id))?;
+        // A Humankind module is removed by moving its folder, which would take any other module in it.
+        if let Some(neighbour) = mods.iter().find(|other| {
+            other.id != target.id
+                && other.location == target.location
+                && other.folder == target.folder
+                && other.parent_id.is_none()
+        }) {
+            return Err(AppError::new(
+                ErrorCode::InvalidInput,
+                format!(
+                    "{} shares its folder with {}, so removing it would take the other mod too. Move one of them into its own folder first.",
+                    target.name, neighbour.name
+                ),
+            ));
+        }
         // Humankind resets a list naming a missing module to vanilla, so the module leaves it
         // first, unless a Workshop or game-folder copy still provides it.
         if game == GameId::Humankind && matches.len() == 1 {

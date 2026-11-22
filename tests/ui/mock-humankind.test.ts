@@ -135,3 +135,15 @@ test("dropping a module that already has a game-folder copy is refused", async (
     /Already installed in the game folder; remove that copy first/,
   );
 });
+
+test("a save whose mod list couldn't be read never sets the list", () => {
+  const { hk, mods } = setup();
+  const save = hk.saves.saves[0];
+  assert.ok(save);
+  save.modListFound = false;
+  assert.throws(
+    () => makeHumankindSaveLoadable(hk, mods, save.path),
+    (error: unknown) =>
+      error instanceof CoreError && error.code === "invalid-input",
+  );
+});

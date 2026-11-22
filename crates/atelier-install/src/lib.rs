@@ -232,6 +232,11 @@ impl InstallEngine {
         )
     }
 
+    /// The module guid in the newest backup of `mod_id` at `version`, to tell same-named mods apart.
+    pub fn backup_guid(&self, game: GameId, mod_id: &str, version: &str) -> Result<Option<String>> {
+        backup::backup_guid(&self.game_backups(game), mod_id, version)
+    }
+
     /// Restores the newest backup of `mod_id` at `version`: into `installed_dir` when the mod
     /// has a copy there (it must sit inside `target_mods_dir`), else into its own folder, which
     /// for Humankind sits under `Community/Atelier`.

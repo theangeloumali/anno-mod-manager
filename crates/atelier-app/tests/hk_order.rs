@@ -22,6 +22,9 @@ fn add_module(harness: &Harness, name: &str) {
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join(&long), "module").unwrap();
     fs::write(dir.join(format!("{long}.manifest")), "manifest").unwrap();
+    // The game needs the bundle to load the module, so the scan only counts it with one.
+    let bundle = format!("{}.assetbundle", long.to_lowercase());
+    fs::write(dir.join(bundle), "bundle").unwrap();
 }
 
 fn registry_text(harness: &Harness) -> String {

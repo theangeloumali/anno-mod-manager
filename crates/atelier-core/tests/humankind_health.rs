@@ -16,8 +16,11 @@ fn touch(path: &Path) {
 }
 
 /// A module folder as the game lays it out: `<long>/<long>` under a mods root.
+/// A module with its bundle, as the game needs to load it.
 fn add_module(root: &Path, folder: &str, long_name: &str) {
     touch(&root.join(folder).join(long_name));
+    let bundle = format!("{}.assetbundle", long_name.to_lowercase());
+    touch(&root.join(folder).join(bundle));
 }
 
 fn hk_mod(id: &str) -> Mod {

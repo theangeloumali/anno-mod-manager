@@ -51,6 +51,9 @@ pub struct Descriptor {
     pub build: Option<String>,
     /// In load order, the base game left out.
     pub mods: Vec<SaveMod>,
+    /// False when the descriptor names no mod list at all: zero mods then means "unknown",
+    /// not "vanilla", and the save must never set the active list.
+    pub mod_list_found: bool,
     pub options: Vec<GameOption>,
     pub world_size: Option<String>,
     pub empire_count: Option<u32>,
@@ -189,11 +192,11 @@ pub fn parse_descriptor(bytes: &[u8]) -> Descriptor {
             .map(|option| option.value.clone())
             .filter(|value| !value.is_empty())
     };
+    let mod_list = value_of(&strings, MODS_KEY);
     Descriptor {
         build: value_of(&strings, BUILD_KEY).filter(|build| !build.is_empty()),
-        mods: value_of(&strings, MODS_KEY)
-            .map(|list| mods(&list))
-            .unwrap_or_default(),
+        mod_list_found: mod_list.is_some(),
+        mods: mod_list.map(|list| mods(&list)).unwrap_or_default(),
         world_size: option(WORLD_SIZE_OPTION),
         empire_count: option(EMPIRE_COUNT_OPTION).and_then(|count| count.parse().ok()),
         options,

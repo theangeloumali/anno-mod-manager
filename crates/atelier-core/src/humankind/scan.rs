@@ -63,9 +63,21 @@ fn add_module(
         );
         return Ok(());
     }
+    // The game can't load a module without its bundle, so it never counts as installed.
+    let Some(bundle) = bundle_name(&module, siblings) else {
+        let reason = format!(
+            "{module} has no {}.assetbundle next to it, so Humankind can't load it",
+            module.to_string().to_lowercase()
+        );
+        skip(
+            result,
+            &dir.join(module.to_string()),
+            SkipReason::Invalid(reason),
+        );
+        return Ok(());
+    };
     // An unreadable bundle leaves the category blank: "type not verified", never a guessed type.
-    let info =
-        bundle_name(&module, siblings).and_then(|name| read_module_info(&dir.join(name)).ok());
+    let info = read_module_info(&dir.join(bundle)).ok();
     let from_modio = parts[0].eq_ignore_ascii_case(MODIO_DIR);
     result.mods.push(Mod {
         id: module.short_name(),

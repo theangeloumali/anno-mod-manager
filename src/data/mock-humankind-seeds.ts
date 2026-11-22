@@ -117,6 +117,7 @@ export const seedSaves = (): SaveList => ({
       path: `${SAVE_FILES}\\Pangaea Huge - Turn 386.ctr`,
       name: "Pangaea Huge - Turn 386",
       build: "1.0.27.4012",
+      modListFound: true,
       mods: [
         { name: "deepsea reloaded", version: "1.4" },
         { name: "sigma pack", version: "3.1" },
@@ -131,6 +132,7 @@ export const seedSaves = (): SaveList => ({
       path: `${SAVE_FILES}\\Europe quick run.ctr`,
       name: "Europe quick run",
       build: "1.0.27.4012",
+      modListFound: true,
       mods: [
         { name: "sigma pack", version: "3.2" },
         { name: "prussia", version: "2.0" },
@@ -143,6 +145,7 @@ export const seedSaves = (): SaveList => ({
       path: `${SAVE_FILES}\\Cloud\\Vanilla benchmark on a tiny continent with every option at default.ctr`,
       name: "Vanilla benchmark on a tiny continent with every option at default",
       build: "1.0.26.3871",
+      modListFound: true,
       mods: [],
       options: [],
       worldSize: "Small",

@@ -144,7 +144,9 @@ export function SaveDetail({ save }: { save: Save }) {
         <Button
           variant="primary"
           className="self-start"
-          disabled={isWriteLocked || makeLoadable.isPending}
+          disabled={
+            isWriteLocked || makeLoadable.isPending || !save.modListFound
+          }
           onClick={() => void run()}
         >
           <WandSparklesIcon aria-hidden="true" data-icon="inline-start" />

@@ -30,12 +30,19 @@ fn add_module(harness: &Harness, name: &str, version: &str) {
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join(&long), "module").unwrap();
     fs::write(dir.join(format!("{long}.manifest")), "manifest").unwrap();
+    // The game needs the bundle to load the module, so the scan only counts it with one.
+    let bundle = format!("{}.assetbundle", long.to_lowercase());
+    fs::write(dir.join(bundle), "bundle").unwrap();
 }
 
 /// A `.ctr` holding a descriptor with the given `\`-separated mod list.
 fn write_save(harness: &Harness, name: &str, mod_list: &str) -> PathBuf {
+    write_save_strings(harness, name, &["ver", "V1.0", "rmc", mod_list])
+}
+
+fn write_save_strings(harness: &Harness, name: &str, strings: &[&str]) -> PathBuf {
     let mut descriptor = vec![9, 9, 9, 9];
-    for text in ["ver", "V1.0", "rmc", mod_list] {
+    for text in strings {
         let units: Vec<u16> = text.encode_utf16().collect();
         let count = u32::try_from(units.len()).unwrap();
         descriptor.extend((4 + 2 * count).to_le_bytes());
@@ -395,6 +402,8 @@ fn a_workshop_copy_blocks_restoring_and_is_named() {
     let workshop = harness.root.path().join("workshop/content/1124300/3001");
     fs::create_dir_all(&workshop).unwrap();
     fs::write(workshop.join(&long), "module").unwrap();
+    let bundle = format!("{}.assetbundle", long.to_lowercase());
+    fs::write(workshop.join(bundle), "bundle").unwrap();
     let path = played_with_eventful_and_deepsea(&harness);
 
     let error = harness
@@ -431,4 +440,64 @@ fn a_relative_or_network_style_path_is_refused_before_it_is_resolved() {
         let error = harness.app.inspect_save(HUMANKIND, &path).unwrap_err();
         assert_eq!(error.code, ErrorCode::InvalidInput, "{}", path.display());
     }
+}
+
+#[test]
+fn a_save_whose_mod_list_cannot_be_read_never_resets_the_list() {
+    let harness = Harness::new();
+    add_module(&harness, "Eventful", "0.7");
+    harness.write_humankind_registry("project mercury/eventful");
+    let before = fs::read(harness.humankind_registry()).unwrap();
+    let path = write_save_strings(&harness, "Damaged.ctr", &["ver", "V1.0"]);
+
+    let error = harness
+        .app
+        .make_save_loadable(HUMANKIND, &path)
+        .unwrap_err();
+
+    assert_eq!(error.code, ErrorCode::InvalidInput, "{error:?}");
+    assert_eq!(fs::read(harness.humankind_registry()).unwrap(), before);
+}
+
+#[test]
+fn a_backup_of_a_same_named_mod_with_another_guid_is_not_restored() {
+    let harness = Harness::new();
+    harness.write_humankind_registry(BASE);
+    vault(&harness, "Eventful", "0.7");
+    add_module(&harness, "Eventful", "0.8");
+    let other = "fedcba9876543210fedcba9876543210";
+    let path = write_save(&harness, "Other.ctr", &format!("Eventful.{other}.0.7"));
+
+    let report = harness.app.make_save_loadable(HUMANKIND, &path).unwrap();
+
+    assert!(report.restored.is_empty(), "{report:?}");
+    assert_eq!(report.missing.len(), 1);
+    assert!(!report.registry_written);
+    assert_eq!(
+        installed_version(&harness, "eventful").as_deref(),
+        Some("0.8")
+    );
+}
+
+#[test]
+fn a_version_in_a_shared_folder_is_reported_not_swapped() {
+    let harness = Harness::new();
+    harness.write_humankind_registry(BASE);
+    vault(&harness, "Eventful", "0.7");
+    let pack = game_dir(&harness).join("Community").join("Pack");
+    for long in [long_name("Eventful", "0.8"), long_name("Neighbour", "1.0")] {
+        fs::create_dir_all(&pack).unwrap();
+        fs::write(pack.join(&long), "module").unwrap();
+        fs::write(
+            pack.join(format!("{}.assetbundle", long.to_lowercase())),
+            "b",
+        )
+        .unwrap();
+    }
+    let path = write_save(&harness, "Shared.ctr", &long_name("Eventful", "0.7"));
+
+    let report = harness.app.make_save_loadable(HUMANKIND, &path).unwrap();
+
+    assert!(report.restored.is_empty(), "{report:?}");
+    assert!(pack.join(long_name("Neighbour", "1.0")).is_file());
 }

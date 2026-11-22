@@ -851,3 +851,24 @@ fn switching_without_a_registry_is_refused() {
     .unwrap_err();
     assert!(matches!(error, Error::RegistryNotFound(_)), "{error:?}");
 }
+
+#[test]
+fn a_module_without_its_assetbundle_is_skipped_not_installed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let community = tmp.path().join("Community");
+    let long = "Half Mod.0123456789abcdef0123456789abcdef.1.0";
+    fs::create_dir_all(community.join("Half")).unwrap();
+    fs::write(community.join("Half").join(long), b"").unwrap();
+
+    let result = scan::scan(GameId::Humankind, &[documents(&community)]).unwrap();
+
+    assert!(result.mods.iter().all(|item| item.id != "half mod"));
+    assert!(
+        result
+            .skipped
+            .iter()
+            .any(|skipped| matches!(&skipped.reason, SkipReason::Invalid(reason) if reason.contains("assetbundle"))),
+        "{:?}",
+        result.skipped
+    );
+}

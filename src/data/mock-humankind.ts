@@ -276,6 +276,11 @@ export function makeHumankindSaveLoadable(
   path: string,
 ): SaveLoadReport {
   const save = findSave(hk, path);
+  if (!save.modListFound)
+    throw new CoreError(
+      "invalid-input",
+      "This save's mod list couldn't be read, so Atelier won't change your mod list for it.",
+    );
   requireRegistry(hk);
   // As the core: a read-only copy at the wrong version would load beside a restored one.
   const readOnly = checkMods(mods, save.mods)

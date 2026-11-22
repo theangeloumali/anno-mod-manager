@@ -48,6 +48,12 @@ impl App {
         let _writes = self.write_guard(game)?;
         let save = self.read_save(game, path)?;
         let game_dir = humankind_dir(game, &self.0.documents)?;
+        if !save.descriptor.mod_list_found {
+            return Err(AppError::new(
+                ErrorCode::InvalidInput,
+                "This save's mod list couldn't be read, so Atelier won't change your mod list for it.",
+            ));
+        }
         // Checked before anything is restored, so a game that never ran is left untouched.
         if detect::registry_path(&game_dir)?.is_none() {
             return Err(atelier_core::Error::RegistryNotFound(game_dir).into());
@@ -157,7 +163,29 @@ impl App {
         if check.status == ModStatus::Exact {
             return Ok(false);
         }
+        // A backup of a same-named mod from another author is not the one the save used.
+        if let Some(wanted) = check.module.guid.as_deref() {
+            let stored = self
+                .0
+                .engine
+                .backup_guid(game, &check.module.name, version)?;
+            if stored.is_some_and(|stored| !stored.eq_ignore_ascii_case(wanted)) {
+                return Ok(false);
+            }
+        }
         let writable = [self.writable(game)];
+        // Swapping a folder that holds another module too would take that module with it.
+        let shares_folder = installed.iter().any(|item| {
+            item.id == check.module.name
+                && installed.iter().any(|other| {
+                    other.id != item.id
+                        && other.location == item.location
+                        && other.folder == item.folder
+                })
+        });
+        if shares_folder {
+            return Ok(false);
+        }
         let copy = installed
             .iter()
             .filter(|item| item.id == check.module.name)

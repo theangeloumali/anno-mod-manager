@@ -1,18 +1,19 @@
 // Created by The Angelo Umali.
-import { FileWarningIcon, SaveIcon } from "lucide-react";
+import { FileWarningIcon, FolderXIcon, SaveIcon } from "lucide-react";
 import { useState } from "react";
 import { BreakableText } from "@/components/app/mod-badges";
 import { PageHeader } from "@/components/app/page-header";
 import { EmptyState, Panel } from "@/components/app/panel";
 import { useCurrentGame } from "@/components/app/use-current-game";
 import { WriteLockNotice } from "@/components/app/write-lock-notice";
+import { Button } from "@/components/ui/button";
 import { useSaves } from "@/data/source";
 import { cn } from "@/lib/utils";
 import { SaveDetail, saveFacts } from "./save-detail";
 
 export function SavesScreen() {
   const { gameId } = useCurrentGame();
-  const { data } = useSaves(gameId);
+  const { data, isError, error, refetch } = useSaves(gameId);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const saves = data?.saves ?? [];
   const skipped = data?.skipped ?? [];
@@ -26,7 +27,17 @@ export function SavesScreen() {
         description="Each save remembers the mods it was played with. Pick one to see which still match, and have Atelier set the mod list it needs."
       />
       <WriteLockNotice />
-      {data && saves.length === 0 && skipped.length === 0 ? (
+      {isError ? (
+        <EmptyState
+          icon={<FolderXIcon />}
+          title="Couldn't read the Save Files folder"
+          actions={<Button onClick={() => void refetch()}>Try again</Button>}
+        >
+          {error instanceof Error
+            ? error.message
+            : "Atelier couldn't list your saves."}
+        </EmptyState>
+      ) : data && saves.length === 0 && skipped.length === 0 ? (
         <EmptyState icon={<SaveIcon />} title="No saves yet">
           Saves from Documents\Humankind\Save Files appear here once you play a
           game.

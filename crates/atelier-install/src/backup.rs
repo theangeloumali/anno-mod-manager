@@ -70,6 +70,46 @@ pub(crate) fn restore_version(
     restore(game, backup_dir, mod_id, Some(version), &dest)
 }
 
+/// The guid of the module in the newest backup of `mod_id` at `version`, if it holds one.
+pub(crate) fn backup_guid(
+    backup_dir: &Path,
+    mod_id: &str,
+    version: &str,
+) -> Result<Option<String>> {
+    if check_id(mod_id).is_err() {
+        return Ok(None);
+    }
+    let wanted = safe_version(version);
+    let Some((_, chosen)) = list_backups(&backup_dir.join(new_folder_name(mod_id)))?
+        .into_iter()
+        .rev()
+        .find(|(_, dir)| backup_version(dir) == wanted)
+    else {
+        return Ok(None);
+    };
+    Ok(module_guid(&chosen))
+}
+
+/// The first module file under `dir`, searched a few levels down as a mod folder nests.
+fn module_guid(dir: &Path) -> Option<String> {
+    let mut pending = vec![(dir.to_path_buf(), 0)];
+    while let Some((current, depth)) = pending.pop() {
+        for entry in fs::read_dir(&current).ok()?.flatten() {
+            let path = entry.path();
+            match entry.file_type() {
+                Ok(kind) if kind.is_dir() && depth < 4 => pending.push((path, depth + 1)),
+                Ok(kind) if kind.is_file() => {
+                    if let Some(module) = ModuleName::parse(&file_name(&path)) {
+                        return Some(module.guid);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    None
+}
+
 /// Newest first; an id that isn't a plain folder name has no backups.
 pub(crate) fn list_versions(backup_dir: &Path, mod_id: &str) -> Result<Vec<BackupVersion>> {
     if check_id(mod_id).is_err() {
