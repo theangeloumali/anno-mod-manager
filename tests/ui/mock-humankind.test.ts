@@ -55,7 +55,9 @@ test("switching on a Conversion replaces the one already on", () => {
 
 test("restoring a history entry saves its old list as a profile", () => {
   const { hk } = setup();
-  const name = restoreHumankindHistory(hk, 0);
+  const entry = hk.history[0];
+  assert.ok(entry);
+  const name = restoreHumankindHistory(hk, entry.time, entry.old);
   assert.equal(name, "Restored 2026-11-21 19-42-08 UTC");
   assert.ok(hk.profiles.some((profile) => profile.name === name));
 });

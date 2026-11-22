@@ -240,7 +240,9 @@ impl<'a> Classifier<'a> {
                 && (copy.location != ModLocation::Documents || !copy.folder.starts_with(&atelier))
         })?;
         let place = match copy.location {
-            ModLocation::Documents => format!("Community\\{}", copy.folder.replace('/', "\\")),
+            ModLocation::Documents | ModLocation::GameModio => {
+                format!("Community\\{}", copy.folder.replace('/', "\\"))
+            }
             other => format!("the {}", other.place()),
         };
         Some(format!(

@@ -32,6 +32,9 @@ pub struct SaveMod {
     /// The short, lowercased name Registry.xml uses.
     pub name: String,
     pub version: Option<String>,
+    /// Two mods can share a name; the guid tells them apart.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guid: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -198,13 +201,27 @@ pub fn parse_descriptor(bytes: &[u8]) -> Descriptor {
 }
 
 /// Where the installed copies stand against the version the save was played with.
+/// A copy whose folder names another guid is a different mod that happens to share the name.
+fn same_guid(module: &SaveMod, item: &Mod) -> bool {
+    let installed = item
+        .folder
+        .rsplit('/')
+        .next()
+        .and_then(ModuleName::parse)
+        .map(|parsed| parsed.guid);
+    match (&module.guid, installed) {
+        (Some(wanted), Some(found)) => wanted.eq_ignore_ascii_case(&found),
+        _ => true,
+    }
+}
+
 pub fn check_mods(save_mods: &[SaveMod], installed: &[Mod]) -> Vec<ModCheck> {
     save_mods
         .iter()
         .map(|module| {
             let copies: Vec<&Mod> = installed
                 .iter()
-                .filter(|item| item.id == module.name)
+                .filter(|item| item.id == module.name && same_guid(module, item))
                 .collect();
             let status = match (&module.version, copies.first()) {
                 (_, None) => ModStatus::Missing,
@@ -318,9 +335,11 @@ fn options(strings: &[Found]) -> Vec<GameOption> {
 fn mods(list: &str) -> Vec<SaveMod> {
     let mut mods: Vec<SaveMod> = Vec::new();
     for entry in list.split(MOD_SEPARATOR).filter(|entry| !entry.is_empty()) {
+        let parsed = ModuleName::parse(entry);
         let module = SaveMod {
             name: short_name(entry),
-            version: ModuleName::parse(entry).map(|parsed| parsed.version()),
+            version: parsed.as_ref().map(ModuleName::version),
+            guid: parsed.map(|parsed| parsed.guid),
         };
         let listed = mods.iter().any(|other| other.name == module.name);
         if module.name != BASE_MODULE && !listed {

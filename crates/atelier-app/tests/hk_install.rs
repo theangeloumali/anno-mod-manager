@@ -349,6 +349,30 @@ async fn a_module_removed_by_unsubscribing_leaves_the_load_order() {
 }
 
 #[test]
+fn restoring_is_refused_while_another_copy_is_installed() {
+    let harness = Harness::new();
+    let long = long_name("Sigma Pack", "2.5");
+    install_drop(
+        &harness,
+        &drop_archive(&harness, "Sigma.zip", &module_entries("Sigma", &long)),
+    );
+    harness.app.uninstall_mod(HUMANKIND, "sigma pack").unwrap();
+    let game_copy = community(&harness).join("mod.io").join("3506667_4753257");
+    write_module(&game_copy.join(&long), &long);
+
+    let error = harness
+        .app
+        .restore_mod(HUMANKIND, "sigma pack")
+        .unwrap_err();
+
+    assert!(error.message.contains("mod.io"), "{}", error.message);
+    let copies = fs::read_dir(community(&harness).join("Atelier"))
+        .map(|dir| dir.count())
+        .unwrap_or(0);
+    assert_eq!(copies, 0, "the backup must not land beside the other copy");
+}
+
+#[test]
 fn an_uninstalled_module_is_restored_under_atelier() {
     let harness = Harness::new();
     let long = long_name("Sigma Pack", "2.5");

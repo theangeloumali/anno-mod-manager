@@ -328,6 +328,29 @@ fn each_save_mod_is_exact_another_version_or_missing() {
 }
 
 #[test]
+fn a_same_named_mod_with_another_guid_is_not_the_saves_mod() {
+    let wanted = "Sigma Pack.402b91b9e5724da3851e2b6b727b100a.2.5";
+    let parsed = parse_descriptor(&descriptor(&["rmc", wanted]));
+    let impostor = Mod {
+        folder: "mod.io/1_1/Sigma Pack.00000000000000000000000000000001.2.5".into(),
+        ..installed("sigma pack", "2.5")
+    };
+    let same = Mod {
+        folder: format!("Atelier/{wanted}"),
+        ..installed("sigma pack", "2.5")
+    };
+
+    assert_eq!(
+        saves::check_mods(&parsed.mods, &[impostor])[0].status,
+        ModStatus::Missing
+    );
+    assert_eq!(
+        saves::check_mods(&parsed.mods, &[same])[0].status,
+        ModStatus::Exact
+    );
+}
+
+#[test]
 fn an_unpinned_mod_that_is_not_installed_is_missing() {
     let parsed = parse_descriptor(&descriptor(&["rmc", "loose"]));
     let checks = saves::check_mods(&parsed.mods, &[]);

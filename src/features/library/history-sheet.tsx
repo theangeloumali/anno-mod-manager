@@ -57,20 +57,9 @@ function EntryDiff({ entry }: { entry: HistoryEntry }) {
 export function HistorySheet() {
   const [isOpen, setOpen] = useState(false);
   const { data: history = [] } = useModListHistory(isOpen);
-  const restore = useAction(async (source, entry: HistoryEntry) => {
-    // The plugin can log a change while the sheet is open, so re-find the entry's index.
-    const current = await source.modListHistory();
-    const index = current.findIndex(
-      (candidate) =>
-        candidate.time === entry.time &&
-        candidate.old.join("\n") === entry.old.join("\n"),
-    );
-    if (index < 0)
-      throw new Error(
-        "That change is no longer in the history. Reopen History and try again.",
-      );
-    return source.restoreHistoryEntry(index);
-  });
+  const restore = useAction((source, entry: HistoryEntry) =>
+    source.restoreHistoryEntry(entry.time, entry.old),
+  );
 
   return (
     <>

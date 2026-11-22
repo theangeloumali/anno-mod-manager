@@ -116,8 +116,8 @@ export const ipcSource: DataSource = {
   makeSaveLoadable: (game, path) =>
     call<SaveLoadReport>("make_save_loadable", { game, path }),
   modListHistory: () => call<HistoryEntry[]>("mod_list_history"),
-  restoreHistoryEntry: (index) =>
-    call<string>("restore_history_entry", { index }),
+  restoreHistoryEntry: (time, old) =>
+    call<string>("restore_history_entry", { time, old }),
   bepinexStatus: (game) => call<BepInExStatus>("bepinex_status", { game }),
   installBepinex: (game) => call<BepInExStatus>("install_bepinex", { game }),
   uninstallBepinex: (game) =>

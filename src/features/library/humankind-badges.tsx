@@ -21,6 +21,8 @@ function sourceChip(mod: Pick<Mod, "origin" | "location">): Chip {
     return { label: "Workshop · read-only", tone: "info", icon: LockIcon };
   if (mod.location === "game")
     return { label: "Game folder · read-only", tone: "info", icon: LockIcon };
+  if (mod.location === "gamemodio")
+    return { label: "Game's mod.io · read-only", tone: "info", icon: LockIcon };
   if (mod.origin === "modio")
     return { label: "mod.io", tone: "neutral", icon: CloudDownloadIcon };
   return { label: "Community", tone: "neutral", icon: FolderIcon };

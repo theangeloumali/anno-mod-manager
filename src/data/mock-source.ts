@@ -2727,8 +2727,8 @@ export const mockSource: DataSource = {
   modListHistory: () =>
     respond(state.scenario.hkNoHistory ? [] : state.hk.history),
 
-  restoreHistoryEntry: (index) =>
-    attempt(() => restoreHumankindHistory(state.hk, index)),
+  restoreHistoryEntry: (time, old) =>
+    attempt(() => restoreHumankindHistory(state.hk, time, old)),
 
   bepinexStatus: (game) =>
     game === "humankind"

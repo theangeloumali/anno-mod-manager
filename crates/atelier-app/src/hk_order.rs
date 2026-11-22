@@ -74,11 +74,12 @@ impl App {
     }
 
     /// Saved as a profile, not written, so the player decides when to switch to it.
-    pub fn restore_history_entry(&self, index: usize) -> Result<String> {
+    /// Found by its time and old list, not its row: the game can log a newer entry meanwhile.
+    pub fn restore_history_entry(&self, time: &str, old: &[String]) -> Result<String> {
         let entry = self
             .mod_list_history()?
             .into_iter()
-            .nth(index)
+            .find(|entry| entry.time == time && entry.old == old)
             .ok_or_else(|| {
                 AppError::new(
                     ErrorCode::NotFound,

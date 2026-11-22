@@ -353,7 +353,11 @@ fn restoring_an_entry_saves_its_old_list_as_a_profile() {
             r#"{"time":"2026-11-21T03:04:05.0000000Z","reason":"reset","culprit":null,"old":"project mercury\/beta\/alpha","new":"project mercury"}"#,
         ],
     );
-    let name = harness.app.restore_history_entry(0).unwrap();
+    let entry = &harness.app.mod_list_history().unwrap()[0];
+    let name = harness
+        .app
+        .restore_history_entry(&entry.time, &entry.old)
+        .unwrap();
     assert_eq!(name, "Restored 2026-11-21 03-04-05 UTC");
     assert_eq!(
         harness.app.humankind_profiles().unwrap(),
@@ -367,8 +371,29 @@ fn restoring_an_entry_saves_its_old_list_as_a_profile() {
 #[test]
 fn restoring_an_entry_that_does_not_exist_is_not_found() {
     let harness = setup();
-    let error = harness.app.restore_history_entry(0).unwrap_err();
+    let error = harness
+        .app
+        .restore_history_entry("2026-11-21T03:04:05.0000000Z", &names(&[BASE]))
+        .unwrap_err();
     assert_eq!(error.code, ErrorCode::NotFound);
+}
+
+#[test]
+fn restoring_finds_its_entry_after_the_game_logs_a_newer_one() {
+    let harness = setup();
+    let older = r#"{"time":"2026-11-21T03:04:05.0000000Z","reason":"reset","culprit":null,"old":"project mercury\/alpha","new":"project mercury"}"#;
+    write_history(&harness, &[older]);
+    let target = harness.app.mod_list_history().unwrap()[0].clone();
+    let newer = r#"{"time":"2026-11-22T09:00:00.0000000Z","reason":"reset","culprit":null,"old":"project mercury\/beta","new":"project mercury"}"#;
+    write_history(&harness, &[older, newer]);
+
+    let name = harness
+        .app
+        .restore_history_entry(&target.time, &target.old)
+        .unwrap();
+
+    harness.app.apply_humankind_profile(&name).unwrap();
+    assert!(registry_text(&harness).contains(&format!("{BASE}/alpha<")));
 }
 
 // the shared profile and load-order commands
@@ -430,8 +455,15 @@ fn restoring_two_entries_from_the_same_second_keeps_both() {
         ],
     );
 
-    let first = harness.app.restore_history_entry(0).unwrap();
-    let second = harness.app.restore_history_entry(1).unwrap();
+    let history = harness.app.mod_list_history().unwrap();
+    let first = harness
+        .app
+        .restore_history_entry(&history[0].time, &history[0].old)
+        .unwrap();
+    let second = harness
+        .app
+        .restore_history_entry(&history[1].time, &history[1].old)
+        .unwrap();
 
     assert_eq!(first, "Restored 2026-11-21 03-04-05 UTC");
     assert_eq!(second, "Restored 2026-11-21 03-04-05 UTC 2");

@@ -7,7 +7,7 @@ use super::bundle::read_module_info;
 use super::module_name::ModuleName;
 use crate::error::io_at;
 use crate::scan::{ModsFolder, ScanResult, SkipReason, dir_size, file_name, skip};
-use crate::{GameId, GameSetup, Mod, ModDependencies, ModOrigin, Result};
+use crate::{GameId, GameSetup, Mod, ModDependencies, ModLocation, ModOrigin, Result};
 
 const MODIO_DIR: &str = "mod.io";
 const BUNDLE_EXTENSION: &str = ".assetbundle";
@@ -85,7 +85,10 @@ fn add_module(
             .map(|info| info.description)
             .filter(|text| !text.is_empty()),
         difficulty: None,
-        location: folder.location,
+        location: match folder.location {
+            ModLocation::Documents if from_modio => ModLocation::GameModio,
+            other => other,
+        },
         origin: if from_modio {
             ModOrigin::Modio
         } else {

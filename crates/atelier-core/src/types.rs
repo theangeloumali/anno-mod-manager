@@ -32,6 +32,8 @@ pub enum ModLocation {
     Ubi,
     /// Steam Workshop content; Steam owns it, so it stays read-only.
     Workshop,
+    /// Humankind's `Community/mod.io`: the game's own mod.io plugin owns it, so it stays read-only.
+    GameModio,
 }
 
 impl ModLocation {
@@ -42,6 +44,7 @@ impl ModLocation {
             Self::Game => "game folder",
             Self::Ubi => "Ubisoft-managed .ubi folder",
             Self::Workshop => "Steam Workshop folder",
+            Self::GameModio => "game's own mod.io folder",
         }
     }
 }

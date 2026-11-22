@@ -119,7 +119,8 @@ export interface DataSource {
   makeSaveLoadable(game: GameId, path: string): Promise<SaveLoadReport>;
   modListHistory(): Promise<HistoryEntry[]>;
   /** Saves the list from before that change as a profile and resolves to its name. */
-  restoreHistoryEntry(index: number): Promise<string>;
+  /** Found by time and old list, so a newer entry logged meanwhile can't shift it. */
+  restoreHistoryEntry(time: string, old: string[]): Promise<string>;
   bepinexStatus(game: GameId): Promise<BepInExStatus>;
   installBepinex(game: GameId): Promise<BepInExStatus>;
   uninstallBepinex(game: GameId): Promise<BepInExStatus>;

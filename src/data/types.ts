@@ -4,7 +4,8 @@ export type GameId = "anno117" | "anno1800" | "humankind";
 export const GAME_IDS: readonly GameId[] = ["anno117", "anno1800", "humankind"];
 export type Store = "steam" | "ubisoft" | "epic" | "manual";
 /** Where the loader found the mod: Documents is ours to write; the rest are read-only. */
-export type ModLocation = "documents" | "game" | "ubi" | "workshop";
+export type ModLocation =
+  "documents" | "game" | "ubi" | "workshop" | "gamemodio";
 type ModOrigin = "modio" | "local";
 type Severity = "ok" | "warning" | "error";
 
@@ -303,6 +304,8 @@ export interface Settings {
 interface SaveMod {
   name: string;
   version: string | null;
+  /** Present when the save names it; tells same-named mods apart. */
+  guid?: string;
 }
 
 interface GameOption {

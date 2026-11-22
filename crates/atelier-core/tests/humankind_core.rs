@@ -562,7 +562,9 @@ fn scan_marks_mod_io_installs() {
         sigma.folder,
         "mod.io/3506667_4753257/Sigma Pack.402b91b9e5724da3851e2b6b727b100a.2.5"
     );
-    assert_eq!(sigma.location, ModLocation::Documents);
+    // The game's own mod.io plugin owns this folder, so Atelier must treat it as read-only.
+    assert_eq!(sigma.location, ModLocation::GameModio);
+    assert_eq!(by_id(&mods, "no city cap").location, ModLocation::GameModio);
     assert_eq!(
         (sigma.origin, sigma.modio_id),
         (ModOrigin::Modio, Some(3506667))

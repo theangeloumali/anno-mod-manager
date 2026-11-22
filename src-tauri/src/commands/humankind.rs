@@ -51,8 +51,12 @@ pub async fn mod_list_history(app: State<'_, App>) -> CommandResult<Vec<HistoryE
 }
 
 #[tauri::command]
-pub async fn restore_history_entry(app: State<'_, App>, index: usize) -> CommandResult<String> {
-    app.restore_history_entry(index)
+pub async fn restore_history_entry(
+    app: State<'_, App>,
+    time: String,
+    old: Vec<String>,
+) -> CommandResult<String> {
+    app.restore_history_entry(&time, &old)
 }
 
 #[tauri::command]

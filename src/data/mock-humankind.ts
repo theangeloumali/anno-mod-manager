@@ -214,9 +214,13 @@ export const exportHumankindProfile = (hk: HumankindMock, name: string) =>
 /** `2026-11-21T19:42:08.0000000Z` → `Restored 2026-11-21 19-42-08 UTC`. */
 export function restoreHumankindHistory(
   hk: HumankindMock,
-  index: number,
+  time: string,
+  old: string[],
 ): string {
-  const entry = hk.history[index];
+  const entry = hk.history.find(
+    (candidate) =>
+      candidate.time === time && candidate.old.join("/") === old.join("/"),
+  );
   if (!entry) throw new CoreError("not-found", "That history entry is gone.");
   const stamp = entry.time.slice(0, 19).replace("T", " ").replaceAll(":", "-");
   const name = `Restored ${stamp} UTC`;
@@ -263,6 +267,7 @@ export const READ_ONLY_PLACE: Record<ModLocation, string> = {
   game: "game folder",
   ubi: "Ubisoft-managed .ubi folder",
   workshop: "Steam Workshop folder",
+  gamemodio: "game's own mod.io folder",
 };
 
 export function makeHumankindSaveLoadable(

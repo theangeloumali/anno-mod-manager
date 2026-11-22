@@ -196,6 +196,23 @@ impl App {
     /// Puts back the newest backup of `mod_id`: an uninstall or a replaced version.
     pub fn restore_mod(&self, game: GameId, mod_id: &str) -> Result<()> {
         let _writes = self.write_guard(game)?;
+        // Humankind loads every copy of a module, so a backup never lands beside another one.
+        if game == GameId::Humankind
+            && let Some(other) = self.scan(game)?.into_iter().find(|copy| {
+                copy.id == mod_id
+                    && !(copy.location == ModLocation::Documents
+                        && copy.folder.starts_with("Atelier/"))
+            })
+        {
+            return Err(AppError::new(
+                ErrorCode::ReadOnly,
+                format!(
+                    "{} is already installed in the {}; remove that copy first so Humankind doesn't load it twice.",
+                    other.name,
+                    other.location.place()
+                ),
+            ));
+        }
         self.0
             .engine
             .rollback(game, mod_id, &self.documents_mods(game))?;
