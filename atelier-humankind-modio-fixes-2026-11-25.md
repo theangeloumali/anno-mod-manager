@@ -77,7 +77,7 @@ Deploy: commit and push to `feat/humankind-support` (PR #11, already authorized)
   - Write failing tests for `ModuleName::detect`, for the scan listing MissileBoy as `missileboy`, and for a drop-install and a mod.io install of the MissileBoy archive landing in `Community\Atelier`. Then implement.
   - Files: `crates/atelier-core/src/humankind/{module_name,scan}.rs`, `crates/atelier-install/src/{roots,classify}.rs`, plus whatever the compiler flags for `guid`/version.
   - Verify: `set -o pipefail; cargo test --manifest-path /mnt/c/Users/Angelo/Desktop/Work/ZKidz/Anno/Cargo.toml -j 4 -p atelier-core -p atelier-modio -p atelier-install -p atelier-app 2>&1 | tail -20`
-- [ ] Phase 2: Maps (TDD)
+- [x] Phase 2: Maps (TDD)
   - Write failing tests: the map archive installs to `Community\Atelier\…\Earth\*.hmap`; the scan lists it as category `Map`; `set_active` on it is refused; uninstall and restore move it.
   - Implement in `roots.rs`, `classify.rs`, `install.rs`, `humankind/scan.rs` and `activation/mod.rs`.
   - UI: a Map chip and no switch, in `src/features/library/humankind-badges.tsx` and `mod-table.tsx`. Mirror it in the mock, with a UI test.
@@ -95,12 +95,12 @@ Deploy: commit and push to `feat/humankind-support` (PR #11, already authorized)
 
 ## Estimates
 
-| Task | With Claude | Without |
-| --- | --- | --- |
-| Phase 1 plain modules | 1h | 4h |
-| Phase 2 maps | 1.5h | 6h |
-| Phase 3 Workshop-satisfied downloads | 1h | 4h |
-| Phase 4 close | 1h | 3h |
-| **Total** | **4.5h** | **17h** |
+| Task                                 | With Claude | Without |
+| ------------------------------------ | ----------- | ------- |
+| Phase 1 plain modules                | 1h          | 4h      |
+| Phase 2 maps                         | 1.5h        | 6h      |
+| Phase 3 Workshop-satisfied downloads | 1h          | 4h      |
+| Phase 4 close                        | 1h          | 3h      |
+| **Total**                            | **4.5h**    | **17h** |
 
 That's about 3.8x faster, saving roughly 74% of the time.

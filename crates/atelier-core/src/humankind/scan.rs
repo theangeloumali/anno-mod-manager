@@ -1,9 +1,11 @@
-//! Humankind has no modinfo: each module file with its `.assetbundle` beside it is one module.
+//! Humankind has no modinfo: each module file with its `.assetbundle` beside it is one module,
+//! and each other folder holding a `.hmap` is one map.
 
 use std::fs;
 use std::path::Path;
 
 use super::bundle::read_module_info;
+use super::maps;
 use super::module_name::ModuleName;
 use crate::error::io_at;
 use crate::scan::{ModsFolder, ScanResult, SkipReason, dir_size, file_name, skip};
@@ -33,10 +35,16 @@ fn visit(folder: &ModsFolder, dir: &Path, result: &mut ScanResult) -> Result<()>
         }
     }
     files.sort();
+    let mut has_module = false;
     for name in &files {
         if let Some(module) = ModuleName::detect(name, &files) {
+            has_module = true;
             add_module(folder, dir, module, &files, result)?;
         }
+    }
+    // A module folder's maps ship inside the module, so only a folder without one is a map.
+    if !has_module && let Some(name) = maps::map_name(&files) {
+        add_map(folder, dir, name, result)?;
     }
     subdirs.sort();
     for subdir in subdirs {
@@ -77,24 +85,56 @@ fn add_module(
     };
     // An unreadable bundle leaves the category blank: "type not verified", never a guessed type.
     let info = read_module_info(&dir.join(bundle)).ok();
+    let mut item = community_mod(folder, dir, &parts, module.short_name(), &module.name)?;
+    item.category = info
+        .as_ref()
+        .map(|info| info.module_type.as_str().to_string())
+        .unwrap_or_default();
+    item.version = module.version();
+    item.author = info
+        .as_ref()
+        .map(|info| info.author.clone())
+        .filter(|text| !text.is_empty());
+    item.description = info
+        .map(|info| info.description)
+        .filter(|text| !text.is_empty());
+    item.module_guid = module.guid.as_deref().map(str::to_lowercase);
+    result.mods.push(item);
+    Ok(())
+}
+
+fn add_map(folder: &ModsFolder, dir: &Path, name: &str, result: &mut ScanResult) -> Result<()> {
+    let parts = relative_parts(&folder.path, dir);
+    if parts.is_empty() {
+        let reason = "a map needs its own folder inside the mods folder".to_string();
+        let path = dir.join(format!("{name}{}", maps::MAP_EXTENSION));
+        skip(result, &path, SkipReason::Invalid(reason));
+        return Ok(());
+    }
+    let mut item = community_mod(folder, dir, &parts, maps::map_id(name), name)?;
+    item.category = maps::MAP_CATEGORY.to_string();
+    result.mods.push(item);
+    Ok(())
+}
+
+/// A Community folder's item, blank where only a module's bundle can say more.
+fn community_mod(
+    folder: &ModsFolder,
+    dir: &Path,
+    parts: &[String],
+    id: String,
+    name: &str,
+) -> Result<Mod> {
     let from_modio = parts[0].eq_ignore_ascii_case(MODIO_DIR);
-    result.mods.push(Mod {
-        id: module.short_name(),
+    Ok(Mod {
+        id,
         game: GameId::Humankind,
         folder: parts.join("/"),
-        name: module.name.clone(),
-        category: info
-            .as_ref()
-            .map(|info| info.module_type.as_str().to_string())
-            .unwrap_or_default(),
-        version: module.version(),
-        author: info
-            .as_ref()
-            .map(|info| info.author.clone())
-            .filter(|text| !text.is_empty()),
-        description: info
-            .map(|info| info.description)
-            .filter(|text| !text.is_empty()),
+        name: name.to_string(),
+        category: String::new(),
+        version: String::new(),
+        author: None,
+        description: None,
         difficulty: None,
         location: match folder.location {
             ModLocation::Documents if from_modio => ModLocation::GameModio,
@@ -105,7 +145,7 @@ fn add_module(
         } else {
             ModOrigin::Local
         },
-        modio_id: if from_modio { modio_id(&parts) } else { None },
+        modio_id: if from_modio { modio_id(parts) } else { None },
         active: true,
         size_bytes: dir_size(dir)?,
         setup: GameSetup::default(),
@@ -115,9 +155,8 @@ fn add_module(
         parent_id: None,
         sub_mod_ids: Vec::new(),
         update: None,
-        module_guid: module.guid.as_deref().map(str::to_lowercase),
-    });
-    Ok(())
+        module_guid: None,
+    })
 }
 
 fn relative_parts(root: &Path, dir: &Path) -> Vec<String> {

@@ -9,6 +9,10 @@ export const moduleKind = (category: string): ModuleKind =>
     ? category
     : "Extension";
 
+/** Maps load from anywhere under Community and never enter the load order (humankind/maps.rs). */
+export const isMap = (mod: { category: string }): boolean =>
+  mod.category === "Map";
+
 type KindOf = (module: string) => ModuleKind;
 
 export interface OrderGroups {

@@ -3,6 +3,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use atelier_core::humankind::maps;
 use atelier_core::humankind::module_name::ModuleName;
 use atelier_core::{GameId, ModInfo, modinfo, normalize_mod_id};
 
@@ -25,6 +26,10 @@ pub(crate) enum Manifest {
         module: ModuleName,
         has_bundle: bool,
         modules_in_folder: usize,
+    },
+    /// A Humankind map: a folder holding a `.hmap` and no module, named after the map.
+    Map {
+        name: String,
     },
     /// A Humankind BepInEx plugin, installed as `BepInEx/plugins/<name>`.
     Plugin {
@@ -52,6 +57,7 @@ impl FoundRoot {
                 info.mod_id.clone().unwrap_or_default()
             }
             Manifest::Module { module, .. } => module.short_name(),
+            Manifest::Map { name } => maps::map_id(name),
             Manifest::Plugin { name } => normalize_mod_id(name),
             _ => normalize_mod_id(&file_name(&self.dir)),
         }
@@ -70,6 +76,17 @@ pub(crate) fn has_data_folder(dir: &Path) -> bool {
 
 pub(crate) fn has_module_file(dir: &Path) -> bool {
     modules_in(dir).is_ok_and(|modules| !modules.is_empty())
+}
+
+/// The map a folder holds, by name; a module's folder ships its maps inside the module.
+pub(crate) fn map_in(dir: &Path) -> Result<Option<String>> {
+    let files = file_names(dir)?;
+    let has_module = files
+        .iter()
+        .any(|name| ModuleName::detect(name, &files).is_some());
+    Ok((!has_module)
+        .then(|| maps::map_name(&files).map(str::to_string))
+        .flatten())
 }
 
 /// Loose `.dll`s or a `BepInEx/` folder: what a plugin archive holds at its top level.
@@ -95,6 +112,9 @@ pub(crate) fn modules_in(dir: &Path) -> Result<Vec<(ModuleName, bool)>> {
 /// Humankind roots, then Anno ones; where the two overlap, the previewed game's kind wins.
 pub(crate) fn find_roots(staged: &Path, game: GameId) -> Result<Vec<FoundRoot>> {
     let mut humankind = module_roots(staged)?;
+    let mut map_folders = map_roots(staged)?;
+    map_folders.retain(|map| !overlaps_any(map, &humankind));
+    humankind.extend(map_folders);
     if game == GameId::Humankind {
         // A dll inside a module's folder ships with the module; it isn't a second item.
         let mut plugins = plugin_roots(staged)?;
@@ -120,7 +140,9 @@ pub(crate) fn find_roots(staged: &Path, game: GameId) -> Result<Vec<FoundRoot>> 
 /// The game a root targets: modinfo's `Anno` first, then the asset layout.
 pub(crate) fn detect_game(root: &FoundRoot) -> Option<GameId> {
     match &root.manifest {
-        Manifest::Module { .. } | Manifest::Plugin { .. } => return Some(GameId::Humankind),
+        Manifest::Module { .. } | Manifest::Map { .. } | Manifest::Plugin { .. } => {
+            return Some(GameId::Humankind);
+        }
         Manifest::Parsed(info) => match info.anno {
             Some(ANNO_117_MARKER) => return Some(GameId::Anno117),
             Some(ANNO_1800_MARKER) => return Some(GameId::Anno1800),
@@ -173,6 +195,22 @@ fn module_roots(staged: &Path) -> Result<Vec<FoundRoot>> {
                 modules_in_folder,
             };
             roots.push(plain_root(dir, manifest));
+        }
+    }
+    Ok(roots)
+}
+
+fn map_roots(staged: &Path) -> Result<Vec<FoundRoot>> {
+    let mut dirs = Vec::new();
+    collect_dirs(
+        staged,
+        &|dir| map_in(dir).is_ok_and(|map| map.is_some()),
+        &mut dirs,
+    )?;
+    let mut roots = Vec::new();
+    for dir in dirs {
+        if let Some(name) = map_in(&dir)? {
+            roots.push(plain_root(dir, Manifest::Map { name }));
         }
     }
     Ok(roots)

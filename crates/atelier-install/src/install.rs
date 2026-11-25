@@ -3,12 +3,13 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
+use atelier_core::humankind::maps;
 use atelier_core::{GameId, modinfo, normalize_mod_id};
 
 use crate::backup::backup_path;
 use crate::error::io_at;
 use crate::fsops::{child_dirs, file_name, is_windows_safe_name, move_dir};
-use crate::roots::modules_in;
+use crate::roots::{map_in, modules_in};
 use crate::{Error, InstallItemStatus, InstallPreviewItem, InstallResult, Result};
 
 /// Humankind's Community folder holds Atelier's installs here, apart from mod.io's own folder.
@@ -175,7 +176,7 @@ fn back_up(game: GameId, dir: &Path, backup_dir: &Path, journal: &mut Vec<Step>)
     Ok(())
 }
 
-/// The folder under `root` holding the module whose short name is `short_name`, at any depth.
+/// The folder under `root` holding the module or map whose id is `short_name`, at any depth.
 pub(crate) fn find_module(root: &Path, short_name: &str) -> Result<Option<PathBuf>> {
     if !root.is_dir() {
         return Ok(None);
@@ -185,14 +186,17 @@ pub(crate) fn find_module(root: &Path, short_name: &str) -> Result<Option<PathBu
             continue;
         }
         let modules = modules_in(&dir)?;
+        let map = map_in(&dir)?;
         if modules
             .iter()
             .any(|(module, _)| module.short_name() == short_name)
+            || map.as_deref().map(maps::map_id).as_deref() == Some(short_name)
         {
             return Ok(Some(dir));
         }
-        // A module folder's subfolders belong to it, never to another module.
+        // A module or map folder's subfolders belong to it, never to another item.
         if modules.is_empty()
+            && map.is_none()
             && let Some(found) = find_module(&dir, short_name)?
         {
             return Ok(Some(found));

@@ -73,6 +73,7 @@ impl From<atelier_core::Error> for AppError {
             | Core::NoProfiles(_)
             | Core::SubMod(_)
             | Core::BaseModule(_)
+            | Core::MapAlwaysOn(_)
             | Core::LoadOrder(_) => ErrorCode::InvalidInput,
             Core::Io { .. }
             | Core::Json(_)

@@ -422,3 +422,37 @@ fn uninstalling_a_module_whose_folder_holds_a_nested_module_is_refused() {
     assert!(error.message.contains("Inner Mod"), "{}", error.message);
     assert!(pack.join("Inner").join(&inner).is_file());
 }
+
+#[test]
+fn a_map_installs_on_uninstalls_and_restores_without_touching_the_registry() {
+    let harness = Harness::new();
+    let map = "[MAP] ultra-realistic earth map";
+    let id = map.to_lowercase();
+    let entries = vec![
+        (format!("Earth/{map}.hmap"), b"map".to_vec()),
+        ("Earth/README.txt".to_string(), b"readme".to_vec()),
+    ];
+    let archive = drop_archive(&harness, "earth.zip", &entries);
+    harness.write_humankind_registry("project mercury");
+    let registry_before = registry_text(&harness);
+    install_drop(&harness, &archive);
+
+    let earth = harness
+        .app
+        .list_mods(HUMANKIND)
+        .unwrap()
+        .into_iter()
+        .find(|item| item.id == id)
+        .unwrap();
+    assert!(earth.active);
+    assert_eq!(earth.category, "Map");
+    assert!(harness.app.set_mod_active(HUMANKIND, &id, false).is_err());
+
+    harness.app.uninstall_mod(HUMANKIND, &id).unwrap();
+    assert_eq!(folder_of(&harness, &id), None);
+    harness.app.restore_mod(HUMANKIND, &id).unwrap();
+
+    let folder = folder_of(&harness, &id).unwrap();
+    assert!(folder.starts_with("Atelier/"), "{folder}");
+    assert_eq!(registry_text(&harness), registry_before);
+}

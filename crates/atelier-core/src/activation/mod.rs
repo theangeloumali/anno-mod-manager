@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use serde_json::{Map, Value};
 
 use crate::error::io_at;
-use crate::humankind;
+use crate::humankind::{self, maps};
 use crate::scan::ModsFolder;
 pub use crate::snapshots::Snapshots;
 use crate::snapshots::{ensure_writable, write_with_snapshot};
@@ -121,7 +121,7 @@ pub fn read(game: GameId, mods_dir: &Path) -> Result<ActivationState> {
 pub fn apply(state: &ActivationState, mods: &mut [Mod]) {
     let mut parents: HashMap<(ModLocation, String), bool> = HashMap::new();
     for target in mods.iter_mut().filter(|m| m.parent_id.is_none()) {
-        target.active = state.is_active(&target.id, &target.folder);
+        target.active = maps::is_map(target) || state.is_active(&target.id, &target.folder);
         parents.insert((target.location, target.id.clone()), target.active);
     }
     for target in mods.iter_mut() {
@@ -146,6 +146,9 @@ pub fn set_active(
     ensure_writable(writable)?;
     if target.parent_id.is_some() {
         return Err(Error::SubMod(target.id.clone()));
+    }
+    if maps::is_map(target) {
+        return Err(Error::MapAlwaysOn(target.id.clone()));
     }
     let dir = &writable.path;
     match detect_scheme(game, dir) {

@@ -147,3 +147,22 @@ test("a save whose mod list couldn't be read never sets the list", () => {
       error instanceof CoreError && error.code === "invalid-input",
   );
 });
+
+const EARTH = "[map] ultra-realistic earth map";
+
+test("a map is always on, has no switch and never enters the load order", () => {
+  const { hk, mods } = setup();
+  const earth = mods.find((mod) => mod.id === EARTH);
+  assert.equal(earth?.category, "Map");
+  assert.equal(earth?.active, true);
+  assert.throws(
+    () => setHumankindModActive(hk, mods, EARTH, false),
+    (error: { code: string }) => error.code === "invalid-input",
+  );
+  assert.throws(
+    () => writeHumankindOrder(hk, mods, ["prussia", EARTH]),
+    (error: { code: string }) => error.code === "not-found",
+  );
+  writeHumankindOrder(hk, mods, ["prussia"]);
+  assert.equal(mods.find((mod) => mod.id === EARTH)?.active, true);
+});

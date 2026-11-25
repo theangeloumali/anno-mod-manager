@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use atelier_core::health::humankind::plugins_dir;
+use atelier_core::humankind::maps::MAP_CATEGORY;
 use atelier_core::{GameId, Mod, ModInfo, ModLocation, Severity, normalize_mod_id};
 
 use crate::fsops::{child_dirs, file_name};
@@ -53,7 +54,7 @@ impl<'a> Classifier<'a> {
         };
         let (name, version) = match &root.manifest {
             Manifest::Module { module, .. } => (module.name.clone(), module.version()),
-            Manifest::Plugin { name } => (name.clone(), String::new()),
+            Manifest::Map { name } | Manifest::Plugin { name } => (name.clone(), String::new()),
             _ => (
                 info.and_then(|info| info.name.clone()).unwrap_or(folder),
                 info.map(|info| info.version.clone()).unwrap_or_default(),
@@ -62,9 +63,12 @@ impl<'a> Classifier<'a> {
         let mut item = InstallPreviewItem {
             root_path: relative_path(staged, &root.dir),
             name,
-            category: info
-                .and_then(|info| info.category.clone())
-                .unwrap_or_default(),
+            category: match &root.manifest {
+                Manifest::Map { .. } => MAP_CATEGORY.to_string(),
+                _ => info
+                    .and_then(|info| info.category.clone())
+                    .unwrap_or_default(),
+            },
             version,
             previous_version: None,
             target_game: detect_game(root),
@@ -109,6 +113,10 @@ impl<'a> Classifier<'a> {
             Manifest::Module { module, .. } => Placement::Module {
                 folder: self.module_folder(&module.to_string()),
             },
+            // Named after the map, not its folder, so two packs' `Earth/` never collide.
+            Manifest::Map { name } => Placement::Module {
+                folder: self.module_folder(name),
+            },
             Manifest::Plugin { name } => Placement::Plugin {
                 plugins_dir: self.plugins_dir().unwrap_or_default(),
                 folder: new_folder_name(name),
@@ -124,6 +132,18 @@ impl<'a> Classifier<'a> {
         }
         folder.push(long_name);
         folder
+    }
+
+    /// A download into another `<modId>_<modfileId>` folder than the Atelier copy's: mod.io
+    /// serves only a page's latest file, so a different one is newer.
+    fn is_newer_modio_file(&self, existing: &Mod) -> bool {
+        let Some(modio) = &self.options.modio_folder else {
+            return false;
+        };
+        let atelier = format!("{ATELIER_FOLDER}/");
+        existing.location == ModLocation::Documents
+            && existing.folder.starts_with(&atelier)
+            && !existing.folder.starts_with(&format!("{atelier}{modio}/"))
     }
 
     fn plugins_dir(&self) -> Option<PathBuf> {
@@ -166,7 +186,10 @@ impl<'a> Classifier<'a> {
             return self.humankind_invalid_reason(root);
         }
         match &root.manifest {
-            Manifest::Parsed(_) | Manifest::Module { .. } | Manifest::Plugin { .. } => None,
+            Manifest::Parsed(_)
+            | Manifest::Module { .. }
+            | Manifest::Map { .. }
+            | Manifest::Plugin { .. } => None,
             Manifest::Broken(reason) => Some(format!("modinfo.json can't be read: {reason}")),
             Manifest::Inferred => match self.game {
                 GameId::Anno117 => {
@@ -202,6 +225,7 @@ impl<'a> Classifier<'a> {
                 }
                 self.copy_outside_atelier(&module.short_name())
             }
+            Manifest::Map { .. } => self.copy_outside_atelier(&root.mod_id()),
             // A plugin is a DLL the game runs, so it never arrives unseen through a download.
             Manifest::Plugin { .. } if self.options.modio_folder.is_some() => Some(
                 "BepInEx plugins run code inside the game, so Atelier won't install one from a download. Download it yourself and drop the file on Atelier to review it first."
@@ -224,7 +248,8 @@ impl<'a> Classifier<'a> {
                 }
             }
             Manifest::Unrecognised => Some(
-                "No Humankind module or BepInEx plugin here, so Humankind can't load it".into(),
+                "No Humankind module, map or BepInEx plugin here, so Humankind can't load it"
+                    .into(),
             ),
             Manifest::Parsed(_) | Manifest::Broken(_) | Manifest::Inferred => None,
         }
@@ -283,6 +308,7 @@ impl<'a> Classifier<'a> {
     ) -> String {
         let evidence = match (&root.manifest, info.and_then(|info| info.anno)) {
             (Manifest::Module { .. }, _) => "a module file, no modinfo.json".into(),
+            (Manifest::Map { .. }, _) => "a .hmap map, no modinfo.json".into(),
             (_, Some(anno)) => format!("modinfo \"Anno\": {anno}"),
             (_, None) => "by its folder layout".into(),
         };
@@ -318,10 +344,9 @@ impl<'a> Classifier<'a> {
     fn compare_with_installed(&self, root: &FoundRoot, item: &mut InstallPreviewItem) {
         let existing = installed_copy(self.game, self.installed, &item.mod_id);
         let Some(existing) = existing else {
-            let message = match &root.manifest {
-                Manifest::Module { module, .. } => {
-                    let folder =
-                        Path::new(ATELIER_FOLDER).join(self.module_folder(&module.to_string()));
+            let message = match self.placement(root) {
+                Placement::Module { folder } => {
+                    let folder = Path::new(ATELIER_FOLDER).join(folder);
                     format!("Installs to Community\\{}", windows_path(&folder))
                 }
                 _ => format!("Installs to mods\\{}", self.free_folder_name(&item.mod_id)),
@@ -332,6 +357,12 @@ impl<'a> Classifier<'a> {
         let noun = self.id_noun();
         let previous = existing.version.clone();
         let (status, level, message) = match compare_versions(&item.version, &previous) {
+            // A versionless item's only version is its mod.io file, named in its folder.
+            Ordering::Equal if previous.is_empty() && self.is_newer_modio_file(existing) => (
+                InstallItemStatus::Update,
+                Severity::Ok,
+                "A newer file from mod.io; the old one is backed up".into(),
+            ),
             // Only a Documents copy is replaced; a shipped one stays where it is.
             Ordering::Greater if existing.location == ModLocation::Documents => (
                 InstallItemStatus::Update,

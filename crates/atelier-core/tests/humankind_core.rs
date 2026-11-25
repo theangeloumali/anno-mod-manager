@@ -6,7 +6,7 @@ use std::time::{Duration, SystemTime};
 
 use atelier_core::humankind::bundle::{self, BundleError, ModuleType};
 use atelier_core::humankind::module_name::{self, ModuleName};
-use atelier_core::humankind::{detect, registry};
+use atelier_core::humankind::{detect, load_order, maps, registry};
 use atelier_core::scan::{self, SkipReason};
 use atelier_core::{ActivationScheme, Error, GameId, Mod, ModLocation, ModOrigin, activation};
 use common::{documents, folder_at, snapshots, test_mod};
@@ -925,4 +925,74 @@ fn the_scan_lists_an_older_plain_named_module() {
     assert_eq!(boy.version, "");
     assert_eq!(boy.module_guid, None);
     assert!(result.skipped.is_empty(), "{:?}", result.skipped);
+}
+
+// maps
+
+const EARTH: &str = "[MAP] ultra-realistic earth map";
+
+fn map_mod(id: &str) -> Mod {
+    Mod {
+        game: GameId::Humankind,
+        folder: format!("Atelier/1134524_4916225/{id}"),
+        version: String::new(),
+        ..test_mod(id, maps::MAP_CATEGORY, id)
+    }
+}
+
+#[test]
+fn the_scan_lists_a_map_folder_as_one_map() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("Atelier/1134524_4916225/Earth");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join(format!("{EARTH}.hmap")), b"map").unwrap();
+    fs::write(dir.join("Classical era.png"), b"png").unwrap();
+    fs::write(dir.join("README.txt"), b"readme").unwrap();
+
+    let result = scan::scan(GameId::Humankind, &[documents(tmp.path())]).unwrap();
+
+    assert_eq!(result.mods.len(), 1, "{:?}", result.mods);
+    let earth = &result.mods[0];
+    assert_eq!(earth.id, EARTH.to_lowercase());
+    assert_eq!(earth.name, EARTH);
+    assert_eq!(earth.category, maps::MAP_CATEGORY);
+    assert_eq!(earth.version, "");
+    assert_eq!(earth.folder, "Atelier/1134524_4916225/Earth");
+}
+
+#[test]
+fn a_map_stays_on_whatever_the_registry_lists() {
+    let tmp = tempfile::tempdir().unwrap();
+    let game = game_dir(tmp.path());
+    let state = activation::read(GameId::Humankind, &game.join("Community")).unwrap();
+    let mut mods = vec![map_mod("earth"), module("not listed")];
+
+    activation::apply(&state, &mut mods);
+
+    assert!(mods[0].active);
+    assert!(!mods[1].active);
+}
+
+#[test]
+fn a_map_has_no_switch_and_never_enters_the_registry() {
+    let tmp = tempfile::tempdir().unwrap();
+    let game = game_dir(tmp.path());
+    let community = documents(&game.join("Community"));
+    let store = snapshots(tmp.path());
+    let before = fs::read(registry_file(&game)).unwrap();
+    let installed = [map_mod("earth")];
+
+    let result = activation::set_active(
+        GameId::Humankind,
+        &community,
+        &map_mod("earth"),
+        true,
+        &installed,
+        &store,
+    );
+
+    assert!(matches!(result, Err(Error::MapAlwaysOn(_))), "{result:?}");
+    let order = names(&["project mercury", "earth"]);
+    assert_eq!(load_order::missing(&order, &installed), names(&["earth"]));
+    assert_eq!(fs::read(registry_file(&game)).unwrap(), before);
 }

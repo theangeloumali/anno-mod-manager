@@ -5,9 +5,10 @@ import {
   LayersIcon,
   LockIcon,
   type LucideIcon,
+  MapIcon,
 } from "lucide-react";
 import { StateBadge, type StateTone } from "@/components/app/state-badge";
-import { moduleKind } from "@/data/humankind-order";
+import { isMap, moduleKind } from "@/data/humankind-order";
 import type { Mod } from "@/data/types";
 
 interface Chip {
@@ -30,12 +31,14 @@ function sourceChip(mod: Pick<Mod, "origin" | "location">): Chip {
 
 /** A blank category means the bundle wasn't read; say so rather than guess Extension. */
 function typeChip(category: string): Chip {
+  if (isMap({ category }))
+    return { label: "Map · always on", tone: "neutral", icon: MapIcon };
   if (category === "")
     return { label: "Type not verified", tone: "warning", icon: LayersIcon };
   return { label: moduleKind(category), tone: "neutral", icon: LayersIcon };
 }
 
-/** Where a Humankind mod came from and what kind of module it is. */
+/** Where a Humankind mod came from and what kind of module or map it is. */
 export function HumankindModChips({ mod }: { mod: Mod }) {
   return (
     <span className="mt-1 flex flex-wrap gap-1">

@@ -64,6 +64,16 @@ export const HUMANKIND_MOD_SEEDS: HumankindModSeed[] = [
     folder: "mods.io/4019302/Long Range Nuclear Missiles",
     modioId: 4019302,
   },
+  {
+    id: "[map] ultra-realistic earth map",
+    name: "[MAP] ultra-realistic earth map",
+    category: "Map",
+    version: "",
+    location: "documents",
+    origin: "modio",
+    folder: "Atelier/1134524_4916225/[MAP] ultra-realistic earth map",
+    modioId: 1134524,
+  },
 ];
 
 export const seedOrder = (): string[] => [

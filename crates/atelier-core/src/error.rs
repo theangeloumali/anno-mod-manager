@@ -41,6 +41,8 @@ pub enum Error {
         .0.join(", ")
     )]
     MissingModules(Vec<String>),
+    #[error("'{0}' is a map; Humankind lists every installed map, so it has no on/off switch")]
+    MapAlwaysOn(String),
     #[error("{0} is too large to be a file the game wrote, so Atelier won't read it")]
     TooLarge(PathBuf),
 }

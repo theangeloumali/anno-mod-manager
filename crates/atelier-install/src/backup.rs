@@ -6,13 +6,14 @@ use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use atelier_core::GameId;
+use atelier_core::humankind::maps;
 use atelier_core::humankind::module_name::ModuleName;
 use serde::Serialize;
 
 use crate::error::io_at;
 use crate::fsops::{child_dirs, file_name, move_dir};
 use crate::install::{identify, new_folder_name, target_folder};
-use crate::roots::modules_in;
+use crate::roots::{map_in, modules_in};
 use crate::{Error, Result};
 
 const MILLIS_PER_DAY: u64 = 86_400_000;
@@ -214,17 +215,20 @@ fn is_inside(target: &Path, dir: &Path) -> bool {
             .any(|part| matches!(part, Component::ParentDir))
 }
 
-/// Humankind folders have no modinfo: their module file names them.
+/// Humankind folders have no modinfo: their module file, else their map, names them.
 /// Only Humankind looks for one, so an Anno file shaped like it never renames a backup.
 fn identity(game: GameId, dir: &Path) -> (String, String) {
     if game != GameId::Humankind {
         return identify(dir);
     }
-    match modules_in(dir)
+    if let Some((module, _)) = modules_in(dir)
         .ok()
         .and_then(|modules| modules.into_iter().next())
     {
-        Some((module, _)) => (module.short_name(), module.version()),
+        return (module.short_name(), module.version());
+    }
+    match map_in(dir).ok().flatten() {
+        Some(name) => (maps::map_id(&name), String::new()),
         None => identify(dir),
     }
 }

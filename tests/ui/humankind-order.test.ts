@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   enableModule,
+  isMap,
   joinOrder,
   moduleKind,
   moveExtension,
@@ -100,4 +101,10 @@ test("an Extension move keeps a module that isn't installed in the list", () => 
     "nukes",
     "prussia",
   ]);
+});
+
+test("a map is told apart from a module by its category", () => {
+  assert.equal(isMap({ category: "Map" }), true);
+  assert.equal(isMap({ category: "Extension" }), false);
+  assert.equal(isMap({ category: "" }), false);
 });

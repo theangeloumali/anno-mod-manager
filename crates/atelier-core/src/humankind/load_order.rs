@@ -4,6 +4,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::humankind::bundle::ModuleType;
+use crate::humankind::maps::is_map;
 use crate::humankind::module_name::short_name;
 use crate::humankind::registry::BASE_MODULE;
 use crate::{Error, Mod, Result};
@@ -135,8 +136,13 @@ pub fn disable(order: &[String], module: &str) -> Result<Vec<String>> {
 }
 
 /// Listed modules that aren't installed, each once; the base game ships with the game.
+/// A map is not a module, so listing one would make the game reset the list too.
 pub fn missing(order: &[String], installed: &[Mod]) -> Vec<String> {
-    let present: HashSet<&str> = installed.iter().map(|item| item.id.as_str()).collect();
+    let present: HashSet<&str> = installed
+        .iter()
+        .filter(|item| !is_map(item))
+        .map(|item| item.id.as_str())
+        .collect();
     normalize(order)
         .into_iter()
         .skip(1)

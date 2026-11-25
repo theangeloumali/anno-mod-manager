@@ -1,5 +1,5 @@
 // Created by The Angelo Umali.
-import { CornerDownRightIcon, LockIcon } from "lucide-react";
+import { CornerDownRightIcon, LockIcon, MapIcon } from "lucide-react";
 import { useAppStore } from "@/components/app/app-store";
 import { SWITCH_CLASS } from "@/components/app/field-class";
 import {
@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { isMap } from "@/data/humankind-order";
 import { useAction } from "@/data/source";
 import type { Issue, Mod } from "@/data/types";
 import { cn } from "@/lib/utils";
@@ -72,18 +73,29 @@ function ModRow({
       className={cn("border-line", isSelected && "bg-surface")}
     >
       <TableCell className="w-12 pl-3">
-        <Switch
-          className={SWITCH_CLASS}
-          checked={mod.active}
-          disabled={isWriteLocked || toggle.isPending}
-          aria-label={`${mod.name} ${mod.active ? "on" : "off"}`}
-          onCheckedChange={(checked) =>
-            withToast(
-              toggle.mutateAsync([checked]),
-              `${mod.name} turned ${checked ? "on" : "off"}`,
-            )
-          }
-        />
+        {isHumankind && isMap(mod) ? (
+          // Humankind lists every installed map, so there's nothing to switch.
+          <span
+            title="Maps are always on"
+            className="text-muted-foreground flex w-8 justify-center"
+          >
+            <MapIcon aria-hidden className="size-4" />
+            <span className="sr-only">{mod.name} is a map, always on</span>
+          </span>
+        ) : (
+          <Switch
+            className={SWITCH_CLASS}
+            checked={mod.active}
+            disabled={isWriteLocked || toggle.isPending}
+            aria-label={`${mod.name} ${mod.active ? "on" : "off"}`}
+            onCheckedChange={(checked) =>
+              withToast(
+                toggle.mutateAsync([checked]),
+                `${mod.name} turned ${checked ? "on" : "off"}`,
+              )
+            }
+          />
+        )}
       </TableCell>
       <TableCell className="w-full max-w-0">
         <button

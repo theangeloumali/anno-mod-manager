@@ -764,3 +764,95 @@ fn a_plain_named_module_from_modio_installs_and_scans() {
     assert_eq!(installed[0].id, "missileboy");
     assert_eq!(installed[0].folder, "Atelier/1844855_2311833/MissileBoy");
 }
+
+const EARTH: &str = "[MAP] ultra-realistic earth map";
+
+/// The [MAP] Ultra-Realistic earth archive's layout: one `.hmap`, preview images and a README.
+fn earth_files() -> Vec<(String, Vec<u8>)> {
+    vec![
+        (format!("Earth/{EARTH}.hmap"), b"map".to_vec()),
+        ("Earth/Classical era.png".into(), b"png".to_vec()),
+        ("Earth/README.txt".into(), b"readme".to_vec()),
+    ]
+}
+
+fn modio_options(folder: &str) -> PreviewOptions {
+    PreviewOptions {
+        modio_folder: Some(folder.into()),
+        ..PreviewOptions::default()
+    }
+}
+
+#[test]
+fn a_map_from_modio_installs_under_atelier_and_scans_as_a_map() {
+    let sandbox = Sandbox::new();
+    let archive = drop_zip(&sandbox, "earth.zip", &earth_files());
+
+    let preview = preview(
+        &sandbox,
+        HUMANKIND,
+        &archive,
+        &modio_options("1134524_4916225"),
+    );
+    let item = only_item(&preview);
+    assert_eq!(item.mod_id, EARTH.to_lowercase());
+    assert_eq!(item.category, "Map");
+    assert_eq!(item.status, InstallItemStatus::New, "{item:#?}");
+    let target = format!("Installs to Community\\Atelier\\1134524_4916225\\{EARTH}");
+    assert!(has_check(item, Severity::Ok, &target), "{item:#?}");
+    confirm(&sandbox, HUMANKIND, &preview);
+
+    let installed = sandbox.installed(HUMANKIND);
+    assert_eq!(installed.len(), 1, "{installed:#?}");
+    assert_eq!(installed[0].category, "Map");
+    assert_eq!(
+        installed[0].folder,
+        format!("Atelier/1134524_4916225/{EARTH}")
+    );
+}
+
+#[test]
+fn a_newer_modio_file_of_a_versionless_item_replaces_the_old_one() {
+    for files in [missileboy_files(), earth_files()] {
+        let sandbox = Sandbox::new();
+        let first = drop_zip(&sandbox, "first.zip", &files);
+        let preview_first = preview(&sandbox, HUMANKIND, &first, &modio_options("7_1"));
+        confirm(&sandbox, HUMANKIND, &preview_first);
+
+        let second = drop_zip(&sandbox, "second.zip", &files);
+        let preview_second = preview(&sandbox, HUMANKIND, &second, &modio_options("7_2"));
+        let item = only_item(&preview_second);
+        assert_eq!(item.status, InstallItemStatus::Update, "{item:#?}");
+        confirm(&sandbox, HUMANKIND, &preview_second);
+
+        let installed = sandbox.installed(HUMANKIND);
+        assert_eq!(installed.len(), 1, "{installed:#?}");
+        assert!(installed[0].folder.starts_with("Atelier/7_2/"));
+        assert!(!sandbox.mods().join("Atelier/7_1").exists());
+    }
+}
+
+#[test]
+fn the_same_versionless_modio_file_again_is_skipped() {
+    let sandbox = Sandbox::new();
+    let first = drop_zip(&sandbox, "first.zip", &earth_files());
+    let preview_first = preview(&sandbox, HUMANKIND, &first, &modio_options("7_1"));
+    confirm(&sandbox, HUMANKIND, &preview_first);
+
+    let again = drop_zip(&sandbox, "again.zip", &earth_files());
+    let preview_again = preview(&sandbox, HUMANKIND, &again, &modio_options("7_1"));
+
+    assert_eq!(only_item(&preview_again).status, InstallItemStatus::Same);
+}
+
+#[test]
+fn a_map_dropped_on_anno_is_built_for_humankind() {
+    let sandbox = Sandbox::new();
+    let archive = drop_zip(&sandbox, "earth.zip", &earth_files());
+
+    let preview = preview(&sandbox, ANNO, &archive, &PreviewOptions::default());
+
+    let item = only_item(&preview);
+    assert_eq!(item.status, InstallItemStatus::WrongGame, "{item:#?}");
+    assert_eq!(item.target_game, Some(HUMANKIND));
+}

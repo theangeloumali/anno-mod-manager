@@ -1,7 +1,12 @@
 // Humankind's half of the mock: Registry.xml's list, app-owned profiles, saves, history, BepInEx.
 // Refusals throw CoreError with the core's codes; mock-source turns them into rejections.
 import { CoreError } from "./core-error.ts";
-import { enableModule, moduleKind, orderProblem } from "./humankind-order.ts";
+import {
+  enableModule,
+  isMap,
+  moduleKind,
+  orderProblem,
+} from "./humankind-order.ts";
 import {
   BACKED_UP_VERSIONS,
   bepinexStatus,
@@ -56,7 +61,7 @@ export const humankindMods = (hk: HumankindMock): Mod[] =>
     ...seed,
     game: "humankind",
     difficulty: null,
-    active: hk.order.includes(seed.id),
+    active: isMap(seed) || hk.order.includes(seed.id),
     setup: {},
     dependencies: {
       require: [],
@@ -84,9 +89,13 @@ const normalize = (order: string[]): string[] => [
 const kindOf = (mods: Mod[]) => (module: string) =>
   moduleKind(mods.find((mod) => mod.id === module)?.category ?? "");
 
+/** A map is never a module, so listing one counts as missing, as in the core. */
+const isInstalledModule = (mods: Mod[], module: string): boolean =>
+  mods.some((mod) => mod.id === module && !isMap(mod));
+
 export const missingModules = (hk: HumankindMock, mods: Mod[]): string[] =>
   hk.registryFound
-    ? hk.order.filter((module) => !mods.some((mod) => mod.id === module))
+    ? hk.order.filter((module) => !isInstalledModule(mods, module))
     : [];
 
 function requireRegistry(hk: HumankindMock): void {
@@ -99,7 +108,7 @@ function requireRegistry(hk: HumankindMock): void {
 
 function storeOrder(hk: HumankindMock, mods: Mod[], order: string[]): void {
   hk.order = order;
-  for (const mod of mods) mod.active = order.includes(mod.id);
+  for (const mod of mods) mod.active = isMap(mod) || order.includes(mod.id);
 }
 
 export function humankindLoadOrder(hk: HumankindMock): LoadOrder {
@@ -126,7 +135,7 @@ export function writeHumankindOrder(
   const problem = orderProblem(normalized, kindOf(mods));
   if (problem) throw new CoreError("invalid-input", problem);
   const missing = normalized.filter(
-    (module) => !mods.some((mod) => mod.id === module),
+    (module) => !isInstalledModule(mods, module),
   );
   if (missing.length > 0)
     throw new CoreError(
@@ -145,6 +154,12 @@ export function setHumankindModActive(
   modId: string,
   active: boolean,
 ): void {
+  const target = mods.find((mod) => mod.id === modId);
+  if (target && isMap(target))
+    throw new CoreError(
+      "invalid-input",
+      `'${modId}' is a map; Humankind lists every installed map, so it has no on/off switch`,
+    );
   requireRegistry(hk);
   const order = active
     ? enableModule(hk.order, modId, kindOf(mods))

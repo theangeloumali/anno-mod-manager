@@ -7,6 +7,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use atelier_core::health::humankind::plugins_dir;
 use atelier_core::health::{self, Environment};
+use atelier_core::humankind::maps;
 use atelier_core::scan::{self, ModsFolder};
 use atelier_core::{
     GameId, GameInfo, HealthCheck, Issue, LoadOrder, LogEntry, Mod, ModLocation, ModOption,
@@ -167,8 +168,8 @@ impl App {
             ));
         }
         // Humankind resets a list naming a missing module to vanilla, so the module leaves it
-        // first, unless a Workshop or game-folder copy still provides it.
-        if game == GameId::Humankind && matches.len() == 1 {
+        // first, unless a Workshop or game-folder copy still provides it. A map is never listed.
+        if game == GameId::Humankind && matches.len() == 1 && !maps::is_map(target) {
             let writable = self.writable(game);
             activation::set_active(game, &writable, target, false, &mods, &self.0.snapshots)?;
         }
