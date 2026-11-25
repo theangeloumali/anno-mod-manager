@@ -86,7 +86,7 @@ Deploy: commit and push to `feat/humankind-support` (PR #11, already authorized)
   - Write a failing wiremock test in `crates/atelier-app/tests/hk_install.rs`: a mod.io download of a module that has a Workshop copy ends **Done** with the note, links the page to the Workshop copy, and the next sync queues nothing. A mixed archive still fails.
   - Implement in `crates/atelier-app/src/downloads.rs`.
   - Verify: `set -o pipefail; cargo test --manifest-path /mnt/c/Users/Angelo/Desktop/Work/ZKidz/Anno/Cargo.toml -j 4 -p atelier-app 2>&1 | tail -20`
-- [ ] Phase 4: Close
+- [x] Phase 4: Close
   - Run clippy (`-D warnings`), fmt, prettier, `pnpm test`, the 375px check, the dead-code scan, and the Codex review.
   - Re-record the demo, plus a frame showing the map and a plain module in the Library.
   - Update the checklist and vault-append.
