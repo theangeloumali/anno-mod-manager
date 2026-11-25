@@ -68,6 +68,7 @@ pub fn test_mod(id: &str, category: &str, name: &str) -> Mod {
         parent_id: None,
         sub_mod_ids: Vec::new(),
         update: None,
+        module_guid: None,
     }
 }
 

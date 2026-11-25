@@ -206,14 +206,8 @@ pub fn parse_descriptor(bytes: &[u8]) -> Descriptor {
 /// Where the installed copies stand against the version the save was played with.
 /// A copy whose folder names another guid is a different mod that happens to share the name.
 fn same_guid(module: &SaveMod, item: &Mod) -> bool {
-    let installed = item
-        .folder
-        .rsplit('/')
-        .next()
-        .and_then(ModuleName::parse)
-        .map(|parsed| parsed.guid);
-    match (&module.guid, installed) {
-        (Some(wanted), Some(found)) => wanted.eq_ignore_ascii_case(&found),
+    match (&module.guid, &item.module_guid) {
+        (Some(wanted), Some(found)) => wanted.eq_ignore_ascii_case(found),
         _ => true,
     }
 }

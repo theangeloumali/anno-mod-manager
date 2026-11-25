@@ -49,7 +49,12 @@ pub fn scan(game: GameId, folders: &[ModsFolder]) -> Result<ScanResult> {
 
 /// Absolute directory of `target` on disk.
 pub fn mod_dir(folders: &[ModsFolder], target: &Mod) -> Option<PathBuf> {
-    let folder = folders.iter().find(|f| f.location == target.location)?;
+    // The game's mod.io folder sits inside the Documents (Community) root it was scanned from.
+    let root = match target.location {
+        ModLocation::GameModio => ModLocation::Documents,
+        other => other,
+    };
+    let folder = folders.iter().find(|f| f.location == root)?;
     Some(
         target
             .folder
@@ -181,6 +186,7 @@ fn build_mod(
         parent_id: None,
         sub_mod_ids: Vec::new(),
         update: None,
+        module_guid: None,
     })
 }
 

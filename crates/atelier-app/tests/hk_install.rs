@@ -404,3 +404,21 @@ fn uninstalling_a_module_that_shares_its_folder_is_refused() {
     assert!(error.message.contains("other mod"), "{}", error.message);
     assert!(pack.join(&sigma).is_file() && pack.join(&other).is_file());
 }
+
+#[test]
+fn uninstalling_a_module_whose_folder_holds_a_nested_module_is_refused() {
+    let harness = Harness::new();
+    let pack = community(&harness).join("Atelier").join("Pack");
+    let sigma = long_name("Sigma Pack", "2.5");
+    let inner = format!("Inner Mod.{}.1.0", "0123456789abcdef0123456789abcdef");
+    write_module(&pack, &sigma);
+    write_module(&pack.join("Inner"), &inner);
+
+    let error = harness
+        .app
+        .uninstall_mod(HUMANKIND, "sigma pack")
+        .unwrap_err();
+
+    assert!(error.message.contains("Inner Mod"), "{}", error.message);
+    assert!(pack.join("Inner").join(&inner).is_file());
+}

@@ -108,7 +108,8 @@ impl App {
         let game = GameId::Humankind;
         let listing =
             saves::list_saves(&games::documents_game_dir(game, &self.0.documents)).ok()?;
-        if !listing.skipped.is_empty() {
+        let unknown = |save: &saves::Save| !save.descriptor.mod_list_found;
+        if !listing.skipped.is_empty() || listing.saves.iter().any(unknown) {
             return None;
         }
         Some(
@@ -177,11 +178,7 @@ impl App {
         // Swapping a folder that holds another module too would take that module with it.
         let shares_folder = installed.iter().any(|item| {
             item.id == check.module.name
-                && installed.iter().any(|other| {
-                    other.id != item.id
-                        && other.location == item.location
-                        && other.folder == item.folder
-                })
+                && crate::library::folder_neighbour(installed, item).is_some()
         });
         if shares_folder {
             return Ok(false);

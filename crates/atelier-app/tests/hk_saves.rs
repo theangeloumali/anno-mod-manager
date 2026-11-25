@@ -368,6 +368,19 @@ fn a_save_that_cannot_be_read_keeps_every_humankind_backup() {
     assert!(!anno.exists(), "Anno's backups are still pruned");
 }
 
+#[test]
+fn a_save_whose_mod_list_cannot_be_read_keeps_every_humankind_backup() {
+    let harness = Harness::new();
+    for slot in ["0.7-1000", "0.8-2000"] {
+        old_backup(&harness, slot);
+    }
+    write_save_strings(&harness, "Damaged.ctr", &["ver", "V1.0"]);
+
+    harness.app.save_settings(harness.app.settings()).unwrap();
+
+    assert_eq!(backup_dirs(&harness), ["0.7-1000", "0.8-2000"]);
+}
+
 #[cfg(unix)]
 #[test]
 fn saves_that_cannot_be_listed_keep_every_humankind_backup() {

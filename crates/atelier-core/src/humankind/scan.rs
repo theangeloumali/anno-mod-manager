@@ -116,6 +116,7 @@ fn add_module(
         parent_id: None,
         sub_mod_ids: Vec::new(),
         update: None,
+        module_guid: Some(module.guid.to_lowercase()),
     });
     Ok(())
 }

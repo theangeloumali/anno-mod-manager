@@ -61,6 +61,8 @@ export interface Mod {
   parentId: string | null;
   subModIds: string[];
   update: { version: string; modfileId: number } | null;
+  /** Humankind: the guid in the module's file name, telling same-named mods apart. */
+  moduleGuid?: string;
 }
 
 export type IssueKind =

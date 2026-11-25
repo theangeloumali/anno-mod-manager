@@ -660,3 +660,61 @@ fn a_dll_beside_a_module_is_part_of_the_module_not_a_plugin() {
 
     assert_eq!(only_item(&preview).mod_id, "alpha");
 }
+
+#[test]
+fn a_plugin_is_refused_at_confirm_when_bepinex_was_removed_since_the_preview() {
+    let sandbox = Sandbox::new();
+    let game = game_dir(&sandbox, true);
+    let files = vec![("BepInEx/plugins/Cool.dll".to_string(), b"MZ".to_vec())];
+    let archive = drop_zip(&sandbox, "CoolPlugin.zip", &files);
+    let preview = preview(
+        &sandbox,
+        HUMANKIND,
+        &archive,
+        &plugin_options(Some(game.clone())),
+    );
+    fs::remove_file(game.join("BepInEx/core/BepInEx.dll")).unwrap();
+
+    let result = sandbox.engine.confirm(
+        &preview.id,
+        &sandbox.mods(),
+        &sandbox.installed(HUMANKIND),
+        false,
+    );
+
+    assert!(
+        matches!(result, Err(atelier_install::Error::PreviewStale(_))),
+        "{result:?}"
+    );
+    assert!(!game.join("BepInEx/plugins/CoolPlugin").exists());
+}
+
+#[test]
+fn a_copy_that_appeared_since_the_preview_stops_the_install() {
+    let sandbox = Sandbox::new();
+    let archive = drop_zip(
+        &sandbox,
+        "Sigma.zip",
+        &module_files("S", "Sigma Pack", "2.6"),
+    );
+    let preview = preview(&sandbox, HUMANKIND, &archive, &PreviewOptions::default());
+    let long = long_name("Sigma Pack", "2.5");
+    let bundle = format!("{}.assetbundle", long.to_lowercase());
+    write_tree(
+        &sandbox.mods().join("mod.io/4801_77001").join(&long),
+        &[(&long, "module"), (&bundle, "b")],
+    );
+
+    let result = sandbox.engine.confirm(
+        &preview.id,
+        &sandbox.mods(),
+        &sandbox.installed(HUMANKIND),
+        false,
+    );
+
+    assert!(
+        matches!(result, Err(atelier_install::Error::PreviewStale(_))),
+        "{result:?}"
+    );
+    assert!(!sandbox.mods().join("Atelier").exists());
+}

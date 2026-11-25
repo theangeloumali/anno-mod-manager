@@ -170,6 +170,9 @@ pub struct Mod {
     pub parent_id: Option<String>,
     pub sub_mod_ids: Vec<String>,
     pub update: Option<ModUpdate>,
+    /// Humankind: the guid in the module's file name, which tells same-named mods apart.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub module_guid: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

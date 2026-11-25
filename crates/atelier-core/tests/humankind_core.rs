@@ -872,3 +872,17 @@ fn a_module_without_its_assetbundle_is_skipped_not_installed() {
         result.skipped
     );
 }
+
+#[test]
+fn a_game_modio_mod_resolves_to_its_folder_under_community() {
+    let tmp = tempfile::tempdir().unwrap();
+    let game = game_dir(tmp.path());
+    let folders = [documents(&game.join("Community"))];
+    copy_tree(&fixtures().join("Community"), &game.join("Community"));
+    let mods = scan::scan(GameId::Humankind, &folders).unwrap().mods;
+    let sigma = by_id(&mods, "sigma pack");
+
+    let dir = scan::mod_dir(&folders, sigma).expect("a game mod.io mod has a folder");
+
+    assert!(dir.is_dir(), "{}", dir.display());
+}

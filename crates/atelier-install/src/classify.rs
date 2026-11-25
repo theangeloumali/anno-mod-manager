@@ -426,8 +426,22 @@ pub(crate) fn changed_since_preview(
     items
         .iter()
         .filter(|staged| is_eligible(staged.item.status, include_downgrades))
-        .find(|staged| copy_stamp(game, installed, &staged.item.mod_id) != staged.seen)
+        .find(|staged| {
+            copy_stamp(game, installed, &staged.item.mod_id) != staged.seen
+                || bepinex_gone(&staged.placement)
+        })
         .map(|staged| staged.item.mod_id.clone())
+}
+
+/// A plugin's target was checked at preview; BepInEx may have been removed since.
+fn bepinex_gone(placement: &Placement) -> bool {
+    match placement {
+        Placement::Plugin { plugins_dir, .. } => !plugins_dir
+            .parent()
+            .and_then(Path::parent)
+            .is_some_and(|game_dir| game_dir.join(BEPINEX_CORE_DLL).is_file()),
+        _ => false,
+    }
 }
 
 fn check(level: Severity, message: String) -> InstallCheck {

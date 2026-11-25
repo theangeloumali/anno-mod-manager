@@ -157,12 +157,7 @@ impl App {
         };
         let dir = scan::mod_dir(&self.folders(game), target).ok_or_else(|| not_found(mod_id))?;
         // A Humankind module is removed by moving its folder, which would take any other module in it.
-        if let Some(neighbour) = mods.iter().find(|other| {
-            other.id != target.id
-                && other.location == target.location
-                && other.folder == target.folder
-                && other.parent_id.is_none()
-        }) {
+        if let Some(neighbour) = folder_neighbour(&mods, target) {
             return Err(AppError::new(
                 ErrorCode::InvalidInput,
                 format!(
@@ -385,11 +380,6 @@ impl App {
                 format!("{} is already running.", game.executable_name()),
             ));
         }
-        // Humankind resets the whole mod list to vanilla when any listed module is missing.
-        let missing = self.launch_blockers(game)?;
-        if !missing.is_empty() {
-            return Err(atelier_core::Error::MissingModules(missing).into());
-        }
         // A picked folder is the Steam copy only when Steam's own detection finds it there.
         let store = match store {
             Store::Manual
@@ -404,6 +394,12 @@ impl App {
         let target = games::launch_target(game, &install, store);
         // A write in progress finishes first, so the game never reads a half-written mods folder.
         let _writes = lock(&self.0.writes);
+        // Checked under the lock, so no write lands between the check and the launch: Humankind
+        // resets the whole mod list to vanilla when any listed module is missing.
+        let missing = self.launch_blockers(game)?;
+        if !missing.is_empty() {
+            return Err(atelier_core::Error::MissingModules(missing).into());
+        }
         (self.0.launch)(&target).map_err(|error| AppError::io(&error, &install))?;
         lock(&self.0.launched).insert(game, Instant::now());
         Ok(())
@@ -562,6 +558,17 @@ fn read_only_error(shipped: &Mod) -> AppError {
             shipped.location.place()
         ),
     )
+}
+
+/// Another module in `target`'s folder or below it: moving that folder would take it along.
+pub(crate) fn folder_neighbour<'m>(mods: &'m [Mod], target: &Mod) -> Option<&'m Mod> {
+    let nested = format!("{}/", target.folder);
+    mods.iter().find(|other| {
+        other.id != target.id
+            && other.location == target.location
+            && other.parent_id.is_none()
+            && (other.folder == target.folder || other.folder.starts_with(&nested))
+    })
 }
 
 pub(crate) fn not_found(mod_id: &str) -> AppError {
