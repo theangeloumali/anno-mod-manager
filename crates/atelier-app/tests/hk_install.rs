@@ -598,3 +598,22 @@ async fn unsubscribing_never_moves_a_copy_the_player_placed_by_hand() {
 
     assert!(by_hand.join(&long).is_file());
 }
+
+#[tokio::test]
+async fn unsubscribing_takes_atelier_s_copy_not_a_hand_copy_placed_after_it() {
+    let server = MockServer::start().await;
+    let long = long_name("Sigma Pack", "2.5");
+    serve_page(&server, zip_entries(&module_entries("Sigma", &long))).await;
+    let harness = signed_in_with_install(&server).await;
+    harness.app.subscribe(HUMANKIND, 4801).await.unwrap();
+    assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Done);
+    // Sorts before Atelier/, so a first-match removal would pick it.
+    let by_hand = community(&harness).join("AAA").join(&long);
+    write_module(&by_hand, &long);
+
+    harness.app.unsubscribe(HUMANKIND, 4801).await.unwrap();
+
+    assert!(by_hand.join(&long).is_file());
+    let atelier = community(&harness).join("Atelier").join(MODFILE_FOLDER);
+    assert!(!atelier.join(&long).exists());
+}

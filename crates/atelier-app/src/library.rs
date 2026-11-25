@@ -13,6 +13,7 @@ use atelier_core::{
     GameId, GameInfo, HealthCheck, Issue, LoadOrder, LogEntry, Mod, ModLocation, ModOption,
     OptionValue, Profile, Store, activation, games, issues, load_order, modinfo, options,
 };
+use atelier_install::is_atelier_copy;
 
 use crate::error::{AppError, ErrorCode, Result};
 use crate::{App, lock};
@@ -152,9 +153,15 @@ impl App {
             .iter()
             .filter(|item| item.id == mod_id && item.parent_id.is_none())
             .collect();
-        let Some(target) = matches
-            .iter()
-            .find(|item| item.location == ModLocation::Documents)
+        // Atelier's own copy first, so a copy placed by hand beside it stays put.
+        let documents = || {
+            matches
+                .iter()
+                .filter(|item| item.location == ModLocation::Documents)
+        };
+        let Some(target) = documents()
+            .find(|item| is_atelier_copy(item))
+            .or_else(|| documents().next())
         else {
             return Err(match matches.first() {
                 Some(shipped) => read_only_error(shipped),
