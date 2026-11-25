@@ -73,13 +73,18 @@ impl App {
         let mut mods = self.scan(game)?;
         let links = self.persisted().modio_links.get(&game).cloned();
         let updates = lock(&self.0.updates).get(&game).cloned();
-        // mod.io installs only ever land in Documents, so a shipped copy is never its page's.
-        for item in mods
-            .iter_mut()
-            .filter(|item| item.location == ModLocation::Documents)
-        {
-            if let Some(link) = links.as_ref().and_then(|links| links.get(&item.id)) {
+        // Anno's mod.io installs only land in Documents, so a shipped copy is never its page's.
+        // Humankind keeps one copy per module, so a link may name a Workshop or game copy that
+        // already provided the page.
+        for item in mods.iter_mut() {
+            let documents = item.location == ModLocation::Documents;
+            if (documents || game == GameId::Humankind)
+                && let Some(link) = links.as_ref().and_then(|links| links.get(&item.id))
+            {
                 item.modio_id.get_or_insert(link.modio_id);
+            }
+            if !documents {
+                continue;
             }
             if let Some(update) = updates.as_ref().and_then(|updates| updates.get(&item.id)) {
                 item.update = Some(update.clone());

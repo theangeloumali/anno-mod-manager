@@ -82,7 +82,7 @@ Deploy: commit and push to `feat/humankind-support` (PR #11, already authorized)
   - Implement in `roots.rs`, `classify.rs`, `install.rs`, `humankind/scan.rs` and `activation/mod.rs`.
   - UI: a Map chip and no switch, in `src/features/library/humankind-badges.tsx` and `mod-table.tsx`. Mirror it in the mock, with a UI test.
   - Verify: `set -o pipefail; cargo test --manifest-path /mnt/c/Users/Angelo/Desktop/Work/ZKidz/Anno/Cargo.toml -j 4 -p atelier-core -p atelier-modio -p atelier-install -p atelier-app 2>&1 | tail -20` and `pnpm test`
-- [ ] Phase 3: A subscription the Workshop already satisfies (TDD)
+- [x] Phase 3: A subscription the Workshop already satisfies (TDD)
   - Write a failing wiremock test in `crates/atelier-app/tests/hk_install.rs`: a mod.io download of a module that has a Workshop copy ends **Done** with the note, links the page to the Workshop copy, and the next sync queues nothing. A mixed archive still fails.
   - Implement in `crates/atelier-app/src/downloads.rs`.
   - Verify: `set -o pipefail; cargo test --manifest-path /mnt/c/Users/Angelo/Desktop/Work/ZKidz/Anno/Cargo.toml -j 4 -p atelier-app 2>&1 | tail -20`

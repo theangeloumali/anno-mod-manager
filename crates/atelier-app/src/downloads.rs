@@ -4,8 +4,10 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 
-use atelier_core::{GameId, ModLocation, ModUpdate, Severity};
-use atelier_install::{InstallItemStatus, Limits, PreviewOptions};
+use atelier_core::{GameId, Mod, ModLocation, ModUpdate, Severity};
+use atelier_install::{
+    InstallItemStatus, InstallPreviewItem, Limits, PreviewOptions, copy_outside_atelier,
+};
 use atelier_modio::{DownloadJob, DownloadProgress, DownloadStatus, Modfile, UpdateCheck};
 use tokio::task::AbortHandle;
 
@@ -540,11 +542,11 @@ impl App {
         let modfile_id = modfile.id;
         // Only a Documents copy is replaced; a game-folder copy stays beside the new one.
         // Read before the preview, so a failed scan leaves no staging behind.
-        let replaceable: HashSet<String> = self
-            .scan(game)?
-            .into_iter()
+        let scanned = self.scan(game)?;
+        let replaceable: HashSet<String> = scanned
+            .iter()
             .filter(|item| item.location == ModLocation::Documents && item.parent_id.is_none())
-            .map(|item| item.id)
+            .map(|item| item.id.clone())
             .collect();
         // mod.io measures the unpacked size, so a large mod gets the room it needs; the
         // archive's real size bounds that, so the figure can't open the door to a zip bomb.
@@ -558,6 +560,18 @@ impl App {
             ..PreviewOptions::default()
         };
         let preview = self.preview_install_with(game, &[archive.to_owned()], options)?;
+        // Nothing to install, but the page is satisfied: link it so sync stops downloading it.
+        if game == GameId::Humankind
+            && let Some(note) = provided_read_only(&preview.items, &scanned)
+        {
+            self.cancel_install(&preview.id)?;
+            let ids = preview
+                .items
+                .iter()
+                .map(|item| item.mod_id.clone())
+                .collect();
+            return Ok((ids, Some(note)));
+        }
         // Any Humankind item the preview refuses (a copy in mod.io's folder, a bad module) stops
         // the download with that item's reason; nothing is installed.
         if game == GameId::Humankind
@@ -706,4 +720,22 @@ fn local_id(links: &HashMap<String, ModioLink>, modio_id: u64) -> Option<String>
 
 fn gone() -> AppError {
     AppError::new(ErrorCode::NotFound, "That download is gone.")
+}
+
+/// The note for a Humankind download whose every item a read-only copy (Workshop, game folder,
+/// the game's own mod.io) already provides; a second copy would load twice, so none is added.
+fn provided_read_only(items: &[InstallPreviewItem], scanned: &[Mod]) -> Option<String> {
+    let mut places = items.iter().map(|item| {
+        let copy = copy_outside_atelier(scanned, &item.mod_id)?;
+        let read_only =
+            item.status == InstallItemStatus::Invalid && copy.location != ModLocation::Documents;
+        read_only.then(|| copy.location.place())
+    });
+    let first = places.next()??;
+    if places.any(|place| place.is_none()) {
+        return None;
+    }
+    Some(format!(
+        "Already installed in the {first}; Atelier left that copy in place and linked this page to it."
+    ))
 }

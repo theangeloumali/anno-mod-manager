@@ -255,15 +255,8 @@ impl<'a> Classifier<'a> {
         }
     }
 
-    /// A copy Atelier didn't install (Documents, Workshop or game folder) would load alongside
-    /// the new one.
     fn copy_outside_atelier(&self, mod_id: &str) -> Option<String> {
-        let atelier = format!("{ATELIER_FOLDER}/");
-        let copy = self.installed.iter().find(|copy| {
-            copy.game == GameId::Humankind
-                && copy.id == mod_id
-                && (copy.location != ModLocation::Documents || !copy.folder.starts_with(&atelier))
-        })?;
+        let copy = copy_outside_atelier(self.installed, mod_id)?;
         let place = match copy.location {
             ModLocation::Documents | ModLocation::GameModio => {
                 format!("Community\\{}", copy.folder.replace('/', "\\"))
@@ -406,6 +399,17 @@ impl<'a> Classifier<'a> {
             })
             .collect()
     }
+}
+
+/// A Humankind copy Atelier didn't install (Documents, Workshop, game folder or the game's own
+/// mod.io), which would load alongside a new one.
+pub fn copy_outside_atelier<'m>(installed: &'m [Mod], mod_id: &str) -> Option<&'m Mod> {
+    let atelier = format!("{ATELIER_FOLDER}/");
+    installed.iter().find(|copy| {
+        copy.game == GameId::Humankind
+            && copy.id == mod_id
+            && (copy.location != ModLocation::Documents || !copy.folder.starts_with(&atelier))
+    })
 }
 
 /// The BepInEx folders beside `plugins` (config, patchers…), which a plugin install doesn't copy.

@@ -159,8 +159,56 @@ async fn a_modio_module_installs_under_its_modfile_folder() {
     assert_eq!(mods[0].modio_id, Some(4801));
 }
 
+/// A signed-in harness whose game folder exists, so its Workshop folder is scanned.
+async fn signed_in_with_install(server: &MockServer) -> Harness {
+    Mock::given(path(format!("{MODIO_PAGE}/subscribe")))
+        .respond_with(ResponseTemplate::new(201).set_body_json(fixture("message_201.json")))
+        .mount(server)
+        .await;
+    let harness = Harness::with(Options {
+        install: Some(HUMANKIND),
+        api_key: Some(API_KEY),
+        modio_base: Some(base(server)),
+        ..Options::default()
+    });
+    harness.tokens.save("signed-in-token").unwrap();
+    harness
+}
+
+fn workshop_module(harness: &Harness, long: &str) -> PathBuf {
+    let dir = harness.root.path().join("workshop/content/1124300/3001");
+    write_module(&dir, long);
+    dir
+}
+
+/// Angelo's 2026-11-25 sync: six pages also subscribed on the Workshop showed as Failed.
 #[tokio::test]
-async fn a_modio_module_already_in_modios_folder_fails_and_installs_nothing() {
+async fn a_page_the_workshop_already_provides_is_done_and_linked_not_failed() {
+    let server = MockServer::start().await;
+    let long = long_name("Sigma Pack", "2.5");
+    serve_page(&server, zip_entries(&module_entries("Sigma", &long))).await;
+    let harness = signed_in_with_install(&server).await;
+    let workshop = workshop_module(&harness, &long);
+
+    harness.app.subscribe(HUMANKIND, 4801).await.unwrap();
+    let job = wait_for_job(&harness).await;
+
+    assert_eq!(job.status, DownloadStatus::Done, "{:?}", job.error);
+    let note = job.error.unwrap_or_default();
+    assert!(note.contains("Steam Workshop folder"), "{note}");
+    assert!(!community(&harness).join("Atelier").exists());
+    assert!(workshop.is_dir());
+    let mods = harness.app.list_mods(HUMANKIND).unwrap();
+    assert_eq!(mods.len(), 1);
+    assert_eq!(mods[0].modio_id, Some(4801));
+
+    // Linked to that copy, so subscribing again doesn't download the page a second time.
+    harness.app.subscribe(HUMANKIND, 4801).await.unwrap();
+    assert_eq!(harness.app.list_downloads().len(), 1);
+}
+
+#[tokio::test]
+async fn a_page_the_games_own_modio_folder_already_has_is_done_and_installs_nothing() {
     let server = MockServer::start().await;
     let long = long_name("Sigma Pack", "2.5");
     serve_page(&server, zip_entries(&module_entries("Sigma", &long))).await;
@@ -176,11 +224,30 @@ async fn a_modio_module_already_in_modios_folder_fails_and_installs_nothing() {
     harness.app.subscribe(HUMANKIND, 4801).await.unwrap();
     let job = wait_for_job(&harness).await;
 
-    assert_eq!(job.status, DownloadStatus::Failed);
-    let error = job.error.unwrap_or_default();
-    assert!(error.contains("Community\\mod.io\\4801_77001"), "{error}");
+    assert_eq!(job.status, DownloadStatus::Done, "{:?}", job.error);
+    let note = job.error.unwrap_or_default();
+    assert!(note.contains("game's own mod.io folder"), "{note}");
     assert!(!community(&harness).join("Atelier").exists());
     assert_eq!(harness.app.list_mods(HUMANKIND).unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn an_archive_with_a_workshop_module_and_a_new_one_still_fails() {
+    let server = MockServer::start().await;
+    let sigma = long_name("Sigma Pack", "2.5");
+    let mut entries = module_entries("Sigma", &sigma);
+    entries.extend(module_entries("Delta", &long_name("Delta", "1.0")));
+    serve_page(&server, zip_entries(&entries)).await;
+    let harness = signed_in_with_install(&server).await;
+    workshop_module(&harness, &sigma);
+
+    harness.app.subscribe(HUMANKIND, 4801).await.unwrap();
+    let job = wait_for_job(&harness).await;
+
+    assert_eq!(job.status, DownloadStatus::Failed);
+    let error = job.error.unwrap_or_default();
+    assert!(error.contains("Steam Workshop folder"), "{error}");
+    assert!(!community(&harness).join("Atelier").exists());
 }
 
 #[test]
