@@ -30,6 +30,8 @@ pub(crate) enum Manifest {
     /// A Humankind map: a folder holding a `.hmap` and no module, named after the map.
     Map {
         name: String,
+        /// A module sits in a subfolder; installing the folder would carry it along too.
+        holds_module: bool,
     },
     /// A Humankind BepInEx plugin, installed as `BepInEx/plugins/<name>`.
     Plugin {
@@ -57,7 +59,7 @@ impl FoundRoot {
                 info.mod_id.clone().unwrap_or_default()
             }
             Manifest::Module { module, .. } => module.short_name(),
-            Manifest::Map { name } => maps::map_id(name),
+            Manifest::Map { name, .. } => maps::map_id(name),
             Manifest::Plugin { name } => normalize_mod_id(name),
             _ => normalize_mod_id(&file_name(&self.dir)),
         }
@@ -130,7 +132,19 @@ pub(crate) fn humankind_folder(dir: &Path) -> Result<HumankindFolder> {
 pub(crate) fn find_roots(staged: &Path, game: GameId) -> Result<Vec<FoundRoot>> {
     let mut humankind = module_roots(staged)?;
     let mut map_folders = map_roots(staged)?;
-    map_folders.retain(|map| !overlaps_any(map, &humankind));
+    // A map inside a module's folder ships with the module; one above a module is refused.
+    map_folders.retain(|map| {
+        !humankind
+            .iter()
+            .any(|module| map.dir.starts_with(&module.dir))
+    });
+    for map in &mut map_folders {
+        if let Manifest::Map { holds_module, .. } = &mut map.manifest {
+            *holds_module = humankind
+                .iter()
+                .any(|module| module.dir.starts_with(&map.dir));
+        }
+    }
     humankind.extend(map_folders);
     if game == GameId::Humankind {
         // A dll inside a module's folder ships with the module; it isn't a second item.
@@ -212,7 +226,10 @@ fn module_roots(staged: &Path) -> Result<Vec<FoundRoot>> {
 
 fn map_roots(staged: &Path) -> Result<Vec<FoundRoot>> {
     humankind_roots(staged, &|folder| {
-        folder.map.map(|name| Manifest::Map { name })
+        folder.map.map(|name| Manifest::Map {
+            name,
+            holds_module: false,
+        })
     })
 }
 

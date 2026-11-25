@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use atelier_core::humankind::maps;
 use atelier_core::{GameId, Mod, activation};
 use atelier_install::{InstallPreview, InstallResult, PreviewOptions};
 
@@ -118,8 +119,12 @@ impl App {
         }
         let writable = self.writable(game);
         let mods = self.scan(game)?;
+        // A map has no switch: Humankind lists every installed map.
         for item in mods.iter().filter(|item| {
-            installed.contains(&item.id) && item.parent_id.is_none() && item.active != active
+            installed.contains(&item.id)
+                && item.parent_id.is_none()
+                && item.active != active
+                && !maps::is_map(item)
         }) {
             activation::set_active(game, &writable, item, active, &mods, &self.0.snapshots)?;
         }

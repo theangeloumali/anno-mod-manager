@@ -993,3 +993,26 @@ fn a_map_has_no_switch_and_never_enters_the_registry() {
     assert_eq!(load_order::missing(&order, &installed), names(&["earth"]));
     assert_eq!(fs::read(registry_file(&game)).unwrap(), before);
 }
+
+#[test]
+fn a_map_shipped_inside_a_module_folder_is_the_modules_not_a_second_item() {
+    let tmp = tempfile::tempdir().unwrap();
+    let pack = tmp.path().join("Atelier/Pack");
+    fs::create_dir_all(pack.join("Maps")).unwrap();
+    fs::write(pack.join(DEEPSEA_LONG), b"").unwrap();
+    let bundle = format!("{}.assetbundle", DEEPSEA_LONG.to_lowercase());
+    fs::write(pack.join(bundle), b"").unwrap();
+    fs::write(pack.join("Maps/Earth.hmap"), b"map").unwrap();
+
+    let result = scan::scan(GameId::Humankind, &[documents(tmp.path())]).unwrap();
+
+    let ids: Vec<&str> = result.mods.iter().map(|item| item.id.as_str()).collect();
+    assert_eq!(ids, ["deepsea reloaded"]);
+}
+
+#[test]
+fn a_module_file_named_like_a_map_id_is_not_a_module() {
+    let siblings = names(&["map~earth", "map~earth.assetbundle"]);
+    let items = maps::folder_items(&siblings);
+    assert!(items.modules.is_empty());
+}

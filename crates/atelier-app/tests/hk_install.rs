@@ -523,3 +523,78 @@ fn a_map_installs_on_uninstalls_and_restores_without_touching_the_registry() {
     assert!(folder.starts_with("Atelier/"), "{folder}");
     assert_eq!(registry_text(&harness), registry_before);
 }
+
+#[test]
+fn new_mods_starting_off_switches_a_new_module_off_and_leaves_a_map_on() {
+    let harness = Harness::new();
+    let mut settings = harness.app.settings();
+    settings.new_mods_start = atelier_app::NewModsStart::Inactive;
+    harness.app.save_settings(settings).unwrap();
+    harness.write_humankind_registry("project mercury");
+    let long = long_name("Sigma Pack", "2.5");
+    let mut entries = module_entries("Sigma", &long);
+    entries.push(("Earth/Earth.hmap".to_string(), b"map".to_vec()));
+
+    let archive = drop_archive(&harness, "both.zip", &entries);
+    let preview = harness.app.preview_install(HUMANKIND, &[archive]).unwrap();
+    let result = harness.app.confirm_install(&preview.id, false).unwrap();
+
+    assert_eq!(result.warning, None);
+    let mods = harness.app.list_mods(HUMANKIND).unwrap();
+    let active = |id: &str| mods.iter().find(|item| item.id == id).unwrap().active;
+    assert!(!active("sigma pack"));
+    assert!(active("map~earth"));
+}
+
+#[tokio::test]
+async fn a_broken_download_fails_with_its_reason_even_when_the_workshop_has_the_module() {
+    let server = MockServer::start().await;
+    let long = long_name("Sigma Pack", "2.5");
+    let mut entries = module_entries("Sigma", &long);
+    entries.retain(|(name, _)| !name.ends_with(".assetbundle"));
+    serve_page(&server, zip_entries(&entries)).await;
+    let harness = signed_in_with_install(&server).await;
+    workshop_module(&harness, &long);
+
+    harness.app.subscribe(HUMANKIND, 4801).await.unwrap();
+    let job = wait_for_job(&harness).await;
+
+    assert_eq!(job.status, DownloadStatus::Failed);
+    let error = job.error.unwrap_or_default();
+    assert!(error.contains(".assetbundle"), "{error}");
+}
+
+#[tokio::test]
+async fn unsubscribing_a_page_the_workshop_provided_forgets_the_link_and_keeps_the_copy() {
+    let server = MockServer::start().await;
+    let long = long_name("Sigma Pack", "2.5");
+    serve_page(&server, zip_entries(&module_entries("Sigma", &long))).await;
+    let harness = signed_in_with_install(&server).await;
+    let workshop = workshop_module(&harness, &long);
+    harness.app.subscribe(HUMANKIND, 4801).await.unwrap();
+    assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Done);
+
+    harness.app.unsubscribe(HUMANKIND, 4801).await.unwrap();
+
+    assert!(workshop.is_dir());
+    let mods = harness.app.list_mods(HUMANKIND).unwrap();
+    assert_eq!(mods.len(), 1);
+    assert_eq!(mods[0].modio_id, None);
+}
+
+#[tokio::test]
+async fn unsubscribing_never_moves_a_copy_the_player_placed_by_hand() {
+    let server = MockServer::start().await;
+    let long = long_name("Sigma Pack", "2.5");
+    serve_page(&server, zip_entries(&module_entries("Sigma", &long))).await;
+    let harness = signed_in_with_install(&server).await;
+    workshop_module(&harness, &long);
+    harness.app.subscribe(HUMANKIND, 4801).await.unwrap();
+    assert_eq!(wait_for_job(&harness).await.status, DownloadStatus::Done);
+    let by_hand = community(&harness).join("MyMods").join(&long);
+    write_module(&by_hand, &long);
+
+    harness.app.unsubscribe(HUMANKIND, 4801).await.unwrap();
+
+    assert!(by_hand.join(&long).is_file());
+}

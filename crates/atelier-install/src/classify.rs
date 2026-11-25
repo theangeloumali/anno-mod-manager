@@ -8,7 +8,7 @@ use atelier_core::health::humankind::plugins_dir;
 use atelier_core::humankind::maps::MAP_CATEGORY;
 use atelier_core::{GameId, Mod, ModInfo, ModLocation, Severity, normalize_mod_id};
 
-use crate::fsops::{child_dirs, file_name};
+use crate::fsops::{child_dirs, file_name, is_windows_safe_name};
 use crate::install::{ATELIER_FOLDER, Placement, StagedItem, is_eligible, new_folder_name};
 use crate::roots::{FoundRoot, Manifest, detect_game, is_plugins_dir};
 use crate::version::compare_versions;
@@ -54,7 +54,7 @@ impl<'a> Classifier<'a> {
         };
         let (name, version, category) = match &root.manifest {
             Manifest::Module { module, .. } => (module.name.clone(), module.version(), None),
-            Manifest::Map { name } => (name.clone(), String::new(), Some(MAP_CATEGORY.into())),
+            Manifest::Map { name, .. } => (name.clone(), String::new(), Some(MAP_CATEGORY.into())),
             Manifest::Plugin { name } => (name.clone(), String::new(), None),
             _ => (
                 info.and_then(|info| info.name.clone()).unwrap_or(folder),
@@ -111,7 +111,7 @@ impl<'a> Classifier<'a> {
                 folder: self.module_folder(&module.to_string()),
             },
             // Named after the map, not its folder, so two packs' `Earth/` never collide.
-            Manifest::Map { name } => Placement::Module {
+            Manifest::Map { name, .. } => Placement::Module {
                 folder: self.module_folder(name),
             },
             Manifest::Plugin { name } => Placement::Plugin {
@@ -131,13 +131,19 @@ impl<'a> Classifier<'a> {
         folder
     }
 
-    /// A download into another `<modId>_<modfileId>` folder than the Atelier copy's: mod.io
-    /// serves only a page's latest file, so a different one is newer.
+    /// Another file of the same page as the Atelier copy's `<modId>_<modfileId>` folder: mod.io
+    /// serves only a page's latest file, so a different one is newer. A dropped copy isn't.
     fn is_newer_modio_file(&self, existing: &Mod) -> bool {
         let Some(modio) = &self.options.modio_folder else {
             return false;
         };
+        let Some((page, _)) = modio.split_once('_') else {
+            return false;
+        };
         is_atelier_copy(existing)
+            && existing
+                .folder
+                .starts_with(&format!("{ATELIER_FOLDER}/{page}_"))
             && !existing
                 .folder
                 .starts_with(&format!("{ATELIER_FOLDER}/{modio}/"))
@@ -220,9 +226,16 @@ impl<'a> Classifier<'a> {
                         module.to_string().to_lowercase()
                     ));
                 }
-                self.copy_outside_atelier(&module.short_name())
+                self.community_item_reason(root)
             }
-            Manifest::Map { .. } => self.copy_outside_atelier(&root.mod_id()),
+            Manifest::Map {
+                holds_module: true,
+                ..
+            } => Some(format!(
+                "{} holds a map and, in a subfolder, a module; Humankind needs them in separate folders, so install them separately",
+                file_name(&root.dir)
+            )),
+            Manifest::Map { .. } => self.community_item_reason(root),
             // A plugin is a DLL the game runs, so it never arrives unseen through a download.
             Manifest::Plugin { .. } if self.options.modio_folder.is_some() => Some(
                 "BepInEx plugins run code inside the game, so Atelier won't install one from a download. Download it yourself and drop the file on Atelier to review it first."
@@ -253,15 +266,37 @@ impl<'a> Classifier<'a> {
     }
 
     fn copy_outside_atelier(&self, mod_id: &str) -> Option<String> {
-        let copy = copy_outside_atelier(self.installed, mod_id)?;
-        let place = match copy.location {
-            ModLocation::Documents | ModLocation::GameModio => {
-                format!("Community\\{}", copy.folder.replace('/', "\\"))
-            }
-            other => format!("the {}", other.place()),
+        copy_outside_atelier(self.installed, mod_id).map(duplicate_refusal)
+    }
+
+    /// What stops a module or map bound for `Community\Atelier`: a name Windows can't use as
+    /// a folder (a `..hmap` map is named `.`), a copy elsewhere, or a folder another item holds.
+    fn community_item_reason(&self, root: &FoundRoot) -> Option<String> {
+        let name = match &root.manifest {
+            Manifest::Module { module, .. } => module.to_string(),
+            Manifest::Map { name, .. } => name.clone(),
+            _ => return None,
         };
+        if !is_windows_safe_name(&name) {
+            return Some(format!(
+                "\"{name}\" can't be a folder name on Windows, so Atelier won't install it"
+            ));
+        }
+        let mod_id = root.mod_id();
+        if let Some(reason) = self.copy_outside_atelier(&mod_id) {
+            return Some(reason);
+        }
+        let folder = Path::new(ATELIER_FOLDER).join(self.module_folder(&name));
+        let relative = folder.to_string_lossy().replace('\\', "/");
+        let holder = self.installed.iter().find(|other| {
+            other.location == ModLocation::Documents
+                && other.folder == relative
+                && other.id != mod_id
+        })?;
         Some(format!(
-            "Already installed in {place}; remove that copy first so Humankind doesn't load it twice"
+            "Community\\{} already holds {}; Atelier won't replace another mod's folder",
+            windows_path(&folder),
+            holder.name
         ))
     }
 
@@ -406,8 +441,21 @@ pub fn copy_outside_atelier<'m>(installed: &'m [Mod], mod_id: &str) -> Option<&'
         .find(|copy| copy.game == GameId::Humankind && copy.id == mod_id && !is_atelier_copy(copy))
 }
 
+/// Why an item is refused when `copy` already provides its module.
+pub fn duplicate_refusal(copy: &Mod) -> String {
+    let place = match copy.location {
+        ModLocation::Documents | ModLocation::GameModio => {
+            format!("Community\\{}", copy.folder.replace('/', "\\"))
+        }
+        other => format!("the {}", other.place()),
+    };
+    format!(
+        "Already installed in {place}; remove that copy first so Humankind doesn't load it twice"
+    )
+}
+
 /// A copy under `Community\Atelier`, the only Humankind copies Atelier installed.
-fn is_atelier_copy(copy: &Mod) -> bool {
+pub fn is_atelier_copy(copy: &Mod) -> bool {
     copy.location == ModLocation::Documents
         && copy.folder.starts_with(&format!("{ATELIER_FOLDER}/"))
 }

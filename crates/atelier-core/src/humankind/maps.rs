@@ -20,9 +20,11 @@ pub struct FolderItems<'f> {
 }
 
 pub fn folder_items(files: &[String]) -> FolderItems<'_> {
+    // `map~` is reserved for map ids, so a module can never share one.
     let modules: Vec<_> = files
         .iter()
         .filter_map(|file| ModuleName::detect(file, files))
+        .filter(|module| !module.short_name().starts_with(MAP_ID_PREFIX))
         .map(|module| {
             let bundle = module.bundle_in(files);
             (module, bundle)

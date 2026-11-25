@@ -114,7 +114,15 @@ fn place(
             if mod_id.is_empty() || !plain || folder.as_os_str().is_empty() {
                 return Err(Error::UnsafeTarget(dest));
             }
-            let old = find_module(&atelier, mod_id)?.filter(|old| *old != dest);
+            let found = find_module(&atelier, mod_id)?;
+            // The preview refuses another item's folder; it may have arrived since.
+            if dest.exists()
+                && found.as_deref() != Some(dest.as_path())
+                && !humankind_folder(&dest)?.is_empty()
+            {
+                return Err(Error::UnsafeTarget(dest));
+            }
+            let old = found.filter(|old| *old != dest);
             if let Some(old) = &old {
                 back_up(game, old, backup_dir, journal)?;
             }

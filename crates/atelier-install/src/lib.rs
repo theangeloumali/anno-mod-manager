@@ -22,7 +22,7 @@ use classify::Classifier;
 use install::StagedItem;
 
 pub use backup::{BackupVersion, KeptVersion};
-pub use classify::copy_outside_atelier;
+pub use classify::{copy_outside_atelier, duplicate_refusal, is_atelier_copy};
 pub use error::{Error, Result};
 pub use types::*;
 

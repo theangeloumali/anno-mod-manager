@@ -886,3 +886,85 @@ fn a_map_and_a_module_with_the_same_name_are_separate_items() {
             .is_file()
     );
 }
+
+#[test]
+fn a_map_folder_holding_a_module_is_refused_not_silently_dropped() {
+    let sandbox = Sandbox::new();
+    let mut files = vec![("Pack/Earth.hmap".to_string(), b"map".to_vec())];
+    files.extend(module_files("Pack/Mod", "Sigma Pack", "2.5"));
+    let archive = drop_zip(&sandbox, "pack.zip", &files);
+
+    let preview = preview(&sandbox, HUMANKIND, &archive, &PreviewOptions::default());
+
+    assert_eq!(preview.items.len(), 2, "{:#?}", preview.items);
+    let map = preview
+        .items
+        .iter()
+        .find(|item| item.category == "Map")
+        .unwrap();
+    assert_eq!(map.status, InstallItemStatus::Invalid);
+    assert!(
+        has_check(map, Severity::Error, "separate folders"),
+        "{map:#?}"
+    );
+    let module = preview
+        .items
+        .iter()
+        .find(|item| item.mod_id == "sigma pack")
+        .unwrap();
+    assert_eq!(module.status, InstallItemStatus::New);
+}
+
+#[test]
+fn a_hand_installed_atelier_copy_is_not_replaced_by_a_versionless_modio_file() {
+    let sandbox = Sandbox::new();
+    let dropped = drop_zip(&sandbox, "earth.zip", &earth_files());
+    let drop_preview = preview(&sandbox, HUMANKIND, &dropped, &PreviewOptions::default());
+    confirm(&sandbox, HUMANKIND, &drop_preview);
+
+    let download = drop_zip(&sandbox, "7_1.zip", &earth_files());
+    let modio_preview = preview(&sandbox, HUMANKIND, &download, &modio_options("7_1"));
+
+    assert_eq!(only_item(&modio_preview).status, InstallItemStatus::Same);
+}
+
+#[test]
+fn a_drop_whose_folder_belongs_to_another_item_is_refused() {
+    let sandbox = Sandbox::new();
+    let module = drop_zip(&sandbox, "cool.zip", &module_files("Cool", "Cool", "1.0"));
+    let module_preview = preview(&sandbox, HUMANKIND, &module, &PreviewOptions::default());
+    confirm(&sandbox, HUMANKIND, &module_preview);
+
+    // The map is named after its file, which here spells the module's folder.
+    let long = long_name("Cool", "1.0");
+    let map_files = vec![(format!("X/{long}.hmap"), b"map".to_vec())];
+    let map = drop_zip(&sandbox, "map.zip", &map_files);
+    let map_preview = preview(&sandbox, HUMANKIND, &map, &PreviewOptions::default());
+
+    let item = only_item(&map_preview);
+    assert_eq!(item.status, InstallItemStatus::Invalid, "{item:#?}");
+    assert!(
+        has_check(item, Severity::Error, "already holds"),
+        "{item:#?}"
+    );
+    assert!(
+        sandbox
+            .mods()
+            .join("Atelier")
+            .join(&long)
+            .join(&long)
+            .is_file()
+    );
+}
+
+#[test]
+fn a_map_whose_name_windows_cannot_use_as_a_folder_is_refused() {
+    let sandbox = Sandbox::new();
+    let files = vec![("X/..hmap".to_string(), b"map".to_vec())];
+    let archive = drop_zip(&sandbox, "dots.zip", &files);
+
+    let preview = preview(&sandbox, HUMANKIND, &archive, &modio_options("7_1"));
+
+    let item = only_item(&preview);
+    assert_eq!(item.status, InstallItemStatus::Invalid, "{item:#?}");
+}

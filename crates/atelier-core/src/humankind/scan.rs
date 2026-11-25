@@ -14,10 +14,11 @@ use crate::{GameId, GameSetup, Mod, ModDependencies, ModLocation, ModOrigin, Res
 const MODIO_DIR: &str = "mod.io";
 
 pub(crate) fn scan_folder(folder: &ModsFolder, result: &mut ScanResult) -> Result<()> {
-    visit(folder, &folder.path, result)
+    visit(folder, &folder.path, false, result)
 }
 
-fn visit(folder: &ModsFolder, dir: &Path, result: &mut ScanResult) -> Result<()> {
+/// `in_module`: a module's folder ships its maps inside it, so they aren't items of their own.
+fn visit(folder: &ModsFolder, dir: &Path, in_module: bool, result: &mut ScanResult) -> Result<()> {
     if !dir.is_dir() {
         return Ok(());
     }
@@ -36,15 +37,16 @@ fn visit(folder: &ModsFolder, dir: &Path, result: &mut ScanResult) -> Result<()>
     }
     files.sort();
     let items = maps::folder_items(&files);
+    let in_module = in_module || !items.modules.is_empty();
     for (module, bundle) in items.modules {
         add_module(folder, dir, module, bundle, result)?;
     }
-    if let Some(name) = items.map {
+    if let Some(name) = items.map.filter(|_| !in_module) {
         add_map(folder, dir, name, result)?;
     }
     subdirs.sort();
     for subdir in subdirs {
-        visit(folder, &subdir, result)?;
+        visit(folder, &subdir, in_module, result)?;
     }
     Ok(())
 }
