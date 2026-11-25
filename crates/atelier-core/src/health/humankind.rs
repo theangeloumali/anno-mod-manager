@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use super::{Environment, check, writable};
 use crate::games::{Probe, mod_folders, vdf_values};
+use crate::humankind::maps::folder_items;
 use crate::humankind::module_name::ModuleName;
 use crate::humankind::{detect, load_order, registry};
 use crate::scan::{ModsFolder, mod_dir};
@@ -97,9 +98,10 @@ pub fn installed_modules(folders: &[ModsFolder], mods: &[Mod]) -> Vec<InstalledM
                 .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
                 .map(|entry| entry.file_name().to_string_lossy().into_owned())
                 .collect();
-            let module = files
-                .iter()
-                .filter_map(|name| ModuleName::detect(name, &files))
+            let module = folder_items(&files)
+                .modules
+                .into_iter()
+                .map(|(module, _)| module)
                 .find(|module| {
                     module.short_name() == item.id && module.version() == item.version
                 })?;
@@ -117,7 +119,7 @@ pub fn duplicate_guids(modules: &[InstalledModule]) -> HealthCheck {
     let mut by_guid: BTreeMap<String, Vec<&InstalledModule>> = BTreeMap::new();
     // A plain-named module has no guid, so the short-name check alone covers it.
     for installed in modules {
-        if let Some(guid) = &installed.module.guid {
+        if let Some(guid) = installed.module.guid() {
             by_guid
                 .entry(guid.to_lowercase())
                 .or_default()

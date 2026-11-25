@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use atelier_core::{GameId, activation};
+use atelier_core::{GameId, Mod, activation};
 use atelier_install::{InstallPreview, InstallResult, PreviewOptions};
 
 use crate::error::{AppError, ErrorCode, Result};
@@ -13,16 +13,17 @@ const EXPIRED_PREVIEW: &str = "That preview has expired. Drop the file again.";
 
 impl App {
     pub fn preview_install(&self, game: GameId, paths: &[String]) -> Result<InstallPreview> {
-        self.preview_install_with(game, paths, PreviewOptions::default())
+        self.preview_install_with(game, paths, PreviewOptions::default(), None)
     }
 
     /// `options` carries a download's caps and mod.io folder; the game folder is filled in here,
-    /// since a BepInEx plugin installs into it.
+    /// since a BepInEx plugin installs into it. `scanned` spares a caller's fresh scan a repeat.
     pub(crate) fn preview_install_with(
         &self,
         game: GameId,
         paths: &[String],
         options: PreviewOptions,
+        scanned: Option<&[Mod]>,
     ) -> Result<InstallPreview> {
         if paths.is_empty() {
             return Err(AppError::new(
@@ -41,7 +42,14 @@ impl App {
             ));
         }
         let sources: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
-        let installed = self.scan(game)?;
+        let rescanned;
+        let installed = match scanned {
+            Some(mods) => mods,
+            None => {
+                rescanned = self.scan(game)?;
+                &rescanned
+            }
+        };
         let options = PreviewOptions {
             game_dir: self.install(game).map(|(dir, _)| dir),
             ..options
@@ -49,7 +57,7 @@ impl App {
         let preview = self
             .0
             .engine
-            .preview_with_options(game, &sources, &installed, &options)?;
+            .preview_with_options(game, &sources, installed, &options)?;
         lock(&self.0.previews).insert(preview.id.clone(), game);
         Ok(preview)
     }

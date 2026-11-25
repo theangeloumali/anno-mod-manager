@@ -6,14 +6,13 @@ use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use atelier_core::GameId;
-use atelier_core::humankind::maps;
 use atelier_core::humankind::module_name::ModuleName;
 use serde::Serialize;
 
 use crate::error::io_at;
 use crate::fsops::{child_dirs, file_name, move_dir};
 use crate::install::{identify, new_folder_name, target_folder};
-use crate::roots::{map_in, modules_in};
+use crate::roots::humankind_folder;
 use crate::{Error, Result};
 
 const MILLIS_PER_DAY: u64 = 86_400_000;
@@ -101,8 +100,8 @@ fn module_guid(dir: &Path) -> Option<String> {
             match entry.file_type() {
                 Ok(kind) if kind.is_dir() && depth < 4 => pending.push((path, depth + 1)),
                 Ok(kind) if kind.is_file() => {
-                    if let Some(guid) = ModuleName::parse(&file_name(&path)).and_then(|m| m.guid) {
-                        return Some(guid);
+                    if let Some(module) = ModuleName::parse(&file_name(&path)) {
+                        return module.guid().map(str::to_string);
                     }
                 }
                 _ => {}
@@ -221,16 +220,10 @@ fn identity(game: GameId, dir: &Path) -> (String, String) {
     if game != GameId::Humankind {
         return identify(dir);
     }
-    if let Some((module, _)) = modules_in(dir)
+    humankind_folder(dir)
         .ok()
-        .and_then(|modules| modules.into_iter().next())
-    {
-        return (module.short_name(), module.version());
-    }
-    match map_in(dir).ok().flatten() {
-        Some(name) => (maps::map_id(&name), String::new()),
-        None => identify(dir),
-    }
+        .and_then(|folder| folder.item())
+        .unwrap_or_else(|| identify(dir))
 }
 
 /// Backups sorted oldest first; folders that don't follow the naming scheme are left alone.

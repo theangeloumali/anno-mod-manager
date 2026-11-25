@@ -35,15 +35,11 @@ fn visit(folder: &ModsFolder, dir: &Path, result: &mut ScanResult) -> Result<()>
         }
     }
     files.sort();
-    let mut has_module = false;
-    for name in &files {
-        if let Some(module) = ModuleName::detect(name, &files) {
-            has_module = true;
-            add_module(folder, dir, module, &files, result)?;
-        }
+    let items = maps::folder_items(&files);
+    for (module, bundle) in items.modules {
+        add_module(folder, dir, module, bundle, result)?;
     }
-    // A module folder's maps ship inside the module, so only a folder without one is a map.
-    if !has_module && let Some(name) = maps::map_name(&files) {
+    if let Some(name) = items.map {
         add_map(folder, dir, name, result)?;
     }
     subdirs.sort();
@@ -57,7 +53,7 @@ fn add_module(
     folder: &ModsFolder,
     dir: &Path,
     module: ModuleName,
-    siblings: &[String],
+    bundle: Option<&String>,
     result: &mut ScanResult,
 ) -> Result<()> {
     let parts = relative_parts(&folder.path, dir);
@@ -71,7 +67,7 @@ fn add_module(
         return Ok(());
     }
     // The game can't load a module without its bundle, so it never counts as installed.
-    let Some(bundle) = bundle_name(&module, siblings) else {
+    let Some(bundle) = bundle else {
         let reason = format!(
             "{module} has no {} next to it, so Humankind can't load it",
             module.bundle_name()
@@ -98,7 +94,7 @@ fn add_module(
     item.description = info
         .map(|info| info.description)
         .filter(|text| !text.is_empty());
-    item.module_guid = module.guid.as_deref().map(str::to_lowercase);
+    item.module_guid = module.guid().map(str::to_lowercase);
     result.mods.push(item);
     Ok(())
 }
@@ -107,7 +103,7 @@ fn add_map(folder: &ModsFolder, dir: &Path, name: &str, result: &mut ScanResult)
     let parts = relative_parts(&folder.path, dir);
     if parts.is_empty() {
         let reason = "a map needs its own folder inside the mods folder".to_string();
-        let path = dir.join(format!("{name}{}", maps::MAP_EXTENSION));
+        let path = dir.join(format!("{name}.hmap"));
         skip(result, &path, SkipReason::Invalid(reason));
         return Ok(());
     }
@@ -168,12 +164,6 @@ fn relative_parts(root: &Path, dir: &Path) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
-}
-
-/// The game writes the bundle name lowercased, so match it without case.
-fn bundle_name<'a>(module: &ModuleName, siblings: &'a [String]) -> Option<&'a String> {
-    let wanted = module.bundle_name();
-    siblings.iter().find(|name| name.to_lowercase() == wanted)
 }
 
 /// mod.io installs live in `mod.io/<modId>_<modfileId>/…`.

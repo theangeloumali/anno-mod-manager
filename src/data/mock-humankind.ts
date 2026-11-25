@@ -5,6 +5,7 @@ import {
   enableModule,
   isMap,
   moduleKind,
+  modulesById,
   orderProblem,
 } from "./humankind-order.ts";
 import {
@@ -89,13 +90,9 @@ const normalize = (order: string[]): string[] => [
 const kindOf = (mods: Mod[]) => (module: string) =>
   moduleKind(mods.find((mod) => mod.id === module)?.category ?? "");
 
-/** A map is never a module, so listing one counts as missing, as in the core. */
-const isInstalledModule = (mods: Mod[], module: string): boolean =>
-  mods.some((mod) => mod.id === module && !isMap(mod));
-
 export const missingModules = (hk: HumankindMock, mods: Mod[]): string[] =>
   hk.registryFound
-    ? hk.order.filter((module) => !isInstalledModule(mods, module))
+    ? hk.order.filter((module) => !modulesById(mods).has(module))
     : [];
 
 function requireRegistry(hk: HumankindMock): void {
@@ -134,9 +131,8 @@ export function writeHumankindOrder(
   const normalized = normalize(order);
   const problem = orderProblem(normalized, kindOf(mods));
   if (problem) throw new CoreError("invalid-input", problem);
-  const missing = normalized.filter(
-    (module) => !isInstalledModule(mods, module),
-  );
+  const installed = modulesById(mods);
+  const missing = normalized.filter((module) => !installed.has(module));
   if (missing.length > 0)
     throw new CoreError(
       "not-found",

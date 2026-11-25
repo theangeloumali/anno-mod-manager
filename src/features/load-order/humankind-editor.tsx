@@ -8,8 +8,8 @@ import { useCurrentGame } from "@/components/app/use-current-game";
 import { WriteLockNotice } from "@/components/app/write-lock-notice";
 import { Button } from "@/components/ui/button";
 import {
-  isMap,
   moduleKind,
+  modulesById,
   moveExtensionInOrder,
   orderProblem,
   splitOrder,
@@ -53,10 +53,7 @@ function OrderDraft({ saved, mods }: { saved: string[]; mods: Mod[] }) {
   const save = useAction((source, order: string[]) =>
     source.setLoadOrder(gameId, order),
   );
-  // A map isn't a module, so a listed one counts as missing, as the core says.
-  const modById = new Map(
-    mods.filter((mod) => !isMap(mod)).map((mod) => [mod.id, mod]),
-  );
+  const modById = modulesById(mods);
   const titleOf = (module: string) => modById.get(module)?.name ?? module;
   const kindOf = (module: string) =>
     moduleKind(modById.get(module)?.category ?? "");

@@ -75,18 +75,7 @@ pub(crate) fn has_data_folder(dir: &Path) -> bool {
 }
 
 pub(crate) fn has_module_file(dir: &Path) -> bool {
-    modules_in(dir).is_ok_and(|modules| !modules.is_empty())
-}
-
-/// The map a folder holds, by name; a module's folder ships its maps inside the module.
-pub(crate) fn map_in(dir: &Path) -> Result<Option<String>> {
-    let files = file_names(dir)?;
-    let has_module = files
-        .iter()
-        .any(|name| ModuleName::detect(name, &files).is_some());
-    Ok((!has_module)
-        .then(|| maps::map_name(&files).map(str::to_string))
-        .flatten())
+    humankind_folder(dir).is_ok_and(|folder| !folder.modules.is_empty())
 }
 
 /// Loose `.dll`s or a `BepInEx/` folder: what a plugin archive holds at its top level.
@@ -94,19 +83,47 @@ pub(crate) fn has_plugin_files(dir: &Path) -> bool {
     has_dll(dir) || child_dirs(dir).is_ok_and(|dirs| dirs.iter().any(|d| is_named(d, "BepInEx")))
 }
 
-/// The module files among `dir`'s files, each with whether its bundle sits beside it.
-pub(crate) fn modules_in(dir: &Path) -> Result<Vec<(ModuleName, bool)>> {
+/// What a folder holds for Humankind, from one read of its files.
+pub(crate) struct HumankindFolder {
+    /// Each module file, with whether its bundle sits beside it.
+    pub modules: Vec<(ModuleName, bool)>,
+    pub map: Option<String>,
+}
+
+impl HumankindFolder {
+    /// The id and version of what the folder installs as: its first module, else its map.
+    pub fn item(&self) -> Option<(String, String)> {
+        match (self.modules.first(), &self.map) {
+            (Some((module, _)), _) => Some((module.short_name(), module.version())),
+            (None, Some(name)) => Some((maps::map_id(name), String::new())),
+            (None, None) => None,
+        }
+    }
+
+    /// Whether any module here, or its map, has this id.
+    pub fn holds(&self, id: &str) -> bool {
+        self.modules
+            .iter()
+            .any(|(module, _)| module.short_name() == id)
+            || self.map.as_deref().map(maps::map_id).as_deref() == Some(id)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.modules.is_empty() && self.map.is_none()
+    }
+}
+
+pub(crate) fn humankind_folder(dir: &Path) -> Result<HumankindFolder> {
     let files = file_names(dir)?;
-    Ok(files
-        .iter()
-        .filter_map(|name| ModuleName::detect(name, &files))
-        .map(|module| {
-            // The game writes the bundle name lowercased, so match it without case.
-            let bundle = module.bundle_name();
-            let has_bundle = files.iter().any(|name| name.to_lowercase() == bundle);
-            (module, has_bundle)
-        })
-        .collect())
+    let items = maps::folder_items(&files);
+    Ok(HumankindFolder {
+        modules: items
+            .modules
+            .into_iter()
+            .map(|(module, bundle)| (module, bundle.is_some()))
+            .collect(),
+        map: items.map.map(str::to_string),
+    })
 }
 
 /// Humankind roots, then Anno ones; where the two overlap, the previewed game's kind wins.
@@ -182,38 +199,38 @@ fn anno_roots(staged: &Path) -> Result<Vec<FoundRoot>> {
 }
 
 fn module_roots(staged: &Path) -> Result<Vec<FoundRoot>> {
-    let mut dirs = Vec::new();
-    collect_dirs(staged, &has_module_file, &mut dirs)?;
-    let mut roots = Vec::new();
-    for dir in dirs {
-        let modules = modules_in(&dir)?;
-        let modules_in_folder = modules.len();
-        if let Some((module, has_bundle)) = modules.into_iter().next() {
-            let manifest = Manifest::Module {
-                module,
-                has_bundle,
-                modules_in_folder,
-            };
-            roots.push(plain_root(dir, manifest));
-        }
-    }
-    Ok(roots)
+    humankind_roots(staged, &|folder| {
+        let modules_in_folder = folder.modules.len();
+        let (module, has_bundle) = folder.modules.into_iter().next()?;
+        Some(Manifest::Module {
+            module,
+            has_bundle,
+            modules_in_folder,
+        })
+    })
 }
 
 fn map_roots(staged: &Path) -> Result<Vec<FoundRoot>> {
-    let mut dirs = Vec::new();
-    collect_dirs(
+    humankind_roots(staged, &|folder| {
+        folder.map.map(|name| Manifest::Map { name })
+    })
+}
+
+/// The topmost folders whose files `manifest` recognises, each read once.
+fn humankind_roots(
+    staged: &Path,
+    manifest: &dyn Fn(HumankindFolder) -> Option<Manifest>,
+) -> Result<Vec<FoundRoot>> {
+    let mut found = Vec::new();
+    collect_found(
         staged,
-        &|dir| map_in(dir).is_ok_and(|map| map.is_some()),
-        &mut dirs,
+        &|dir| humankind_folder(dir).ok().and_then(manifest),
+        &mut found,
     )?;
-    let mut roots = Vec::new();
-    for dir in dirs {
-        if let Some(name) = map_in(&dir)? {
-            roots.push(plain_root(dir, Manifest::Map { name }));
-        }
-    }
-    Ok(roots)
+    Ok(found
+        .into_iter()
+        .map(|(dir, manifest)| plain_root(dir, manifest))
+        .collect())
 }
 
 /// `…/BepInEx/plugins` trees, named after the folder holding BepInEx; without any, the
@@ -284,12 +301,24 @@ fn file_names(dir: &Path) -> Result<Vec<String>> {
 
 /// Stops descending at the first match, so a match's descendants are never roots.
 fn collect_dirs(dir: &Path, is_root: &dyn Fn(&Path) -> bool, out: &mut Vec<PathBuf>) -> Result<()> {
-    if is_root(dir) {
-        out.push(dir.to_path_buf());
+    let mut found = Vec::new();
+    collect_found(dir, &|dir| is_root(dir).then_some(()), &mut found)?;
+    out.extend(found.into_iter().map(|(dir, ())| dir));
+    Ok(())
+}
+
+/// Like `collect_dirs`, keeping what each match found so it isn't read again.
+fn collect_found<T>(
+    dir: &Path,
+    found: &dyn Fn(&Path) -> Option<T>,
+    out: &mut Vec<(PathBuf, T)>,
+) -> Result<()> {
+    if let Some(value) = found(dir) {
+        out.push((dir.to_path_buf(), value));
         return Ok(());
     }
     for child in visible_children(dir)? {
-        collect_dirs(&child, is_root, out)?;
+        collect_found(&child, found, out)?;
     }
     Ok(())
 }

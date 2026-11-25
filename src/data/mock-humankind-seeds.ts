@@ -65,7 +65,7 @@ export const HUMANKIND_MOD_SEEDS: HumankindModSeed[] = [
     modioId: 4019302,
   },
   {
-    id: "[map] ultra-realistic earth map",
+    id: "map~[map] ultra-realistic earth map",
     name: "[MAP] ultra-realistic earth map",
     category: "Map",
     version: "",

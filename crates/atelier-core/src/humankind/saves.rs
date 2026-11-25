@@ -336,7 +336,7 @@ fn mods(list: &str) -> Vec<SaveMod> {
         let module = SaveMod {
             name: short_name(entry),
             version: parsed.as_ref().map(ModuleName::version),
-            guid: parsed.and_then(|parsed| parsed.guid),
+            guid: parsed.and_then(|parsed| parsed.guid().map(str::to_string)),
         };
         let listed = mods.iter().any(|other| other.name == module.name);
         if module.name != BASE_MODULE && !listed {

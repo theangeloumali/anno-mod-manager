@@ -494,7 +494,7 @@ fn uninstalling_a_module_whose_folder_holds_a_nested_module_is_refused() {
 fn a_map_installs_on_uninstalls_and_restores_without_touching_the_registry() {
     let harness = Harness::new();
     let map = "[MAP] ultra-realistic earth map";
-    let id = map.to_lowercase();
+    let id = format!("map~{}", map.to_lowercase());
     let entries = vec![
         (format!("Earth/{map}.hmap"), b"map".to_vec()),
         ("Earth/README.txt".to_string(), b"readme".to_vec()),

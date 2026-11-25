@@ -10,8 +10,16 @@ export const moduleKind = (category: string): ModuleKind =>
     : "Extension";
 
 /** Maps load from anywhere under Community and never enter the load order (humankind/maps.rs). */
+export const isMapCategory = (category: string): boolean => category === "Map";
+
 export const isMap = (mod: { category: string }): boolean =>
-  mod.category === "Map";
+  isMapCategory(mod.category);
+
+/** Installed modules by id. A map isn't one, so a listed map counts as missing, as in the core. */
+export const modulesById = <T extends { id: string; category: string }>(
+  mods: T[],
+): Map<string, T> =>
+  new Map(mods.filter((mod) => !isMap(mod)).map((mod) => [mod.id, mod]));
 
 type KindOf = (module: string) => ModuleKind;
 

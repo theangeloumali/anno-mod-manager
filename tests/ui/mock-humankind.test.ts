@@ -148,7 +148,7 @@ test("a save whose mod list couldn't be read never sets the list", () => {
   );
 });
 
-const EARTH = "[map] ultra-realistic earth map";
+const EARTH = "map~[map] ultra-realistic earth map";
 
 test("a map is always on, has no switch and never enters the load order", () => {
   const { hk, mods } = setup();

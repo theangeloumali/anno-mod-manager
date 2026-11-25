@@ -70,10 +70,7 @@ fn set_modified(path: &Path, seconds_ago: u64) {
 fn long_name_splits_into_name_guid_and_version() {
     let parsed = ModuleName::parse(DEEPSEA_LONG).unwrap();
     assert_eq!(parsed.name, "DeepSea Reloaded");
-    assert_eq!(
-        parsed.guid.as_deref(),
-        Some("a76c474eb14d46cab94bde2e802b5ba8")
-    );
+    assert_eq!(parsed.guid(), Some("a76c474eb14d46cab94bde2e802b5ba8"));
     assert_eq!(parsed.version(), "3.3");
     assert_eq!(parsed.to_string(), DEEPSEA_LONG);
 }
@@ -898,14 +895,14 @@ fn a_plain_module_name_is_a_module_when_its_bundle_sits_beside_it() {
     ]);
     let module = ModuleName::detect("MissileBoy", &siblings).unwrap();
     assert_eq!(module.short_name(), "missileboy");
-    assert_eq!(module.guid, None);
+    assert_eq!(module.guid(), None);
     assert_eq!(module.version(), "");
     assert_eq!(module.to_string(), "MissileBoy");
     assert!(ModuleName::detect("MissileBoy", &names(&["MissileBoy"])).is_none());
     assert!(ModuleName::detect("missileboy.assetbundle", &siblings).is_none());
     let long = "Sigma Pack.402b91b9e5724da3851e2b6b727b100a.2.5";
     assert_eq!(
-        ModuleName::detect(long, &[]).unwrap().guid.as_deref(),
+        ModuleName::detect(long, &[]).unwrap().guid(),
         Some("402b91b9e5724da3851e2b6b727b100a")
     );
 }
@@ -953,7 +950,7 @@ fn the_scan_lists_a_map_folder_as_one_map() {
 
     assert_eq!(result.mods.len(), 1, "{:?}", result.mods);
     let earth = &result.mods[0];
-    assert_eq!(earth.id, EARTH.to_lowercase());
+    assert_eq!(earth.id, maps::map_id(EARTH));
     assert_eq!(earth.name, EARTH);
     assert_eq!(earth.category, maps::MAP_CATEGORY);
     assert_eq!(earth.version, "");

@@ -559,7 +559,8 @@ impl App {
             modio_folder: Some(format!("{modio_id}_{modfile_id}")),
             ..PreviewOptions::default()
         };
-        let preview = self.preview_install_with(game, &[archive.to_owned()], options)?;
+        let preview =
+            self.preview_install_with(game, &[archive.to_owned()], options, Some(&scanned))?;
         // Nothing to install, but the page is satisfied: link it so sync stops downloading it.
         if game == GameId::Humankind
             && let Some(note) = provided_read_only(&preview.items, &scanned)
@@ -725,16 +726,16 @@ fn gone() -> AppError {
 /// The note for a Humankind download whose every item a read-only copy (Workshop, game folder,
 /// the game's own mod.io) already provides; a second copy would load twice, so none is added.
 fn provided_read_only(items: &[InstallPreviewItem], scanned: &[Mod]) -> Option<String> {
-    let mut places = items.iter().map(|item| {
-        let copy = copy_outside_atelier(scanned, &item.mod_id)?;
-        let read_only =
-            item.status == InstallItemStatus::Invalid && copy.location != ModLocation::Documents;
-        read_only.then(|| copy.location.place())
-    });
-    let first = places.next()??;
-    if places.any(|place| place.is_none()) {
-        return None;
-    }
+    let places: Vec<&str> = items
+        .iter()
+        .map(|item| {
+            let copy = copy_outside_atelier(scanned, &item.mod_id)?;
+            let read_only = item.status == InstallItemStatus::Invalid
+                && copy.location != ModLocation::Documents;
+            read_only.then(|| copy.location.place())
+        })
+        .collect::<Option<_>>()?;
+    let first = places.first()?;
     Some(format!(
         "Already installed in the {first}; Atelier left that copy in place and linked this page to it."
     ))

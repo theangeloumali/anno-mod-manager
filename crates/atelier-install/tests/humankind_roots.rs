@@ -795,7 +795,7 @@ fn a_map_from_modio_installs_under_atelier_and_scans_as_a_map() {
         &modio_options("1134524_4916225"),
     );
     let item = only_item(&preview);
-    assert_eq!(item.mod_id, EARTH.to_lowercase());
+    assert_eq!(item.mod_id, format!("map~{}", EARTH.to_lowercase()));
     assert_eq!(item.category, "Map");
     assert_eq!(item.status, InstallItemStatus::New, "{item:#?}");
     let target = format!("Installs to Community\\Atelier\\1134524_4916225\\{EARTH}");
@@ -855,4 +855,34 @@ fn a_map_dropped_on_anno_is_built_for_humankind() {
     let item = only_item(&preview);
     assert_eq!(item.status, InstallItemStatus::WrongGame, "{item:#?}");
     assert_eq!(item.target_game, Some(HUMANKIND));
+}
+
+#[test]
+fn a_map_and_a_module_with_the_same_name_are_separate_items() {
+    let sandbox = Sandbox::new();
+    let module = drop_zip(
+        &sandbox,
+        "module.zip",
+        &module_files("Earth", "Earth", "1.0"),
+    );
+    let module_preview = preview(&sandbox, HUMANKIND, &module, &PreviewOptions::default());
+    confirm(&sandbox, HUMANKIND, &module_preview);
+
+    let map_files = vec![("Earth/Earth.hmap".to_string(), b"map".to_vec())];
+    let map = drop_zip(&sandbox, "map.zip", &map_files);
+    let map_preview = preview(&sandbox, HUMANKIND, &map, &PreviewOptions::default());
+    assert_eq!(only_item(&map_preview).status, InstallItemStatus::New);
+    confirm(&sandbox, HUMANKIND, &map_preview);
+
+    let installed = sandbox.installed(HUMANKIND);
+    assert_eq!(installed.len(), 2, "{installed:#?}");
+    let long = long_name("Earth", "1.0");
+    assert!(
+        sandbox
+            .mods()
+            .join("Atelier")
+            .join(&long)
+            .join(&long)
+            .is_file()
+    );
 }

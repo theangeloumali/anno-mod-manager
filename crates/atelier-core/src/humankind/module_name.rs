@@ -3,14 +3,20 @@
 use std::fmt;
 
 const GUID_LENGTH: usize = 32;
-pub const BUNDLE_EXTENSION: &str = ".assetbundle";
+const BUNDLE_EXTENSION: &str = ".assetbundle";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModuleName {
     pub name: String,
     /// `None` for an older module shipped under its plain name.
-    pub guid: Option<String>,
-    version: Option<(i16, i16)>,
+    stamp: Option<Stamp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Stamp {
+    guid: String,
+    major: i16,
+    minor: i16,
 }
 
 impl ModuleName {
@@ -26,30 +32,40 @@ impl ModuleName {
         }
         Some(Self {
             name: name.to_string(),
-            guid: Some(guid.to_string()),
-            version: Some((parse_version_part(major)?, parse_version_part(minor)?)),
+            stamp: Some(Stamp {
+                guid: guid.to_string(),
+                major: parse_version_part(major)?,
+                minor: parse_version_part(minor)?,
+            }),
         })
     }
 
-    /// A module file among `siblings`: a long name, or any name whose lowercased bundle sits
-    /// beside it. The game finds modules by bundle and loads one whose name won't split
+    /// A module file among `siblings`: a long name, or any name whose bundle sits beside it.
+    /// The game finds modules by bundle and loads one whose name won't split
     /// (`RuntimeManager.EnumerateRuntimeModules`).
     pub fn detect(file: &str, siblings: &[String]) -> Option<Self> {
-        if let Some(module) = Self::parse(file) {
-            return Some(module);
-        }
-        let bundle = format!("{file}{BUNDLE_EXTENSION}").to_lowercase();
-        let has_bundle = siblings.iter().any(|name| name.to_lowercase() == bundle);
-        (has_bundle && !file.is_empty()).then(|| Self {
-            name: file.to_string(),
-            guid: None,
-            version: None,
+        Self::parse(file).or_else(|| {
+            let plain = Self {
+                name: file.to_string(),
+                stamp: None,
+            };
+            plain.bundle_in(siblings).is_some().then_some(plain)
         })
+    }
+
+    pub fn guid(&self) -> Option<&str> {
+        self.stamp.as_ref().map(|stamp| stamp.guid.as_str())
     }
 
     /// The bundle's file name, which the game writes lowercased.
     pub fn bundle_name(&self) -> String {
         format!("{self}{BUNDLE_EXTENSION}").to_lowercase()
+    }
+
+    /// This module's bundle among `siblings`, matched without case.
+    pub fn bundle_in<'s>(&self, siblings: &'s [String]) -> Option<&'s String> {
+        let wanted = self.bundle_name();
+        siblings.iter().find(|name| name.to_lowercase() == wanted)
     }
 
     /// `Runtime.CheckRuntimeModuleName` lowercases every letter before the module is registered.
@@ -59,19 +75,20 @@ impl ModuleName {
 
     /// Empty for a plain-named module, which carries no version.
     pub fn version(&self) -> String {
-        self.version
-            .map(|(major, minor)| format!("{major}.{minor}"))
+        self.stamp
+            .as_ref()
+            .map(|stamp| format!("{}.{}", stamp.major, stamp.minor))
             .unwrap_or_default()
     }
 }
 
 impl fmt::Display for ModuleName {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match (&self.guid, self.version) {
-            (Some(guid), Some((major, minor))) => {
+        match &self.stamp {
+            Some(Stamp { guid, major, minor }) => {
                 write!(formatter, "{}.{guid}.{major}.{minor}", self.name)
             }
-            _ => write!(formatter, "{}", self.name),
+            None => write!(formatter, "{}", self.name),
         }
     }
 }

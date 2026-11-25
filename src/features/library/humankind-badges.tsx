@@ -8,7 +8,7 @@ import {
   MapIcon,
 } from "lucide-react";
 import { StateBadge, type StateTone } from "@/components/app/state-badge";
-import { isMap, moduleKind } from "@/data/humankind-order";
+import { isMapCategory, moduleKind } from "@/data/humankind-order";
 import type { Mod } from "@/data/types";
 
 interface Chip {
@@ -31,7 +31,7 @@ function sourceChip(mod: Pick<Mod, "origin" | "location">): Chip {
 
 /** A blank category means the bundle wasn't read; say so rather than guess Extension. */
 function typeChip(category: string): Chip {
-  if (isMap({ category }))
+  if (isMapCategory(category))
     return { label: "Map · always on", tone: "neutral", icon: MapIcon };
   if (category === "")
     return { label: "Type not verified", tone: "warning", icon: LayersIcon };

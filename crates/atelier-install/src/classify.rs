@@ -52,23 +52,20 @@ impl<'a> Classifier<'a> {
             Manifest::Parsed(info) => Some(info.as_ref()),
             _ => None,
         };
-        let (name, version) = match &root.manifest {
-            Manifest::Module { module, .. } => (module.name.clone(), module.version()),
-            Manifest::Map { name } | Manifest::Plugin { name } => (name.clone(), String::new()),
+        let (name, version, category) = match &root.manifest {
+            Manifest::Module { module, .. } => (module.name.clone(), module.version(), None),
+            Manifest::Map { name } => (name.clone(), String::new(), Some(MAP_CATEGORY.into())),
+            Manifest::Plugin { name } => (name.clone(), String::new(), None),
             _ => (
                 info.and_then(|info| info.name.clone()).unwrap_or(folder),
                 info.map(|info| info.version.clone()).unwrap_or_default(),
+                info.and_then(|info| info.category.clone()),
             ),
         };
         let mut item = InstallPreviewItem {
             root_path: relative_path(staged, &root.dir),
             name,
-            category: match &root.manifest {
-                Manifest::Map { .. } => MAP_CATEGORY.to_string(),
-                _ => info
-                    .and_then(|info| info.category.clone())
-                    .unwrap_or_default(),
-            },
+            category: category.unwrap_or_default(),
             version,
             previous_version: None,
             target_game: detect_game(root),
@@ -140,10 +137,10 @@ impl<'a> Classifier<'a> {
         let Some(modio) = &self.options.modio_folder else {
             return false;
         };
-        let atelier = format!("{ATELIER_FOLDER}/");
-        existing.location == ModLocation::Documents
-            && existing.folder.starts_with(&atelier)
-            && !existing.folder.starts_with(&format!("{atelier}{modio}/"))
+        is_atelier_copy(existing)
+            && !existing
+                .folder
+                .starts_with(&format!("{ATELIER_FOLDER}/{modio}/"))
     }
 
     fn plugins_dir(&self) -> Option<PathBuf> {
@@ -404,12 +401,15 @@ impl<'a> Classifier<'a> {
 /// A Humankind copy Atelier didn't install (Documents, Workshop, game folder or the game's own
 /// mod.io), which would load alongside a new one.
 pub fn copy_outside_atelier<'m>(installed: &'m [Mod], mod_id: &str) -> Option<&'m Mod> {
-    let atelier = format!("{ATELIER_FOLDER}/");
-    installed.iter().find(|copy| {
-        copy.game == GameId::Humankind
-            && copy.id == mod_id
-            && (copy.location != ModLocation::Documents || !copy.folder.starts_with(&atelier))
-    })
+    installed
+        .iter()
+        .find(|copy| copy.game == GameId::Humankind && copy.id == mod_id && !is_atelier_copy(copy))
+}
+
+/// A copy under `Community\Atelier`, the only Humankind copies Atelier installed.
+fn is_atelier_copy(copy: &Mod) -> bool {
+    copy.location == ModLocation::Documents
+        && copy.folder.starts_with(&format!("{ATELIER_FOLDER}/"))
 }
 
 /// The BepInEx folders beside `plugins` (config, patchers…), which a plugin install doesn't copy.
