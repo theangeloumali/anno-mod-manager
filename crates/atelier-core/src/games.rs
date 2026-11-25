@@ -7,16 +7,19 @@ use serde_json::Value;
 
 use crate::activation::detect_scheme;
 use crate::scan::ModsFolder;
-use crate::{ActivationScheme, GameId, GameInfo, ModLocation, Store};
+use crate::{GameId, GameInfo, ModLocation, Store};
 
 const MODS_DIR: &str = "mods";
 const UBI_MODS_DIR: &str = ".ubi";
+/// Humankind's local mods; the game searches it recursively, mod.io installs included.
+const HUMANKIND_COMMUNITY_DIR: &str = "Community";
 
 impl GameId {
     pub fn display_name(self) -> &'static str {
         match self {
             GameId::Anno117 => "Anno 117: Pax Romana",
             GameId::Anno1800 => "Anno 1800",
+            GameId::Humankind => "Humankind",
         }
     }
 
@@ -24,26 +27,34 @@ impl GameId {
         match self {
             GameId::Anno117 => "Anno117.exe",
             GameId::Anno1800 => "Anno1800.exe",
+            GameId::Humankind => "Humankind.exe",
         }
     }
 
     /// Relative to the install root.
     pub fn executable(self) -> PathBuf {
-        Path::new("Bin").join("Win64").join(self.executable_name())
+        match self {
+            GameId::Anno117 | GameId::Anno1800 => {
+                Path::new("Bin").join("Win64").join(self.executable_name())
+            }
+            GameId::Humankind => PathBuf::from(self.executable_name()),
+        }
     }
 
     pub fn steam_app_id(self) -> u32 {
         match self {
             GameId::Anno117 => 3_274_580,
             GameId::Anno1800 => 916_440,
+            GameId::Humankind => 1_124_300,
         }
     }
 
-    /// Ubisoft Connect `Installs\<id>` registry key.
-    pub fn ubisoft_install_id(self) -> u32 {
+    /// Ubisoft Connect `Installs\<id>` registry key; `None` for games Ubisoft doesn't sell.
+    pub fn ubisoft_install_id(self) -> Option<u32> {
         match self {
-            GameId::Anno117 => 921,
-            GameId::Anno1800 => 4553,
+            GameId::Anno117 => Some(921),
+            GameId::Anno1800 => Some(4553),
+            GameId::Humankind => None,
         }
     }
 
@@ -52,13 +63,16 @@ impl GameId {
         match self {
             GameId::Anno117 => "Anno 117 - Pax Romana",
             GameId::Anno1800 => "Anno 1800",
+            GameId::Humankind => "Humankind",
         }
     }
 
-    fn epic_title_prefix(self) -> &'static str {
+    /// `None` where only a Steam install is detected.
+    fn epic_title_prefix(self) -> Option<&'static str> {
         match self {
-            GameId::Anno117 => "Anno 117",
-            GameId::Anno1800 => "Anno 1800",
+            GameId::Anno117 => Some("Anno 117"),
+            GameId::Anno1800 => Some("Anno 1800"),
+            GameId::Humankind => None,
         }
     }
 }
@@ -133,27 +147,63 @@ pub fn documents_game_dir(game: GameId, documents: &Path) -> PathBuf {
     documents.join(game.documents_folder())
 }
 
+/// The folder the player's own mods live in, and the one installs write to.
+pub fn documents_mods_dir(game: GameId, documents: &Path) -> PathBuf {
+    let dir = match game {
+        GameId::Anno117 | GameId::Anno1800 => MODS_DIR,
+        GameId::Humankind => HUMANKIND_COMMUNITY_DIR,
+    };
+    documents_game_dir(game, documents).join(dir)
+}
+
 /// Scan order matters: later folders' copies are the ones the player edits.
 pub fn mod_folders(game: GameId, install: Option<&Path>, documents: &Path) -> Vec<ModsFolder> {
     let mut folders = Vec::new();
     if let Some(install) = install {
-        let game_mods = install.join(MODS_DIR);
-        if game == GameId::Anno117 {
-            folders.push(ModsFolder {
-                path: game_mods.join(UBI_MODS_DIR),
-                location: ModLocation::Ubi,
-            });
+        match game {
+            GameId::Anno117 | GameId::Anno1800 => {
+                let game_mods = install.join(MODS_DIR);
+                if game == GameId::Anno117 {
+                    folders.push(ModsFolder {
+                        path: game_mods.join(UBI_MODS_DIR),
+                        location: ModLocation::Ubi,
+                    });
+                }
+                folders.push(ModsFolder {
+                    path: game_mods,
+                    location: ModLocation::Game,
+                });
+            }
+            GameId::Humankind => {
+                folders.push(ModsFolder {
+                    path: install.join("Public").join("Modification"),
+                    location: ModLocation::Game,
+                });
+                if let Some(workshop) = steam_workshop_dir(game, install) {
+                    folders.push(ModsFolder {
+                        path: workshop,
+                        location: ModLocation::Workshop,
+                    });
+                }
+            }
         }
-        folders.push(ModsFolder {
-            path: game_mods,
-            location: ModLocation::Game,
-        });
     }
     folders.push(ModsFolder {
-        path: documents_game_dir(game, documents).join(MODS_DIR),
+        path: documents_mods_dir(game, documents),
         location: ModLocation::Documents,
     });
     folders
+}
+
+/// `<library>/steamapps/workshop/content/<app>` for an install at `<library>/steamapps/common/<dir>`.
+fn steam_workshop_dir(game: GameId, install: &Path) -> Option<PathBuf> {
+    let steamapps = install.parent()?.parent()?;
+    Some(
+        steamapps
+            .join("workshop")
+            .join("content")
+            .join(game.steam_app_id().to_string()),
+    )
 }
 
 pub fn game_info(
@@ -163,15 +213,18 @@ pub fn game_info(
     running: bool,
 ) -> GameInfo {
     let game_dir = documents_game_dir(game, documents);
-    let mods_path = game_dir.join(MODS_DIR);
-    let activation_scheme = match game {
-        GameId::Anno1800 => ActivationScheme::ActivationJson,
-        GameId::Anno117 => detect_scheme(game, &mods_path),
-    };
-    let legacy_mod_loader = game == GameId::Anno1800
-        && install
+    let mods_path = documents_mods_dir(game, documents);
+    let activation_scheme = detect_scheme(game, &mods_path);
+    let legacy_mod_loader = match game {
+        GameId::Anno1800 => install
             .as_ref()
-            .is_some_and(|(path, _)| crate::health::legacy_loader_removable(path));
+            .is_some_and(|(path, _)| crate::health::legacy_loader_removable(path)),
+        GameId::Anno117 | GameId::Humankind => false,
+    };
+    let log_path = match game {
+        GameId::Anno117 | GameId::Anno1800 => game_dir.join("log").join("mod-loader.log"),
+        GameId::Humankind => game_dir.join("Temporary Files"),
+    };
     let (install_path, store) = match install {
         Some((path, store)) => (Some(path.to_string_lossy().into_owned()), Some(store)),
         None => (None, None),
@@ -182,11 +235,7 @@ pub fn game_info(
         install_path,
         store,
         mods_path: mods_path.to_string_lossy().into_owned(),
-        log_path: game_dir
-            .join("log")
-            .join("mod-loader.log")
-            .to_string_lossy()
-            .into_owned(),
+        log_path: log_path.to_string_lossy().into_owned(),
         running,
         activation_scheme,
         legacy_mod_loader,
@@ -213,15 +262,16 @@ fn epic_install(manifests: &Path, game: GameId) -> Option<PathBuf> {
         .filter_map(|path| fs::read_to_string(path).ok())
         .filter_map(|text| serde_json::from_str::<Value>(&text).ok())
         .find(|item| {
-            item["DisplayName"]
-                .as_str()
-                .is_some_and(|name| name.starts_with(game.epic_title_prefix()))
+            item["DisplayName"].as_str().is_some_and(|name| {
+                game.epic_title_prefix()
+                    .is_some_and(|prefix| name.starts_with(prefix))
+            })
         })
         .and_then(|item| item["InstallLocation"].as_str().map(PathBuf::from))
 }
 
 /// Values of `"key" "value"` pairs in Valve KeyValues text; `\\` unescapes to `\`.
-fn vdf_values(text: &str, key: &str) -> Vec<String> {
+pub(crate) fn vdf_values(text: &str, key: &str) -> Vec<String> {
     let tokens = vdf_strings(text);
     tokens
         .windows(2)
@@ -274,7 +324,7 @@ mod platform {
     pub fn ubisoft_install(game: GameId) -> Option<PathBuf> {
         let key = format!(
             r"SOFTWARE\WOW6432Node\Ubisoft\Launcher\Installs\{}",
-            game.ubisoft_install_id()
+            game.ubisoft_install_id()?
         );
         read(HKEY_LOCAL_MACHINE, &key, "InstallDir").map(PathBuf::from)
     }

@@ -1,10 +1,8 @@
 // Created by The Angelo Umali.
-import type { GameId } from "@/data/types";
+import { GAME_IDS } from "@/data/types";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "./app-store";
 import { gameShortName } from "./format";
-
-const GAME_IDS: GameId[] = ["anno117", "anno1800"];
 
 /** The switch changes only this badge and the copy; the palette stays ZKidz for both games. */
 export function GameSwitcher() {

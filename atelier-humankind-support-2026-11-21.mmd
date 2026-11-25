@@ -1,0 +1,21 @@
+flowchart TD
+  UI["React UI<br/>Library · Load order editor · Profiles + History · Saves · Health · mod.io"]
+  APP["atelier-app<br/>GameId::ALL · process guard · launch"]
+  CORE["atelier-core<br/>games (match) · activation + RegistryList · health · snapshots"]
+  HK["humankind/ (new)<br/>detect · module_name · bundle · scan · registry · saves · load_order"]
+  INST["atelier-install<br/>Humankind + BepInEx roots · vault restore by version"]
+  MODIO["atelier-modio<br/>game 2599"]
+  REG[("Users/&lt;id&gt;/Registry.xml<br/>RuntimeModuleConfiguration")]
+  HIST[("ModListGuard/history.jsonl")]
+  SAVES[("Save Files/**/*.ctr")]
+  DEST[("Community/Atelier/&lt;id&gt;_&lt;file&gt;<br/>BepInEx/plugins")]
+
+  UI -->|Tauri commands| APP
+  APP --> CORE
+  APP --> INST
+  APP --> MODIO
+  CORE --> HK
+  HK -->|write while game closed, after snapshot| REG
+  HK -->|read| HIST
+  HK -->|read| SAVES
+  INST -->|install| DEST

@@ -24,6 +24,7 @@ import {
   useMods,
 } from "@/data/source";
 import type { LogEntry } from "@/data/types";
+import { BepinexCard } from "./bepinex-card";
 
 const LOG_TONE: Record<LogEntry["level"], StateTone> = {
   info: "neutral",
@@ -41,6 +42,8 @@ export function HealthScreen() {
   const { data: log = [] } = useLoaderLog(gameId);
   const { data: mods = [] } = useMods(gameId);
   const [isShowingInfo, setShowingInfo] = useState(false);
+  // Humankind writes HTML diagnostics, not an Anno mod-loader log, so there is nothing to show.
+  const hasLoaderLog = gameId !== "humankind";
   // Until the checks (which wait on mod.io) arrive, the game list's loader flag stands in.
   const environmentErrors = checks.length
     ? checks.filter(isLaunchBlocker).length
@@ -56,7 +59,11 @@ export function HealthScreen() {
     <div className="flex flex-col gap-5">
       <PageHeader
         title="Health"
-        description={`Problems Atelier can predict before ${shortName} starts, plus what the game's mod loader reported last time it ran.`}
+        description={
+          hasLoaderLog
+            ? `Problems Atelier can predict before ${shortName} starts, plus what the game's mod loader reported last time it ran.`
+            : `Problems Atelier can predict before ${shortName} starts.`
+        }
         actions={
           errorCount ? (
             <StateBadge tone="error">
@@ -107,65 +114,70 @@ export function HealthScreen() {
             ))}
           </ul>
         </Panel>
+        {gameId === "humankind" && <BepinexCard />}
       </div>
-      <Panel
-        title="Mod loader log"
-        actions={
-          <label className="flex items-center gap-2 text-label text-copy-muted">
-            <Switch
-              className={SWITCH_CLASS}
-              checked={isShowingInfo}
-              onCheckedChange={setShowingInfo}
-            />
-            Show info lines
-          </label>
-        }
-      >
-        <ul className="flex flex-col gap-2">
-          {logCards.map((entry, index) => (
-            <li
-              key={`${entry.time}-${index}`}
-              className="rounded-field border border-line bg-bg p-3"
+      {hasLoaderLog && (
+        <>
+          <Panel
+            title="Mod loader log"
+            actions={
+              <label className="flex items-center gap-2 text-label text-copy-muted">
+                <Switch
+                  className={SWITCH_CLASS}
+                  checked={isShowingInfo}
+                  onCheckedChange={setShowingInfo}
+                />
+                Show info lines
+              </label>
+            }
+          >
+            <ul className="flex flex-col gap-2">
+              {logCards.map((entry, index) => (
+                <li
+                  key={`${entry.time}-${index}`}
+                  className="rounded-field border border-line bg-bg p-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StateBadge tone={LOG_TONE[entry.level]}>
+                      {entry.level}
+                    </StateBadge>
+                    <span className="font-mono text-label text-copy-dim">
+                      {entry.time}
+                    </span>
+                    {entry.modId && (
+                      <span className="font-mono text-label text-accent">
+                        {entry.modId}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-ui break-words">{entry.message}</p>
+                  {entry.source && (
+                    <p className="font-mono text-label text-copy-dim">
+                      {entry.source}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Panel>
+          <Panel
+            title="Raw log"
+            actions={
+              <span className="max-w-full truncate font-mono text-label text-copy-dim">
+                {game?.logPath}
+              </span>
+            }
+          >
+            <pre
+              tabIndex={0}
+              aria-label="Raw mod-loader.log"
+              className="max-h-72 overflow-auto rounded-field border border-line bg-bg p-3 font-mono text-label leading-relaxed whitespace-pre text-copy-muted"
             >
-              <div className="flex flex-wrap items-center gap-2">
-                <StateBadge tone={LOG_TONE[entry.level]}>
-                  {entry.level}
-                </StateBadge>
-                <span className="font-mono text-label text-copy-dim">
-                  {entry.time}
-                </span>
-                {entry.modId && (
-                  <span className="font-mono text-label text-accent">
-                    {entry.modId}
-                  </span>
-                )}
-              </div>
-              <p className="mt-1.5 text-ui break-words">{entry.message}</p>
-              {entry.source && (
-                <p className="font-mono text-label text-copy-dim">
-                  {entry.source}
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
-      </Panel>
-      <Panel
-        title="Raw log"
-        actions={
-          <span className="max-w-full truncate font-mono text-label text-copy-dim">
-            {game?.logPath}
-          </span>
-        }
-      >
-        <pre
-          tabIndex={0}
-          aria-label="Raw mod-loader.log"
-          className="max-h-72 overflow-auto rounded-field border border-line bg-bg p-3 font-mono text-label leading-relaxed whitespace-pre text-copy-muted"
-        >
-          {log.map(rawLine).join("\n")}
-        </pre>
-      </Panel>
+              {log.map(rawLine).join("\n")}
+            </pre>
+          </Panel>
+        </>
+      )}
     </div>
   );
 }

@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "tauri": "tauri",
-    "build:mockup": "vite build --mode mockup"
+    "build:mockup": "vite build --mode mockup",
+    "test": "node --test tests/ui/*.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

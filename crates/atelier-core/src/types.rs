@@ -7,6 +7,11 @@ use serde::{Deserialize, Serialize};
 pub enum GameId {
     Anno117,
     Anno1800,
+    Humankind,
+}
+
+impl GameId {
+    pub const ALL: [GameId; 3] = [GameId::Anno117, GameId::Anno1800, GameId::Humankind];
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -25,6 +30,23 @@ pub enum ModLocation {
     Documents,
     Game,
     Ubi,
+    /// Steam Workshop content; Steam owns it, so it stays read-only.
+    Workshop,
+    /// Humankind's `Community/mod.io`: the game's own mod.io plugin owns it, so it stays read-only.
+    GameModio,
+}
+
+impl ModLocation {
+    /// The folder as players know it, for messages.
+    pub fn place(self) -> &'static str {
+        match self {
+            Self::Documents => "Documents mods folder",
+            Self::Game => "game folder",
+            Self::Ubi => "Ubisoft-managed .ubi folder",
+            Self::Workshop => "Steam Workshop folder",
+            Self::GameModio => "game's own mod.io folder",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -72,6 +94,8 @@ pub enum ActivationScheme {
     Profile,
     Legacy,
     ActivationJson,
+    /// Humankind: one ordered module list in the user's Registry.xml.
+    RegistryList,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,6 +170,9 @@ pub struct Mod {
     pub parent_id: Option<String>,
     pub sub_mod_ids: Vec<String>,
     pub update: Option<ModUpdate>,
+    /// Humankind: the guid in the module's file name, which tells same-named mods apart.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub module_guid: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -183,6 +210,8 @@ pub enum LoadReason {
     LoadAfter,
     Late,
     Alphabetical,
+    /// Humankind: the player set this order; nothing computes it.
+    Player,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

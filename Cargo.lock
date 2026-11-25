@@ -49,8 +49,6 @@ dependencies = [
  "atelier-core",
  "atelier-install",
  "atelier-modio",
- "serde",
- "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -213,8 +211,11 @@ dependencies = [
  "atelier-install",
  "atelier-modio",
  "md-5",
+ "reqwest",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
+ "socket2",
  "tempfile",
  "tokio",
  "url",
@@ -227,12 +228,14 @@ name = "atelier-core"
 version = "0.1.0"
 dependencies = [
  "encoding_rs",
+ "lz4_flex",
  "serde",
  "serde_json",
  "sysinfo",
  "tempfile",
  "thiserror 2.0.21",
  "winreg 0.55.0",
+ "zip",
 ]
 
 [[package]]
@@ -2438,6 +2441,12 @@ name = "lru-slab"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
+
+[[package]]
+name = "lz4_flex"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f56455fff36934a9500d69062aec1c77037179b6f0669e4d5d6b72b84722d6a3"
 
 [[package]]
 name = "lzma-rust2"

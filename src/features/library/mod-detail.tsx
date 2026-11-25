@@ -26,7 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAction } from "@/data/source";
-import type { Issue, Mod, ModDependencies } from "@/data/types";
+import type { Issue, Mod, ModDependencies, ModLocation } from "@/data/types";
 import { issuesForMod } from "./issues-for-mod";
 
 const DEPENDENCY_GROUPS: { key: keyof ModDependencies; label: string }[] = [
@@ -55,6 +55,13 @@ function dependencyState(
 }
 
 function SaveSafety({ mod }: { mod: Mod }) {
+  // Humankind has no modinfo; each save lists its own mods.
+  if (mod.game === "humankind")
+    return (
+      <p className="text-ui text-copy-muted">
+        Humankind mods don't say. The Saves page checks each save's mods.
+      </p>
+    );
   const { setup } = mod;
   const badges: { tone: StateTone; label: string }[] = [];
   if (setup.requiresNewGame)
@@ -82,6 +89,20 @@ function SaveSafety({ mod }: { mod: Mod }) {
     </div>
   );
 }
+
+const GAME_FOLDER_NOTE =
+  "Lives in the game folder. Atelier switches it on and off but never edits or removes it.";
+
+/** Why a copy can't be removed here, by where it lives. */
+const READ_ONLY_NOTE: Record<ModLocation, string> = {
+  ubi: "Installed by the in-game mod browser. Ubisoft manages this folder, so Atelier only switches it on and off.",
+  workshop:
+    "From the Steam Workshop. Steam manages this folder, so Atelier only switches it on and off.",
+  gamemodio:
+    "Installed by Humankind's own mod.io browser. The game manages this folder, so Atelier only switches it on and off.",
+  game: GAME_FOLDER_NOTE,
+  documents: GAME_FOLDER_NOTE,
+};
 
 const STACKED_LAYOUT_QUERY = "(max-width: 79.99rem)";
 
@@ -198,9 +219,7 @@ export function ModDetail({
 
         {isLocked && (
           <p className="rounded-field border border-line bg-bg p-3 text-ui text-copy-muted">
-            {mod.location === "ubi"
-              ? "Installed by the in-game mod browser. Ubisoft manages this folder, so Atelier only switches it on and off."
-              : "Lives in the game folder. Atelier switches it on and off but never edits or removes it."}
+            {READ_ONLY_NOTE[mod.location]}
           </p>
         )}
 

@@ -42,7 +42,7 @@ export function Shell({ children }: { children: ReactNode }) {
             Atelier
           </span>
           <span className="hidden text-label text-copy-dim sm:inline">
-            Anno Mod Manager
+            Mod Manager
           </span>
         </p>
         <div className="order-last w-full md:order-none md:ml-6 md:w-auto">

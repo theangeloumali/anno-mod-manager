@@ -4,8 +4,11 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 
-use atelier_core::{GameId, ModLocation, ModUpdate};
-use atelier_install::{InstallItemStatus, Limits};
+use atelier_core::{GameId, Mod, ModLocation, ModUpdate, Severity};
+use atelier_install::{
+    InstallItemStatus, InstallPreviewItem, Limits, PreviewOptions, copy_outside_atelier,
+    duplicate_refusal, is_atelier_copy,
+};
 use atelier_modio::{DownloadJob, DownloadProgress, DownloadStatus, Modfile, UpdateCheck};
 use tokio::task::AbortHandle;
 
@@ -201,11 +204,32 @@ impl App {
             }
         }
         let linked = self.linked_mod_ids(game, modio_id);
+        let scanned = self.scan(game)?;
         for mod_id in linked {
-            match self.uninstall_to_backup(game, &mod_id) {
-                // Already gone by hand, or only a game-folder copy is left: nothing of ours
-                // to remove.
-                Err(error) if matches!(error.code, ErrorCode::NotFound | ErrorCode::ReadOnly) => {}
+            // Humankind links may name a copy the player placed; a sync removes only Atelier's.
+            let ours = game != GameId::Humankind
+                || scanned
+                    .iter()
+                    .any(|item| item.id == mod_id && is_atelier_copy(item));
+            let removed = if ours {
+                self.uninstall_to_backup(game, &mod_id)
+            } else {
+                Err(AppError::new(
+                    ErrorCode::ReadOnly,
+                    "not installed by Atelier",
+                ))
+            };
+            match removed {
+                // Already gone by hand: nothing of ours to remove.
+                Err(error) if error.code == ErrorCode::NotFound => {}
+                // A Workshop or game-folder copy was never ours; only the link naming it goes.
+                Err(error) if error.code == ErrorCode::ReadOnly => {
+                    self.update_persisted(|state| {
+                        if let Some(links) = state.modio_links.get_mut(&game) {
+                            links.remove(&mod_id);
+                        }
+                    })?;
+                }
                 other => other?,
             }
         }
@@ -540,17 +564,51 @@ impl App {
         let modfile_id = modfile.id;
         // Only a Documents copy is replaced; a game-folder copy stays beside the new one.
         // Read before the preview, so a failed scan leaves no staging behind.
-        let replaceable: HashSet<String> = self
-            .scan(game)?
-            .into_iter()
+        let scanned = self.scan(game)?;
+        let replaceable: HashSet<String> = scanned
+            .iter()
             .filter(|item| item.location == ModLocation::Documents && item.parent_id.is_none())
-            .map(|item| item.id)
+            .map(|item| item.id.clone())
             .collect();
         // mod.io measures the unpacked size, so a large mod gets the room it needs; the
         // archive's real size bounds that, so the figure can't open the door to a zip bomb.
         let archive_bytes = std::fs::metadata(archive).map_or(0, |meta| meta.len());
-        let limits = Limits::for_download(modfile.filesize_uncompressed, archive_bytes);
-        let preview = self.preview_install_with(game, &[archive.to_owned()], Some(limits))?;
+        let options = PreviewOptions {
+            limits: Some(Limits::for_download(
+                modfile.filesize_uncompressed,
+                archive_bytes,
+            )),
+            modio_folder: Some(format!("{modio_id}_{modfile_id}")),
+            ..PreviewOptions::default()
+        };
+        let preview =
+            self.preview_install_with(game, &[archive.to_owned()], options, Some(&scanned))?;
+        // Nothing to install, but the page is satisfied: link it so sync stops downloading it.
+        if game == GameId::Humankind
+            && let Some(note) = provided_read_only(&preview.items, &scanned)
+        {
+            self.cancel_install(&preview.id)?;
+            let ids = preview
+                .items
+                .iter()
+                .map(|item| item.mod_id.clone())
+                .collect();
+            return Ok((ids, Some(note)));
+        }
+        // Any Humankind item the preview refuses (a copy in mod.io's folder, a bad module) stops
+        // the download with that item's reason; nothing is installed.
+        if game == GameId::Humankind
+            && let Some(reason) = preview
+                .items
+                .iter()
+                .filter(|item| item.status == InstallItemStatus::Invalid)
+                .flat_map(|item| &item.checks)
+                .find(|check| check.level == Severity::Error)
+        {
+            let message = reason.message.clone();
+            self.cancel_install(&preview.id)?;
+            return Err(AppError::new(ErrorCode::Install, message));
+        }
         let links = self
             .persisted()
             .modio_links
@@ -685,4 +743,33 @@ fn local_id(links: &HashMap<String, ModioLink>, modio_id: u64) -> Option<String>
 
 fn gone() -> AppError {
     AppError::new(ErrorCode::NotFound, "That download is gone.")
+}
+
+/// The note for a Humankind download whose every item a read-only copy (Workshop, game folder,
+/// the game's own mod.io) already provides; a second copy would load twice, so none is added.
+/// Only the duplicate refusal counts, so a broken file still fails with its own reason.
+fn provided_read_only(items: &[InstallPreviewItem], scanned: &[Mod]) -> Option<String> {
+    let places: Vec<&str> = items
+        .iter()
+        .map(|item| {
+            let copy = copy_outside_atelier(scanned, &item.mod_id)?;
+            let refusal = duplicate_refusal(copy);
+            let only_duplicate = item.status == InstallItemStatus::Invalid
+                && item
+                    .checks
+                    .iter()
+                    .filter(|check| check.level == Severity::Error)
+                    .all(|check| check.message == refusal);
+            // A writable copy (one placed by hand) would be what unsubscribing removes.
+            let all_read_only = scanned
+                .iter()
+                .filter(|other| other.id == item.mod_id && other.game == copy.game)
+                .all(|other| other.location != ModLocation::Documents);
+            (only_duplicate && all_read_only).then(|| copy.location.place())
+        })
+        .collect::<Option<_>>()?;
+    let first = places.first()?;
+    Some(format!(
+        "Already installed in the {first}; Atelier left that copy in place and linked this page to it."
+    ))
 }

@@ -12,12 +12,14 @@ use std::path::{Path, PathBuf};
 use serde_json::{Map, Value};
 
 use crate::error::io_at;
+use crate::humankind::{self, maps};
 use crate::scan::ModsFolder;
 pub use crate::snapshots::Snapshots;
 use crate::snapshots::{ensure_writable, write_with_snapshot};
 use crate::text::{read_optional, strip_jsonc};
 use crate::{ActivationScheme, Error, GameId, Mod, ModLocation, Result, normalize_mod_id};
 use profile_file::ProfileFile;
+pub(crate) use profiles::validate_name as validate_profile_name;
 pub use profiles::{
     delete_profile, export_profile, list_profiles, save_profile, set_in_profile, switch_profile,
 };
@@ -37,6 +39,8 @@ enum Rules {
     AllOff,
     File(ProfileFile),
     DisabledIds(HashSet<String>),
+    /// Humankind's ordered Registry.xml list, as short names; listed means on.
+    RegistryList(Vec<String>),
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +58,15 @@ impl ActivationState {
             Rules::AllOff => false,
             Rules::File(file) => file.is_active(mod_id),
             Rules::DisabledIds(disabled) => !disabled.contains(mod_id) && !folder.starts_with('-'),
+            Rules::RegistryList(modules) => modules.iter().any(|module| module == mod_id),
+        }
+    }
+
+    /// Humankind's load order, base game first; `None` for the Anno schemes.
+    pub fn registry_modules(&self) -> Option<&[String]> {
+        match &self.rules {
+            Rules::RegistryList(modules) => Some(modules),
+            _ => None,
         }
     }
 
@@ -73,6 +86,7 @@ pub fn detect_scheme(game: GameId, mods_dir: &Path) -> ActivationScheme {
             ActivationScheme::Legacy
         }
         GameId::Anno117 => ActivationScheme::Profile,
+        GameId::Humankind => ActivationScheme::RegistryList,
     }
 }
 
@@ -91,6 +105,10 @@ pub fn read(game: GameId, mods_dir: &Path) -> Result<ActivationState> {
             let effective = name.as_deref().unwrap_or(DEFAULT_PROFILE);
             (name.clone(), profile_rules(mods_dir, effective)?)
         }
+        ActivationScheme::RegistryList => (
+            None,
+            Rules::RegistryList(humankind::order::read(humankind_dir(mods_dir))?),
+        ),
     };
     Ok(ActivationState {
         scheme,
@@ -103,7 +121,7 @@ pub fn read(game: GameId, mods_dir: &Path) -> Result<ActivationState> {
 pub fn apply(state: &ActivationState, mods: &mut [Mod]) {
     let mut parents: HashMap<(ModLocation, String), bool> = HashMap::new();
     for target in mods.iter_mut().filter(|m| m.parent_id.is_none()) {
-        target.active = state.is_active(&target.id, &target.folder);
+        target.active = maps::is_map(target) || state.is_active(&target.id, &target.folder);
         parents.insert((target.location, target.id.clone()), target.active);
     }
     for target in mods.iter_mut() {
@@ -122,11 +140,15 @@ pub fn set_active(
     writable: &ModsFolder,
     target: &Mod,
     active: bool,
+    installed: &[Mod],
     snapshots: &Snapshots,
 ) -> Result<()> {
     ensure_writable(writable)?;
     if target.parent_id.is_some() {
         return Err(Error::SubMod(target.id.clone()));
+    }
+    if maps::is_map(target) {
+        return Err(Error::MapAlwaysOn(target.id.clone()));
     }
     let dir = &writable.path;
     match detect_scheme(game, dir) {
@@ -149,7 +171,37 @@ pub fn set_active(
                 snapshots,
             )
         }
+        ActivationScheme::RegistryList => {
+            set_in_registry(dir, target, active, installed, snapshots)
+        }
     }
+}
+
+/// `mods_dir` is `Documents/Humankind/Community`; the registry sits beside it under `Users/`.
+fn humankind_dir(mods_dir: &Path) -> &Path {
+    mods_dir.parent().unwrap_or(mods_dir)
+}
+
+/// On appends to the end of the load order; off drops every entry naming the module.
+fn set_in_registry(
+    mods_dir: &Path,
+    target: &Mod,
+    active: bool,
+    installed: &[Mod],
+    snapshots: &Snapshots,
+) -> Result<()> {
+    let game_dir = humankind_dir(mods_dir);
+    if !active {
+        return humankind::order::remove(game_dir, &target.id, snapshots).map(drop);
+    }
+    let current = humankind::order::read(game_dir)?;
+    // Through the load-order rules, so a second Standalone or Conversion replaces the first.
+    let types = humankind::load_order::module_types(installed);
+    let modules = humankind::load_order::enable(&current, &target.id, &types);
+    if modules == current {
+        return Ok(());
+    }
+    humankind::order::write(game_dir, &modules, installed, snapshots).map(drop)
 }
 
 fn edit_profile_file(

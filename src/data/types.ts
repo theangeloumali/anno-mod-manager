@@ -1,9 +1,11 @@
 // The UI ↔ core contract. Field names match the Rust structs (serde camelCase) in crates/*.
 
-export type GameId = "anno117" | "anno1800";
+export type GameId = "anno117" | "anno1800" | "humankind";
+export const GAME_IDS: readonly GameId[] = ["anno117", "anno1800", "humankind"];
 export type Store = "steam" | "ubisoft" | "epic" | "manual";
-/** Where the loader found the mod: Documents is ours to write; game and ubi are read-only. */
-export type ModLocation = "documents" | "game" | "ubi";
+/** Where the loader found the mod: Documents is ours to write; the rest are read-only. */
+export type ModLocation =
+  "documents" | "game" | "ubi" | "workshop" | "gamemodio";
 type ModOrigin = "modio" | "local";
 type Severity = "ok" | "warning" | "error";
 
@@ -15,8 +17,8 @@ export interface GameInfo {
   modsPath: string;
   logPath: string;
   running: boolean;
-  /** 117: "profile" (profile.txt + profiles/) or "legacy" (active-profile.txt); 1800: "activation-json". */
-  activationScheme: "profile" | "legacy" | "activation-json";
+  /** 117: "profile" or "legacy"; 1800: "activation-json"; Humankind: "registry-list" (Registry.xml). */
+  activationScheme: "profile" | "legacy" | "activation-json" | "registry-list";
   /** 1800: the old community mod loader is in place of the game's python35.dll. */
   legacyModLoader: boolean;
 }
@@ -59,6 +61,8 @@ export interface Mod {
   parentId: string | null;
   subModIds: string[];
   update: { version: string; modfileId: number } | null;
+  /** Humankind: the guid in the module's file name, telling same-named mods apart. */
+  moduleGuid?: string;
 }
 
 export type IssueKind =
@@ -82,7 +86,8 @@ export interface LoadOrderEntry {
   position: number;
   modId: string;
   phase: "normal" | "late";
-  reason: "load-after" | "late" | "alphabetical";
+  /** "player": Humankind keeps the order the player set in Registry.xml. */
+  reason: "load-after" | "late" | "alphabetical" | "player";
   after: string[];
 }
 
@@ -295,4 +300,82 @@ export interface Settings {
   updateCheck: "hourly" | "startup" | "manual";
   language: string;
   updateChannel: "stable" | "beta";
+}
+
+/** One module a Humankind save was played with; version is null when the save didn't pin one. */
+interface SaveMod {
+  name: string;
+  version: string | null;
+  /** Present when the save names it; tells same-named mods apart. */
+  guid?: string;
+}
+
+interface GameOption {
+  key: string;
+  value: string;
+}
+
+export interface Save {
+  path: string;
+  name: string;
+  build: string | null;
+  /** In load order, the base game left out. */
+  mods: SaveMod[];
+  /** False when no mod list could be read: zero mods then means unknown, not vanilla. */
+  modListFound: boolean;
+  options: GameOption[];
+  worldSize: string | null;
+  empireCount: number | null;
+}
+
+interface SkippedSave {
+  path: string;
+  reason: string;
+}
+
+export interface SaveList {
+  saves: Save[];
+  skipped: SkippedSave[];
+}
+
+type ModStatus =
+  | { kind: "exact" }
+  | { kind: "otherVersion"; installed: string }
+  | { kind: "missing" };
+
+export type ModCheck = SaveMod & { status: ModStatus };
+
+export type SaveInspection = Save & { checks: ModCheck[] };
+
+export interface SaveLoadReport {
+  restored: SaveMod[];
+  /** Still not at the save's version: not installed, or no backup of that version. */
+  missing: ModCheck[];
+  registryWritten: boolean;
+}
+
+/** A change to Registry.xml's mod list, as the ModListGuard plugin logged it. Newest first. */
+export interface HistoryEntry {
+  time: string;
+  reason: string;
+  culprit: string | null;
+  old: string[];
+  new: string[];
+}
+
+interface LoadedPlugin {
+  name: string;
+  version: string;
+}
+
+export interface BepInExStatus {
+  present: boolean;
+  version: string | null;
+  /** Only then can Atelier remove it. */
+  installedByAtelier: boolean;
+  /** From the last game session's log, in load order. */
+  plugins: LoadedPlugin[];
+  logFound: boolean;
+  /** A plugin changed after the log was written, so the list may be out of date. */
+  logStale: boolean;
 }

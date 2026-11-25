@@ -4,13 +4,13 @@
 
 ## Product
 
-A free, public desktop mod manager for **Anno 117: Pax Romana** and **Anno 1800**. It browses and installs mods from mod.io, installs dropped archives and folders automatically, manages activation, profiles and load order, and explains what will break before the game is launched.
+A free, public desktop mod manager for **Anno 117: Pax Romana**, **Anno 1800** and **Humankind** (added 2026-11-22, Steam only). It browses and installs mods from mod.io, installs dropped archives and folders automatically, manages activation, profiles and load order, and explains what will break before the game is launched.
 
 Working name: **Atelier**. _(assumed, easy to rename)_
 
 ## Audience
 
-Anno players on Windows (Steam, Ubisoft Connect, Epic), and Linux/Steam Deck through Proton. They range from first-time modders to collection curators running 100+ mods. They use it in the minutes before a play session, often in a dim room with the game launcher beside it.
+Anno and Humankind players on Windows (Steam, Ubisoft Connect, Epic), and Linux/Steam Deck through Proton. They range from first-time modders to collection curators running 100+ mods. They use it in the minutes before a play session, often in a dim room with the game launcher beside it.
 
 ## Jobs
 
@@ -26,8 +26,8 @@ Desktop (Tauri 2 + React/TypeScript). Windows first, Linux second. Minimum windo
 ## Constraints
 
 - mod.io API terms and "Powered by mod.io" attribution apply. The app needs its own API key for the public release.
-- No Ubisoft or Anno art, logos or trademarks in the UI. The world is evoked, not copied.
-- The game owns load order; the app explains it but cannot override it.
+- No Ubisoft, Anno, Amplitude or Humankind art, logos or trademarks in the UI. The world is evoked, not copied.
+- Anno owns its load order; the app explains it but cannot override it. Humankind's order is the player's, so the app edits it within the game's rules (one Standalone, then one Conversion, then Extensions).
 - Writes to the mods folder are blocked while the game is running.
 
 ## Success

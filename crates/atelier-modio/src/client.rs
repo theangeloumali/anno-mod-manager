@@ -27,6 +27,7 @@ pub fn modio_game_id(game: GameId) -> u64 {
     match game {
         GameId::Anno117 => 11358,
         GameId::Anno1800 => 4169,
+        GameId::Humankind => 2599,
     }
 }
 

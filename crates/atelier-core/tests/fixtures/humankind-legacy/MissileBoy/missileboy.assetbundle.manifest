@@ -1,0 +1,32 @@
+ManifestFileVersion: 0
+CRC: 1789699857
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: bf1f42bbe9e64bf6e52b5ceb2fe821aa
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 53cd6d7bde4531c4ea1d47f4166c8429
+HashAppended: 0
+ClassTypes:
+- Class: 114
+  Script: {fileID: -457851255, guid: 783efdfc86c10be41b33bb17a2a60f5c, type: 3}
+- Class: 114
+  Script: {fileID: -2122520293, guid: 783efdfc86c10be41b33bb17a2a60f5c, type: 3}
+- Class: 114
+  Script: {fileID: -203084690, guid: 783efdfc86c10be41b33bb17a2a60f5c, type: 3}
+- Class: 114
+  Script: {fileID: 411102237, guid: 783efdfc86c10be41b33bb17a2a60f5c, type: 3}
+- Class: 114
+  Script: {fileID: -1010444951, guid: 783efdfc86c10be41b33bb17a2a60f5c, type: 3}
+- Class: 114
+  Script: {fileID: 130328062, guid: 783efdfc86c10be41b33bb17a2a60f5c, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/Runtime/MissileBoy.asset
+- Assets/AssetBundleContentDescriptor.asset
+- Assets/Databases/Unit/AirUnitDescriptor.asset
+- Assets/Manifests/MissileBoy.Manifest.asset
+Dependencies: []

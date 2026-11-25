@@ -8,10 +8,10 @@ use atelier_core::{GameId, ModLocation, Store};
 use common::*;
 
 #[test]
-fn no_game_detected_still_lists_both_games_without_an_install() {
+fn no_game_detected_still_lists_every_game_without_an_install() {
     let harness = Harness::new();
     let games = harness.app.list_games().unwrap();
-    assert_eq!(games.len(), 2);
+    assert_eq!(games.len(), 3);
     assert!(games.iter().all(|game| game.install_path.is_none()));
     assert!(games[0].mods_path.contains("Anno 117 - Pax Romana"));
 }
@@ -281,6 +281,30 @@ fn a_game_folder_inside_the_mods_folder_is_refused() {
     assert_eq!(error.code, ErrorCode::InvalidInput);
     let launch = harness.app.launch_game(GameId::Anno117).unwrap_err();
     assert_eq!(launch.code, ErrorCode::GameNotFound);
+}
+
+#[test]
+fn a_humankind_game_folder_inside_any_mod_root_is_refused() {
+    let harness = Harness::with(Options {
+        install: Some(GameId::Humankind),
+        ..Options::default()
+    });
+    let install = harness.install_dir();
+    let workshop = install.parent().unwrap().parent().unwrap();
+    let mod_roots = [
+        install.join("Public").join("Modification"),
+        workshop.join("workshop").join("content").join("1124300"),
+    ];
+    for root in mod_roots {
+        let fake = root.join("Evil");
+        fs::create_dir_all(&fake).unwrap();
+        fs::write(fake.join(GameId::Humankind.executable()), b"not the game").unwrap();
+        let error = harness
+            .app
+            .set_game_path(GameId::Humankind, Some(fake.to_str().unwrap()))
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::InvalidInput, "{}", fake.display());
+    }
 }
 
 #[test]

@@ -11,14 +11,19 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { BepInExKind } from "@/data/mock-humankind";
 import {
   MOCK_DROP_SOURCES,
+  mockBepinex,
   mockScenario,
   resetMockData,
   restartSampleDownloads,
+  setMockBepinex,
   setMockScenario,
   type MockScenario,
 } from "@/data/mock-source";
@@ -33,6 +38,19 @@ const SCENARIO_SWITCHES: { key: keyof MockScenario; label: string }[] = [
   { key: "noApiKey", label: "No mod.io API key" },
 ];
 
+const HUMANKIND_SWITCHES: { key: keyof MockScenario; label: string }[] = [
+  { key: "hkMissingModule", label: "Mod list names a missing module" },
+  { key: "hkNoRegistry", label: "No Registry.xml yet" },
+  { key: "hkNoInstall", label: "No game install" },
+  { key: "hkNoHistory", label: "No mod list history" },
+];
+
+const BEPINEX_CHOICES: { kind: BepInExKind; label: string }[] = [
+  { kind: "atelier", label: "BepInEx installed by Atelier" },
+  { kind: "manual", label: "BepInEx added by hand" },
+  { kind: "absent", label: "No BepInEx" },
+];
+
 export function MockStatesMenu() {
   const queryClient = useQueryClient();
   const game = useAppStore((store) => store.game);
@@ -40,6 +58,11 @@ export function MockStatesMenu() {
   const setWizardOpen = useAppStore((store) => store.setWizardOpen);
   const startPreview = useStartInstallPreview();
   const [scenario, setScenario] = useState(mockScenario);
+  const [bepinex, setBepinex] = useState(mockBepinex);
+  const switches =
+    game === "humankind"
+      ? [...SCENARIO_SWITCHES, ...HUMANKIND_SWITCHES]
+      : SCENARIO_SWITCHES;
 
   const simulateDrop = (fileName: string) => {
     void startPreview([fileName]);
@@ -47,6 +70,7 @@ export function MockStatesMenu() {
 
   const refresh = () => {
     setScenario(mockScenario());
+    setBepinex(mockBepinex());
     void queryClient.invalidateQueries();
   };
 
@@ -67,7 +91,7 @@ export function MockStatesMenu() {
             <DropdownMenuLabel>
               Mock-up states (not in the app)
             </DropdownMenuLabel>
-            {SCENARIO_SWITCHES.map((scenarioSwitch) => (
+            {switches.map((scenarioSwitch) => (
               <DropdownMenuCheckboxItem
                 key={scenarioSwitch.key}
                 checked={scenario[scenarioSwitch.key]}
@@ -80,6 +104,34 @@ export function MockStatesMenu() {
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuGroup>
+          {game === "humankind" && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>BepInEx</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={bepinex}
+                  onValueChange={(value) => {
+                    const choice = BEPINEX_CHOICES.find(
+                      (candidate) => candidate.kind === value,
+                    );
+                    if (!choice) return;
+                    setMockBepinex(choice.kind);
+                    refresh();
+                  }}
+                >
+                  {BEPINEX_CHOICES.map((choice) => (
+                    <DropdownMenuRadioItem
+                      key={choice.kind}
+                      value={choice.kind}
+                    >
+                      {choice.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuGroup>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuLabel>Flows</DropdownMenuLabel>

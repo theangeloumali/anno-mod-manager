@@ -4,6 +4,7 @@ pub mod activation;
 pub mod error;
 pub mod games;
 pub mod health;
+pub mod humankind;
 pub mod issues;
 pub mod load_order;
 pub mod modinfo;

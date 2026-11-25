@@ -27,6 +27,24 @@ pub enum Error {
     NoProfiles(ActivationScheme),
     #[error("sub-mod '{0}' is switched with its parent")]
     SubMod(String),
+    #[error("no Users/<id>/Registry.xml under {0}; start Humankind once to create it")]
+    RegistryNotFound(PathBuf),
+    #[error("{0} is not a Registry.xml Atelier can edit (not UTF-8, or no </Registry> end tag)")]
+    InvalidRegistry(PathBuf),
+    #[error("'{0}' is the base game and stays on")]
+    BaseModule(String),
+    #[error(transparent)]
+    LoadOrder(#[from] crate::humankind::load_order::OrderError),
+    /// Humankind resets the whole list to vanilla when a listed module is gone.
+    #[error(
+        "not installed: {}; Humankind would reset the mod list to vanilla",
+        .0.join(", ")
+    )]
+    MissingModules(Vec<String>),
+    #[error("'{0}' is a map; Humankind lists every installed map, so it has no on/off switch")]
+    MapAlwaysOn(String),
+    #[error("{0} is too large to be a file the game wrote, so Atelier won't read it")]
+    TooLarge(PathBuf),
 }
 
 /// Attaches the path to an I/O error, which `io::Error` alone never says.

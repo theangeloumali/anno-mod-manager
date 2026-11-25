@@ -2,8 +2,9 @@
 
 use std::path::{Path, PathBuf};
 
-use atelier_core::{GameId, activation};
-use atelier_install::{InstallPreview, InstallResult, Limits};
+use atelier_core::humankind::maps;
+use atelier_core::{GameId, Mod, activation};
+use atelier_install::{InstallPreview, InstallResult, PreviewOptions};
 
 use crate::error::{AppError, ErrorCode, Result};
 use crate::state::NewModsStart;
@@ -13,15 +14,17 @@ const EXPIRED_PREVIEW: &str = "That preview has expired. Drop the file again.";
 
 impl App {
     pub fn preview_install(&self, game: GameId, paths: &[String]) -> Result<InstallPreview> {
-        self.preview_install_with(game, paths, None)
+        self.preview_install_with(game, paths, PreviewOptions::default(), None)
     }
 
-    /// `limits` overrides the engine's caps, e.g. from a download's declared unpacked size.
+    /// `options` carries a download's caps and mod.io folder; the game folder is filled in here,
+    /// since a BepInEx plugin installs into it. `scanned` spares a caller's fresh scan a repeat.
     pub(crate) fn preview_install_with(
         &self,
         game: GameId,
         paths: &[String],
-        limits: Option<Limits>,
+        options: PreviewOptions,
+        scanned: Option<&[Mod]>,
     ) -> Result<InstallPreview> {
         if paths.is_empty() {
             return Err(AppError::new(
@@ -40,14 +43,22 @@ impl App {
             ));
         }
         let sources: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
-        let installed = self.scan(game)?;
-        let preview = match limits {
-            Some(limits) => self
-                .0
-                .engine
-                .preview_with_limits(game, &sources, &installed, limits)?,
-            None => self.0.engine.preview(game, &sources, &installed)?,
+        let rescanned;
+        let installed = match scanned {
+            Some(mods) => mods,
+            None => {
+                rescanned = self.scan(game)?;
+                &rescanned
+            }
         };
+        let options = PreviewOptions {
+            game_dir: self.install(game).map(|(dir, _)| dir),
+            ..options
+        };
+        let preview = self
+            .0
+            .engine
+            .preview_with_options(game, &sources, installed, &options)?;
         lock(&self.0.previews).insert(preview.id.clone(), game);
         Ok(preview)
     }
@@ -107,10 +118,15 @@ impl App {
             return Ok(());
         }
         let writable = self.writable(game);
-        for item in self.scan(game)?.iter().filter(|item| {
-            installed.contains(&item.id) && item.parent_id.is_none() && item.active != active
+        let mods = self.scan(game)?;
+        // A map has no switch: Humankind lists every installed map.
+        for item in mods.iter().filter(|item| {
+            installed.contains(&item.id)
+                && item.parent_id.is_none()
+                && item.active != active
+                && !maps::is_map(item)
         }) {
-            activation::set_active(game, &writable, item, active, &self.0.snapshots)?;
+            activation::set_active(game, &writable, item, active, &mods, &self.0.snapshots)?;
         }
         Ok(())
     }

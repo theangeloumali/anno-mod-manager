@@ -200,7 +200,7 @@ fn profile_base_name(collection_name: &str) -> String {
 }
 
 /// `name`, then `name 2`, `name 3`, …; matched as NTFS matches file names, case-blind.
-fn unique_name(base: &str, taken: &[String]) -> String {
+pub(crate) fn unique_name(base: &str, taken: &[String]) -> String {
     let is_taken = |candidate: &str| {
         taken
             .iter()

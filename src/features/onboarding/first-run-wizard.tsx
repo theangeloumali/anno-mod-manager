@@ -37,7 +37,8 @@ const STEP_TITLES = [
 function InstalledModCount() {
   const { data: mods117 = [] } = useMods("anno117");
   const { data: mods1800 = [] } = useMods("anno1800");
-  return <>{mods117.length + mods1800.length}</>;
+  const { data: modsHumankind = [] } = useMods("humankind");
+  return <>{mods117.length + mods1800.length + modsHumankind.length}</>;
 }
 
 function Callout({ icon, children }: { icon: ReactNode; children: ReactNode }) {
@@ -57,6 +58,7 @@ export function FirstRunWizard() {
   const [managedGames, setManagedGames] = useState<Record<GameId, boolean>>({
     anno117: true,
     anno1800: true,
+    humankind: true,
   });
   const isLastStep = stepIndex === STEP_TITLES.length - 1;
 

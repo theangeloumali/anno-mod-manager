@@ -35,8 +35,13 @@ pub struct ScanResult {
 pub fn scan(game: GameId, folders: &[ModsFolder]) -> Result<ScanResult> {
     let mut result = ScanResult::default();
     for folder in folders {
-        for dir in mod_candidates(game, &folder.path)? {
-            scan_top_level(game, folder, &dir, &mut result)?;
+        match game {
+            GameId::Humankind => crate::humankind::scan::scan_folder(folder, &mut result)?,
+            GameId::Anno117 | GameId::Anno1800 => {
+                for dir in mod_candidates(game, &folder.path)? {
+                    scan_top_level(game, folder, &dir, &mut result)?;
+                }
+            }
         }
     }
     Ok(result)
@@ -44,7 +49,12 @@ pub fn scan(game: GameId, folders: &[ModsFolder]) -> Result<ScanResult> {
 
 /// Absolute directory of `target` on disk.
 pub fn mod_dir(folders: &[ModsFolder], target: &Mod) -> Option<PathBuf> {
-    let folder = folders.iter().find(|f| f.location == target.location)?;
+    // The game's mod.io folder sits inside the Documents (Community) root it was scanned from.
+    let root = match target.location {
+        ModLocation::GameModio => ModLocation::Documents,
+        other => other,
+    };
+    let folder = folders.iter().find(|f| f.location == root)?;
     Some(
         target
             .folder
@@ -62,7 +72,7 @@ fn scan_top_level(
     let info = match modinfo::read_dir(dir) {
         Ok(Some(info)) => info,
         // Anno 1800 loads a bare data/ folder, and the installer accepts one, so list it too.
-        Ok(None) if game == GameId::Anno1800 && dir.join("data").is_dir() => inferred_info(),
+        Ok(None) if loads_bare_data_folders(game) && dir.join("data").is_dir() => inferred_info(),
         Ok(None) => {
             skip(result, dir, SkipReason::MissingModinfo);
             return Ok(());
@@ -113,7 +123,7 @@ fn inferred_info() -> ModInfo {
     }
 }
 
-fn skip(result: &mut ScanResult, dir: &Path, reason: SkipReason) {
+pub(crate) fn skip(result: &mut ScanResult, dir: &Path, reason: SkipReason) {
     result.skipped.push(SkippedFolder {
         path: dir.to_path_buf(),
         reason,
@@ -129,7 +139,7 @@ fn mod_candidates(game: GameId, dir: &Path) -> Result<Vec<PathBuf>> {
     for entry in fs::read_dir(dir).map_err(io_at(dir))? {
         let path = entry.map_err(io_at(dir))?.path();
         let name = file_name(&path);
-        let hidden = name.starts_with('.') || (game == GameId::Anno117 && name.starts_with('-'));
+        let hidden = name.starts_with('.') || (dash_hides_folders(game) && name.starts_with('-'));
         if path.is_dir() && !hidden {
             dirs.push(path);
         }
@@ -176,10 +186,11 @@ fn build_mod(
         parent_id: None,
         sub_mod_ids: Vec::new(),
         update: None,
+        module_guid: None,
     })
 }
 
-fn dir_size(dir: &Path) -> Result<u64> {
+pub(crate) fn dir_size(dir: &Path) -> Result<u64> {
     let mut total = 0;
     for entry in fs::read_dir(dir).map_err(io_at(dir))? {
         let entry = entry.map_err(io_at(dir))?;
@@ -193,8 +204,23 @@ fn dir_size(dir: &Path) -> Result<u64> {
     Ok(total)
 }
 
-fn file_name(path: &Path) -> String {
+pub(crate) fn file_name(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default()
+}
+
+fn loads_bare_data_folders(game: GameId) -> bool {
+    match game {
+        GameId::Anno1800 => true,
+        GameId::Anno117 | GameId::Humankind => false,
+    }
+}
+
+/// 117's loader skips `-Name` folders; 1800 treats the prefix as "disabled" instead.
+fn dash_hides_folders(game: GameId) -> bool {
+    match game {
+        GameId::Anno117 => true,
+        GameId::Anno1800 | GameId::Humankind => false,
+    }
 }

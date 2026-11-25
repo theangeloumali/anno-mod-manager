@@ -1,5 +1,6 @@
 mod common;
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -461,7 +462,10 @@ fn pruning_drops_expired_backups_but_keeps_each_mods_newest() {
         write_tree(&backups.join(dir), &[("modinfo.json", "{}")]);
     }
 
-    sandbox.engine.prune_backups().unwrap();
+    sandbox
+        .engine
+        .prune_backups(GameId::Anno117, &HashSet::new())
+        .unwrap();
 
     assert_eq!(backup_versions(&sandbox, "solo"), ["1.0-1000"]);
     assert_eq!(backup_versions(&sandbox, "busy"), [format!("1.2-{recent}")]);
@@ -477,7 +481,10 @@ fn pruning_without_a_retention_keeps_everything() {
         );
     }
 
-    sandbox.engine.prune_backups().unwrap();
+    sandbox
+        .engine
+        .prune_backups(GameId::Anno117, &HashSet::new())
+        .unwrap();
 
     assert_eq!(backup_versions(&sandbox, "old").len(), 2);
 }

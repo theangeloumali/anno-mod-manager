@@ -22,3 +22,7 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "linux-
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 wiremock = "0.6"
 tempfile = "3"
+
+[package.metadata.cargo-machete]
+# The md-5 package is imported as `md5` (download.rs), which machete reads as unused.
+ignored = ["md-5"]

@@ -1,10 +1,14 @@
 //! Finds mod roots in a staged tree and tells which game a root was built for.
 
+use std::fs;
 use std::path::{Path, PathBuf};
 
+use atelier_core::humankind::maps;
+use atelier_core::humankind::module_name::ModuleName;
 use atelier_core::{GameId, ModInfo, modinfo, normalize_mod_id};
 
 use crate::Result;
+use crate::error::io_at;
 use crate::fsops::{child_dirs, file_name};
 
 const ANNO_117_MARKER: u8 = 8;
@@ -17,6 +21,28 @@ pub(crate) enum Manifest {
     Inferred,
     /// Neither modinfo nor `data/`.
     Unrecognised,
+    /// A Humankind module file; the game loads it only with its lowercased bundle beside it.
+    Module {
+        module: ModuleName,
+        has_bundle: bool,
+        modules_in_folder: usize,
+    },
+    /// A Humankind map: a folder holding a `.hmap` and no module, named after the map.
+    Map {
+        name: String,
+        /// A module sits in a subfolder; installing the folder would carry it along too.
+        holds_module: bool,
+    },
+    /// A Humankind BepInEx plugin, installed as `BepInEx/plugins/<name>`.
+    Plugin {
+        name: String,
+    },
+}
+
+impl Manifest {
+    pub fn is_anno(&self) -> bool {
+        matches!(self, Self::Parsed(_) | Self::Broken(_) | Self::Inferred)
+    }
 }
 
 pub(crate) struct FoundRoot {
@@ -26,13 +52,17 @@ pub(crate) struct FoundRoot {
 }
 
 impl FoundRoot {
-    /// The ModID, or the normalised folder name when modinfo has none.
+    /// The ModID (a module's short name), or the normalised folder name when modinfo has none.
     pub fn mod_id(&self) -> String {
-        let declared = match &self.manifest {
-            Manifest::Parsed(info) => info.mod_id.clone(),
-            _ => None,
-        };
-        declared.unwrap_or_else(|| normalize_mod_id(&file_name(&self.dir)))
+        match &self.manifest {
+            Manifest::Parsed(info) if info.mod_id.is_some() => {
+                info.mod_id.clone().unwrap_or_default()
+            }
+            Manifest::Module { module, .. } => module.short_name(),
+            Manifest::Map { name, .. } => maps::map_id(name),
+            Manifest::Plugin { name } => normalize_mod_id(name),
+            _ => normalize_mod_id(&file_name(&self.dir)),
+        }
     }
 }
 
@@ -46,40 +76,110 @@ pub(crate) fn has_data_folder(dir: &Path) -> bool {
     dir.join("data").is_dir()
 }
 
-/// Folders with a modinfo and none above them; without any, the topmost `data/` holders.
-pub(crate) fn find_roots(staged: &Path) -> Result<Vec<FoundRoot>> {
-    let mut dirs = Vec::new();
-    collect_dirs(staged, &has_modinfo, &mut dirs)?;
-    if !dirs.is_empty() {
-        return dirs.into_iter().map(manifest_root).collect();
+pub(crate) fn has_module_file(dir: &Path) -> bool {
+    humankind_folder(dir).is_ok_and(|folder| !folder.modules.is_empty())
+}
+
+/// Loose `.dll`s or a `BepInEx/` folder: what a plugin archive holds at its top level.
+pub(crate) fn has_plugin_files(dir: &Path) -> bool {
+    has_dll(dir) || child_dirs(dir).is_ok_and(|dirs| dirs.iter().any(|d| is_named(d, "BepInEx")))
+}
+
+/// What a folder holds for Humankind, from one read of its files.
+pub(crate) struct HumankindFolder {
+    /// Each module file, with whether its bundle sits beside it.
+    pub modules: Vec<(ModuleName, bool)>,
+    pub map: Option<String>,
+}
+
+impl HumankindFolder {
+    /// The id and version of what the folder installs as: its first module, else its map.
+    pub fn item(&self) -> Option<(String, String)> {
+        match (self.modules.first(), &self.map) {
+            (Some((module, _)), _) => Some((module.short_name(), module.version())),
+            (None, Some(name)) => Some((maps::map_id(name), String::new())),
+            (None, None) => None,
+        }
     }
-    collect_dirs(staged, &has_data_folder, &mut dirs)?;
-    let inferred = !dirs.is_empty();
-    if !inferred {
-        dirs = visible_children(staged)?;
+
+    /// Whether any module here, or its map, has this id.
+    pub fn holds(&self, id: &str) -> bool {
+        self.modules
+            .iter()
+            .any(|(module, _)| module.short_name() == id)
+            || self.map.as_deref().map(maps::map_id).as_deref() == Some(id)
     }
-    Ok(dirs
+
+    pub fn is_empty(&self) -> bool {
+        self.modules.is_empty() && self.map.is_none()
+    }
+}
+
+pub(crate) fn humankind_folder(dir: &Path) -> Result<HumankindFolder> {
+    let files = file_names(dir)?;
+    let items = maps::folder_items(&files);
+    Ok(HumankindFolder {
+        modules: items
+            .modules
+            .into_iter()
+            .map(|(module, bundle)| (module, bundle.is_some()))
+            .collect(),
+        map: items.map.map(str::to_string),
+    })
+}
+
+/// Humankind roots, then Anno ones; where the two overlap, the previewed game's kind wins.
+pub(crate) fn find_roots(staged: &Path, game: GameId) -> Result<Vec<FoundRoot>> {
+    let mut humankind = module_roots(staged)?;
+    let mut map_folders = map_roots(staged)?;
+    // A map inside a module's folder ships with the module; one above a module is refused.
+    map_folders.retain(|map| {
+        !humankind
+            .iter()
+            .any(|module| map.dir.starts_with(&module.dir))
+    });
+    for map in &mut map_folders {
+        if let Manifest::Map { holds_module, .. } = &mut map.manifest {
+            *holds_module = humankind
+                .iter()
+                .any(|module| module.dir.starts_with(&map.dir));
+        }
+    }
+    humankind.extend(map_folders);
+    if game == GameId::Humankind {
+        // A dll inside a module's folder ships with the module; it isn't a second item.
+        let mut plugins = plugin_roots(staged)?;
+        plugins.retain(|plugin| !overlaps_any(plugin, &humankind));
+        humankind.extend(plugins);
+    }
+    let mut anno = anno_roots(staged)?;
+    if game == GameId::Humankind {
+        anno.retain(|root| !overlaps_any(root, &humankind));
+    } else {
+        humankind.retain(|root| !overlaps_any(root, &anno));
+    }
+    anno.extend(humankind);
+    if !anno.is_empty() {
+        return Ok(anno);
+    }
+    Ok(visible_children(staged)?
         .into_iter()
-        .map(|dir| FoundRoot {
-            dir,
-            manifest: if inferred {
-                Manifest::Inferred
-            } else {
-                Manifest::Unrecognised
-            },
-            sub_mod_ids: Vec::new(),
-        })
+        .map(|dir| plain_root(dir, Manifest::Unrecognised))
         .collect())
 }
 
 /// The game a root targets: modinfo's `Anno` first, then the asset layout.
 pub(crate) fn detect_game(root: &FoundRoot) -> Option<GameId> {
-    if let Manifest::Parsed(info) = &root.manifest {
-        match info.anno {
+    match &root.manifest {
+        Manifest::Module { .. } | Manifest::Map { .. } | Manifest::Plugin { .. } => {
+            return Some(GameId::Humankind);
+        }
+        Manifest::Parsed(info) => match info.anno {
             Some(ANNO_117_MARKER) => return Some(GameId::Anno117),
             Some(ANNO_1800_MARKER) => return Some(GameId::Anno1800),
             _ => {}
-        }
+        },
+        _ => {}
     }
     if root.dir.join("data/base/config").is_dir() {
         Some(GameId::Anno117)
@@ -90,14 +190,152 @@ pub(crate) fn detect_game(root: &FoundRoot) -> Option<GameId> {
     }
 }
 
+/// A plugin root that is a `BepInEx/plugins` folder, whose BepInEx siblings aren't installed.
+pub(crate) fn is_plugins_dir(dir: &Path) -> bool {
+    is_named(dir, "plugins")
+        && dir
+            .parent()
+            .is_some_and(|parent| is_named(parent, "BepInEx"))
+}
+
+/// Folders with a modinfo and none above them; without any, the topmost `data/` holders.
+fn anno_roots(staged: &Path) -> Result<Vec<FoundRoot>> {
+    let mut dirs = Vec::new();
+    collect_dirs(staged, &has_modinfo, &mut dirs)?;
+    if !dirs.is_empty() {
+        return dirs.into_iter().map(manifest_root).collect();
+    }
+    collect_dirs(staged, &has_data_folder, &mut dirs)?;
+    Ok(dirs
+        .into_iter()
+        .map(|dir| plain_root(dir, Manifest::Inferred))
+        .collect())
+}
+
+fn module_roots(staged: &Path) -> Result<Vec<FoundRoot>> {
+    humankind_roots(staged, &|folder| {
+        let modules_in_folder = folder.modules.len();
+        let (module, has_bundle) = folder.modules.into_iter().next()?;
+        Some(Manifest::Module {
+            module,
+            has_bundle,
+            modules_in_folder,
+        })
+    })
+}
+
+fn map_roots(staged: &Path) -> Result<Vec<FoundRoot>> {
+    humankind_roots(staged, &|folder| {
+        folder.map.map(|name| Manifest::Map {
+            name,
+            holds_module: false,
+        })
+    })
+}
+
+/// The topmost folders whose files `manifest` recognises, each read once.
+fn humankind_roots(
+    staged: &Path,
+    manifest: &dyn Fn(HumankindFolder) -> Option<Manifest>,
+) -> Result<Vec<FoundRoot>> {
+    let mut found = Vec::new();
+    collect_found(
+        staged,
+        &|dir| humankind_folder(dir).ok().and_then(manifest),
+        &mut found,
+    )?;
+    Ok(found
+        .into_iter()
+        .map(|(dir, manifest)| plain_root(dir, manifest))
+        .collect())
+}
+
+/// `…/BepInEx/plugins` trees, named after the folder holding BepInEx; without any, the
+/// top-level folders holding loose `.dll`s.
+fn plugin_roots(staged: &Path) -> Result<Vec<FoundRoot>> {
+    let mut dirs = Vec::new();
+    collect_dirs(staged, &is_plugins_dir, &mut dirs)?;
+    if dirs.is_empty() {
+        dirs = visible_children(staged)?
+            .into_iter()
+            .filter(|dir| has_dll(dir))
+            .collect();
+    }
+    Ok(dirs
+        .into_iter()
+        .map(|dir| {
+            let holder = if is_plugins_dir(&dir) {
+                dir.ancestors().nth(2).unwrap_or(&dir)
+            } else {
+                &dir
+            };
+            let name = file_name(holder);
+            plain_root(dir, Manifest::Plugin { name })
+        })
+        .collect())
+}
+
+fn overlaps_any(root: &FoundRoot, others: &[FoundRoot]) -> bool {
+    others
+        .iter()
+        .any(|other| root.dir.starts_with(&other.dir) || other.dir.starts_with(&root.dir))
+}
+
+fn plain_root(dir: PathBuf, manifest: Manifest) -> FoundRoot {
+    FoundRoot {
+        dir,
+        manifest,
+        sub_mod_ids: Vec::new(),
+    }
+}
+
+fn is_named(dir: &Path, name: &str) -> bool {
+    file_name(dir).eq_ignore_ascii_case(name)
+}
+
+fn has_dll(dir: &Path) -> bool {
+    file_names(dir).is_ok_and(|names| {
+        names.iter().any(|name| {
+            Path::new(name)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("dll"))
+        })
+    })
+}
+
+/// Plain files directly in `dir`, sorted; symlinks are never followed (as scan.rs does).
+fn file_names(dir: &Path) -> Result<Vec<String>> {
+    let mut names = Vec::new();
+    for entry in fs::read_dir(dir).map_err(io_at(dir))? {
+        let entry = entry.map_err(io_at(dir))?;
+        if entry.file_type().map_err(io_at(&entry.path()))?.is_file() {
+            names.push(file_name(&entry.path()));
+        }
+    }
+    names.sort();
+    Ok(names)
+}
+
 /// Stops descending at the first match, so a match's descendants are never roots.
 fn collect_dirs(dir: &Path, is_root: &dyn Fn(&Path) -> bool, out: &mut Vec<PathBuf>) -> Result<()> {
-    if is_root(dir) {
-        out.push(dir.to_path_buf());
+    let mut found = Vec::new();
+    collect_found(dir, &|dir| is_root(dir).then_some(()), &mut found)?;
+    out.extend(found.into_iter().map(|(dir, ())| dir));
+    Ok(())
+}
+
+/// Like `collect_dirs`, keeping what each match found so it isn't read again.
+fn collect_found<T>(
+    dir: &Path,
+    found: &dyn Fn(&Path) -> Option<T>,
+    out: &mut Vec<(PathBuf, T)>,
+) -> Result<()> {
+    if let Some(value) = found(dir) {
+        out.push((dir.to_path_buf(), value));
         return Ok(());
     }
     for child in visible_children(dir)? {
-        collect_dirs(&child, is_root, out)?;
+        collect_found(&child, found, out)?;
     }
     Ok(())
 }

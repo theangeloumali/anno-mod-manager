@@ -1,15 +1,18 @@
 //! App state behind the Tauri commands. Every method returns UI-ready, camelCase types
 //! and an [`AppError`] the UI can show as is.
 
+mod bepinex;
 mod collections;
 mod downloads;
 mod error;
+mod hk_order;
+mod hk_saves;
 mod install;
 mod library;
 mod modio;
 mod state;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex, MutexGuard, RwLock};
@@ -22,7 +25,9 @@ use atelier_install::{EngineConfig, InstallEngine};
 use atelier_modio::{ModioClient, TokenStore};
 use url::Url;
 
+pub use bepinex::{BepInExStatus, LoadedPlugin, ReleaseSource};
 pub use error::{AppError, ErrorCode, Result};
+pub use hk_saves::{SaveInspection, SaveLoadReport};
 pub use modio::{AppAccount, AuthMethod};
 pub use state::{NewModsStart, Settings, UpdateChannel, UpdateCheck};
 
@@ -139,15 +144,31 @@ impl App {
     /// Retention changes prune right away; a fresh engine is enough because pruning is stateless.
     pub fn save_settings(&self, settings: Settings) -> Result<()> {
         self.update_persisted(|state| state.settings = settings)?;
-        self.prune_backups()
+        // The settings are saved; a failed prune loses nothing and runs again at the next one.
+        let _ = self.prune_backups();
+        Ok(())
     }
 
     /// Uses the current retention setting; the long-lived engine holds the one from startup.
+    /// Humankind keeps every backup while its saves can't all be read: one may need any version.
     pub(crate) fn prune_backups(&self) -> Result<()> {
         let retention = self.settings().backup_retention_days;
-        InstallEngine::new(engine_config(&self.0.data_dir, retention))
-            .prune_backups()
-            .map_err(AppError::from)
+        let engine = InstallEngine::new(engine_config(&self.0.data_dir, retention));
+        // Each game is pruned on its own, so one game's error doesn't keep the others' old copies.
+        let mut first_error = None;
+        for game in GameId::ALL {
+            let kept = match game {
+                GameId::Humankind => match self.versions_saves_need() {
+                    Some(kept) => kept,
+                    None => continue,
+                },
+                GameId::Anno117 | GameId::Anno1800 => HashSet::new(),
+            };
+            if let Err(error) = engine.prune_backups(game, &kept) {
+                first_error.get_or_insert(error);
+            }
+        }
+        first_error.map_or(Ok(()), |error| Err(error.into()))
     }
 
     fn persisted(&self) -> MutexGuard<'_, Persisted> {
