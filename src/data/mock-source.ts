@@ -1089,6 +1089,20 @@ function seedDownloads(now: number): StoredJob[] {
       900000,
       240000,
     ),
+    // A Humankind page the Workshop already provides is linked, not installed twice.
+    stored(
+      {
+        id: "job-deepsea",
+        modioId: 3899614,
+        name: "DeepSea Reloaded",
+        sizeBytes: megabytes(12.6),
+        status: "done",
+        error:
+          "Already installed in the Steam Workshop folder; Atelier left that copy in place and linked this page to it.",
+      },
+      700000,
+      15000,
+    ),
     stored(
       {
         id: "job-roads",
