@@ -91,11 +91,15 @@ pub struct InstalledModule {
 pub fn installed_modules(folders: &[ModsFolder], mods: &[Mod]) -> Vec<InstalledModule> {
     mods.iter()
         .filter_map(|item| {
-            let module = fs::read_dir(mod_dir(folders, item)?)
+            let files: Vec<String> = fs::read_dir(mod_dir(folders, item)?)
                 .ok()?
                 .filter_map(Result::ok)
                 .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
-                .filter_map(|entry| ModuleName::parse(&entry.file_name().to_string_lossy()))
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .collect();
+            let module = files
+                .iter()
+                .filter_map(|name| ModuleName::detect(name, &files))
                 .find(|module| {
                     module.short_name() == item.id && module.version() == item.version
                 })?;
@@ -111,11 +115,14 @@ pub fn installed_modules(folders: &[ModsFolder], mods: &[Mod]) -> Vec<InstalledM
 /// A renamed copy keeps its guid, so the short-name check alone misses it.
 pub fn duplicate_guids(modules: &[InstalledModule]) -> HealthCheck {
     let mut by_guid: BTreeMap<String, Vec<&InstalledModule>> = BTreeMap::new();
+    // A plain-named module has no guid, so the short-name check alone covers it.
     for installed in modules {
-        by_guid
-            .entry(installed.module.guid.to_lowercase())
-            .or_default()
-            .push(installed);
+        if let Some(guid) = &installed.module.guid {
+            by_guid
+                .entry(guid.to_lowercase())
+                .or_default()
+                .push(installed);
+        }
     }
     let duplicates: Vec<String> = by_guid
         .iter()

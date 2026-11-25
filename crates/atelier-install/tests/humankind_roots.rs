@@ -718,3 +718,49 @@ fn a_copy_that_appeared_since_the_preview_stops_the_install() {
     );
     assert!(!sandbox.mods().join("Atelier").exists());
 }
+
+/// The real MissileBoy archive from mod.io: an older module named without its guid or version.
+fn missileboy_files() -> Vec<(String, Vec<u8>)> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../atelier-core/tests/fixtures/humankind-legacy/MissileBoy");
+    let mut names: Vec<String> = fs::read_dir(&dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+        .into_iter()
+        .map(|name| {
+            (
+                format!("MissileBoy/{name}"),
+                fs::read(dir.join(&name)).unwrap(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn a_plain_named_module_from_modio_installs_and_scans() {
+    let sandbox = Sandbox::new();
+    let archive = drop_zip(&sandbox, "1844855_2311833.zip", &missileboy_files());
+    let options = PreviewOptions {
+        modio_folder: Some("1844855_2311833".into()),
+        ..PreviewOptions::default()
+    };
+
+    let preview = preview(&sandbox, HUMANKIND, &archive, &options);
+    let item = only_item(&preview);
+    assert_eq!(item.mod_id, "missileboy");
+    assert_eq!(item.status, InstallItemStatus::New, "{item:#?}");
+    assert!(has_check(
+        item,
+        Severity::Ok,
+        "Installs to Community\\Atelier\\1844855_2311833\\MissileBoy"
+    ));
+    confirm(&sandbox, HUMANKIND, &preview);
+
+    let installed = sandbox.installed(HUMANKIND);
+    assert_eq!(installed.len(), 1, "{installed:#?}");
+    assert_eq!(installed[0].id, "missileboy");
+    assert_eq!(installed[0].folder, "Atelier/1844855_2311833/MissileBoy");
+}

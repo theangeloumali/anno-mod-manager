@@ -3,13 +3,14 @@
 use std::fmt;
 
 const GUID_LENGTH: usize = 32;
+pub const BUNDLE_EXTENSION: &str = ".assetbundle";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModuleName {
     pub name: String,
-    pub guid: String,
-    pub major: i16,
-    pub minor: i16,
+    /// `None` for an older module shipped under its plain name.
+    pub guid: Option<String>,
+    version: Option<(i16, i16)>,
 }
 
 impl ModuleName {
@@ -25,10 +26,30 @@ impl ModuleName {
         }
         Some(Self {
             name: name.to_string(),
-            guid: guid.to_string(),
-            major: parse_version_part(major)?,
-            minor: parse_version_part(minor)?,
+            guid: Some(guid.to_string()),
+            version: Some((parse_version_part(major)?, parse_version_part(minor)?)),
         })
+    }
+
+    /// A module file among `siblings`: a long name, or any name whose lowercased bundle sits
+    /// beside it. The game finds modules by bundle and loads one whose name won't split
+    /// (`RuntimeManager.EnumerateRuntimeModules`).
+    pub fn detect(file: &str, siblings: &[String]) -> Option<Self> {
+        if let Some(module) = Self::parse(file) {
+            return Some(module);
+        }
+        let bundle = format!("{file}{BUNDLE_EXTENSION}").to_lowercase();
+        let has_bundle = siblings.iter().any(|name| name.to_lowercase() == bundle);
+        (has_bundle && !file.is_empty()).then(|| Self {
+            name: file.to_string(),
+            guid: None,
+            version: None,
+        })
+    }
+
+    /// The bundle's file name, which the game writes lowercased.
+    pub fn bundle_name(&self) -> String {
+        format!("{self}{BUNDLE_EXTENSION}").to_lowercase()
     }
 
     /// `Runtime.CheckRuntimeModuleName` lowercases every letter before the module is registered.
@@ -36,18 +57,22 @@ impl ModuleName {
         self.name.to_lowercase()
     }
 
+    /// Empty for a plain-named module, which carries no version.
     pub fn version(&self) -> String {
-        format!("{}.{}", self.major, self.minor)
+        self.version
+            .map(|(major, minor)| format!("{major}.{minor}"))
+            .unwrap_or_default()
     }
 }
 
 impl fmt::Display for ModuleName {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "{}.{}.{}.{}",
-            self.name, self.guid, self.major, self.minor
-        )
+        match (&self.guid, self.version) {
+            (Some(guid), Some((major, minor))) => {
+                write!(formatter, "{}.{guid}.{major}.{minor}", self.name)
+            }
+            _ => write!(formatter, "{}", self.name),
+        }
     }
 }
 

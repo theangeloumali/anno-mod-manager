@@ -1,0 +1,2 @@
+# Real game files: keep their exact bytes (Registry.xml is CRLF with a BOM).
+* -text

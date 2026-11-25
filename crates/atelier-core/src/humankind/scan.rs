@@ -1,4 +1,4 @@
-//! Humankind has no modinfo: each `<Name>.<guid>.<major>.<minor>` file is one module.
+//! Humankind has no modinfo: each module file with its `.assetbundle` beside it is one module.
 
 use std::fs;
 use std::path::Path;
@@ -10,7 +10,6 @@ use crate::scan::{ModsFolder, ScanResult, SkipReason, dir_size, file_name, skip}
 use crate::{GameId, GameSetup, Mod, ModDependencies, ModLocation, ModOrigin, Result};
 
 const MODIO_DIR: &str = "mod.io";
-const BUNDLE_EXTENSION: &str = ".assetbundle";
 
 pub(crate) fn scan_folder(folder: &ModsFolder, result: &mut ScanResult) -> Result<()> {
     visit(folder, &folder.path, result)
@@ -35,7 +34,7 @@ fn visit(folder: &ModsFolder, dir: &Path, result: &mut ScanResult) -> Result<()>
     }
     files.sort();
     for name in &files {
-        if let Some(module) = ModuleName::parse(name) {
+        if let Some(module) = ModuleName::detect(name, &files) {
             add_module(folder, dir, module, &files, result)?;
         }
     }
@@ -66,8 +65,8 @@ fn add_module(
     // The game can't load a module without its bundle, so it never counts as installed.
     let Some(bundle) = bundle_name(&module, siblings) else {
         let reason = format!(
-            "{module} has no {}.assetbundle next to it, so Humankind can't load it",
-            module.to_string().to_lowercase()
+            "{module} has no {} next to it, so Humankind can't load it",
+            module.bundle_name()
         );
         skip(
             result,
@@ -116,7 +115,7 @@ fn add_module(
         parent_id: None,
         sub_mod_ids: Vec::new(),
         update: None,
-        module_guid: Some(module.guid.to_lowercase()),
+        module_guid: module.guid.as_deref().map(str::to_lowercase),
     });
     Ok(())
 }
@@ -134,7 +133,7 @@ fn relative_parts(root: &Path, dir: &Path) -> Vec<String> {
 
 /// The game writes the bundle name lowercased, so match it without case.
 fn bundle_name<'a>(module: &ModuleName, siblings: &'a [String]) -> Option<&'a String> {
-    let wanted = format!("{module}{BUNDLE_EXTENSION}").to_lowercase();
+    let wanted = module.bundle_name();
     siblings.iter().find(|name| name.to_lowercase() == wanted)
 }
 

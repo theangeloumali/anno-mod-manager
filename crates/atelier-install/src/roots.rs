@@ -12,7 +12,6 @@ use crate::fsops::{child_dirs, file_name};
 
 const ANNO_117_MARKER: u8 = 8;
 const ANNO_1800_MARKER: u8 = 7;
-const BUNDLE_EXTENSION: &str = ".assetbundle";
 
 pub(crate) enum Manifest {
     Parsed(Box<ModInfo>),
@@ -83,10 +82,10 @@ pub(crate) fn modules_in(dir: &Path) -> Result<Vec<(ModuleName, bool)>> {
     let files = file_names(dir)?;
     Ok(files
         .iter()
-        .filter_map(|name| ModuleName::parse(name))
+        .filter_map(|name| ModuleName::detect(name, &files))
         .map(|module| {
             // The game writes the bundle name lowercased, so match it without case.
-            let bundle = format!("{module}{BUNDLE_EXTENSION}").to_lowercase();
+            let bundle = module.bundle_name();
             let has_bundle = files.iter().any(|name| name.to_lowercase() == bundle);
             (module, has_bundle)
         })

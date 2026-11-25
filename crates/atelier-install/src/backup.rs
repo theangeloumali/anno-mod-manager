@@ -12,6 +12,7 @@ use serde::Serialize;
 use crate::error::io_at;
 use crate::fsops::{child_dirs, file_name, move_dir};
 use crate::install::{identify, new_folder_name, target_folder};
+use crate::roots::modules_in;
 use crate::{Error, Result};
 
 const MILLIS_PER_DAY: u64 = 86_400_000;
@@ -99,8 +100,8 @@ fn module_guid(dir: &Path) -> Option<String> {
             match entry.file_type() {
                 Ok(kind) if kind.is_dir() && depth < 4 => pending.push((path, depth + 1)),
                 Ok(kind) if kind.is_file() => {
-                    if let Some(module) = ModuleName::parse(&file_name(&path)) {
-                        return Some(module.guid);
+                    if let Some(guid) = ModuleName::parse(&file_name(&path)).and_then(|m| m.guid) {
+                        return Some(guid);
                     }
                 }
                 _ => {}
@@ -213,20 +214,17 @@ fn is_inside(target: &Path, dir: &Path) -> bool {
             .any(|part| matches!(part, Component::ParentDir))
 }
 
-/// Humankind folders have no modinfo: their `<Name>.<guid>.<major>.<minor>` file names them.
+/// Humankind folders have no modinfo: their module file names them.
 /// Only Humankind looks for one, so an Anno file shaped like it never renames a backup.
 fn identity(game: GameId, dir: &Path) -> (String, String) {
     if game != GameId::Humankind {
         return identify(dir);
     }
-    let module = fs::read_dir(dir)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
-        .find_map(|entry| ModuleName::parse(&file_name(&entry.path())));
-    match module {
-        Some(module) => (module.short_name(), module.version()),
+    match modules_in(dir)
+        .ok()
+        .and_then(|modules| modules.into_iter().next())
+    {
+        Some((module, _)) => (module.short_name(), module.version()),
         None => identify(dir),
     }
 }
